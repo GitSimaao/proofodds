@@ -46,7 +46,9 @@ pip install -r requirements.txt
 python scripts/daily.py            # refresh results, seal, grade, rebuild
 python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
-python -m pytest tests -q          # 26 tests
+python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
+python scripts/weekly.py --send    # actually schedules the broadcast
+python -m pytest tests -q          # 31 tests
 python -m proofodds.verify         # recompute the whole chain
 ```
 
@@ -99,6 +101,41 @@ for grading and rebuilding after matches finish, not for publishing.
 
 ---
 
+## The weekly email
+
+The list exists to turn a one-day traffic spike into an audience. What it sends
+is the scorecard — matches graded, our log loss, the closing line's, and the gap
+— every Monday, whatever the gap says. A newsletter you could only send in a
+good week is a newsletter you would eventually fake, so this one has no good and
+bad weeks, only weeks.
+
+Delivery is [Kit](https://kit.com) (free to 10,000 subscribers, unlimited
+broadcasts, real API). Two environment variables turn it on:
+
+```bash
+PROOFODDS_SIGNUP_ACTION=https://app.kit.com/forms/<id>/subscriptions
+PROOFODDS_KIT_API_KEY=<v4 api key>
+```
+
+Without `SIGNUP_ACTION` the signup box does not render at all — better no form
+than one that swallows addresses into nothing. Without `KIT_API_KEY` the weekly
+timer stays disabled rather than failing every Monday.
+
+Three guards, because an email cannot be unsent: `weekly.py` is a **dry run by
+default**, a week already sent is never sent twice, and a week with no graded
+matches produces silence instead of an empty email. The broadcast is scheduled
+15 minutes out, so there is still time to kill it in Kit.
+
+```bash
+systemctl enable --now proofodds-weekly.timer   # Mondays 09:00 UTC
+```
+
+Turn on double opt-in in the Kit form settings. It is not strictly required by
+the GDPR but it protects the list from forged signups and it materially improves
+deliverability.
+
+---
+
 ## Cost
 
 Phase 0 runs on the VPS plus a domain. Nothing else is required:
@@ -124,9 +161,10 @@ proofodds/
   charts.py        inline SVG, themed through CSS custom properties
   render.py        Jinja2 -> static site
   verify.py        `python -m proofodds.verify`
-templates/         base, index, scorecard, ledger, method
+  newsletter.py    the weekly scorecard email and the Kit client
+templates/         base, index, scorecard, ledger, method, privacy, _signup
 static/style.css   one stylesheet, light and dark
-scripts/           daily.py, replay.py, bootstrap.sh, setup-git.sh
+scripts/           daily.py, weekly.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example
 predictions/       the ledger — committed, never rewritten
 tests/             the chain, the publication rules, data handling

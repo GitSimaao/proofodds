@@ -134,8 +134,20 @@ fi
 say "Timer"
 cp "$APP_DIR/deploy/proofodds.service" /etc/systemd/system/
 cp "$APP_DIR/deploy/proofodds.timer" /etc/systemd/system/
+cp "$APP_DIR/deploy/proofodds-weekly.service" /etc/systemd/system/
+cp "$APP_DIR/deploy/proofodds-weekly.timer" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now proofodds.timer
+
+# The weekly email is only armed once there is a Kit key. Enabling it with no
+# key would just log a refusal every Monday.
+if grep -q '^PROOFODDS_KIT_API_KEY=.\+' "$APP_DIR/.env" 2>/dev/null; then
+  systemctl enable --now proofodds-weekly.timer
+  echo "    weekly email timer enabled"
+else
+  warn "PROOFODDS_KIT_API_KEY not set — weekly email timer left disabled."
+  warn "Enable it later with: systemctl enable --now proofodds-weekly.timer"
+fi
 
 say "Done"
 cat <<DONE

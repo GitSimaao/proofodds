@@ -17,6 +17,7 @@ import shutil
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import charts, config, grade, ledger
+from .data import canonical
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,15 @@ def upcoming_view() -> list[dict]:
                              .replace(tzinfo=dt.timezone.utc)
         if kickoff <= now:
             continue
+        # Display the canonical club name, exactly as grading does. The ledger
+        # keeps whatever spelling the feed used the day it was sealed — that
+        # file is the record and it is served raw at /predictions/ — but the
+        # site is a VIEW of the record, and a view that calls the same club
+        # "Hull" on nine cards and "Hull City AFC" on the tenth is just noise.
+        row = {**row,
+               "home": canonical(row["home"]),
+               "away": canonical(row["away"]),
+               "cold_start": [canonical(n) for n in row.get("cold_start", [])]}
         rows.append({**row,
                      "kickoff_dt": kickoff,
                      "kickoff_label": kickoff.strftime("%a %d %b, %H:%M UTC"),
@@ -121,6 +131,9 @@ def build(out_dir=None) -> None:
         "backtest": config.BACKTEST,
         "score": score,
         "genesis": ledger.GENESIS,
+        "signup_action": config.SIGNUP_ACTION,
+        "contact_email": config.CONTACT_EMAIL,
+        "data_controller": config.DATA_CONTROLLER,
     }
 
     if out_dir.exists():
@@ -157,6 +170,17 @@ def build(out_dir=None) -> None:
         half_life=int(round(math.log(2) / config.XI)),
         **common))
 
+    write("privacy/index.html", env.get_template("privacy.html").render(
+        page="privacy", canonical="/privacy/", **common))
+
+    # Where Kit sends people after the form, and after the confirmation click.
+    # Landing them back here rather than on a Kit page keeps the whole flow on
+    # a site that has just promised to be straight with them.
+    write("subscribed/index.html", env.get_template("subscribed.html").render(
+        page="subscribed", canonical="/subscribed/", **common))
+    write("confirmed/index.html", env.get_template("confirmed.html").render(
+        page="confirmed", canonical="/confirmed/", **common))
+
     # static assets
     for item in config.STATIC_DIR.glob("*"):
         shutil.copy2(item, out_dir / item.name)
@@ -164,7 +188,7 @@ def build(out_dir=None) -> None:
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
     (out_dir / "sitemap.xml").write_text(
-        sitemap(["/", "/scorecard/", "/ledger/", "/method/"]), encoding="utf-8")
+        sitemap(["/", "/scorecard/", "/ledger/", "/method/", "/privacy/"]), encoding="utf-8")
 
     # the ledger itself, served raw so anyone can recompute the hashes
     raw = out_dir / "predictions"
@@ -175,4 +199,4 @@ def build(out_dir=None) -> None:
         json.dumps({"entries": ledger_view(), "chain": chain}, indent=2),
         encoding="utf-8")
 
-    log.info("built %d pages into %s", 4, out_dir)
+    log.info("built %d pages into %s", 7, out_dir)

@@ -286,3 +286,79 @@ def _seed(ledger_module, tmp_path, days: int):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+# --------------------------------------------------------------------------- #
+#  The newsletter
+# --------------------------------------------------------------------------- #
+def _fake_week():
+    import pandas as pd
+    rows = []
+    for i, (h, a, ftr, p, m) in enumerate([
+        ("Arsenal", "Chelsea", "H", 0.55, 0.50),
+        ("Leeds", "Everton", "A", 0.20, 0.30),
+    ]):
+        rows.append({
+            "date": pd.Timestamp("2026-08-29") + pd.Timedelta(days=i),
+            "home": h, "away": a, "FTR": ftr, "FTHG": 2, "FTAG": 1,
+            "p_H": p, "p_D": 0.25, "p_A": 1 - p - 0.25,
+            "mkt_H": m, "mkt_D": 0.25, "mkt_A": 1 - m - 0.25,
+            "graded": True,
+            "model_loss": -__import__("math").log(p),
+            "market_loss": -__import__("math").log(m),
+        })
+    return pd.DataFrame(rows)
+
+
+def test_a_week_with_no_graded_matches_sends_nothing():
+    """
+    Silence is the correct output for an empty week.
+
+    An email that says "0 matches this week" trains people to ignore the next
+    one, and the next one is the point.
+    """
+    from proofodds import newsletter
+    import pandas as pd
+    assert newsletter.summarise(pd.DataFrame(), dt.date(2026, 8, 24),
+                                dt.date(2026, 8, 30)) is None
+
+
+def test_weekly_summary_reports_the_gap_both_ways():
+    from proofodds import newsletter
+    s = newsletter.summarise(_fake_week(), dt.date(2026, 8, 24), dt.date(2026, 8, 30))
+    assert s is not None and s["n"] == 2
+    # gap is model minus market: positive means we are behind
+    assert abs(s["gap"] - (s["model"] - s["market"])) < 1e-12
+    assert s["gap"] > 0
+    text = newsletter.render_text(s)
+    assert "behind the closing line" in text
+    assert "Arsenal" in text and "Leeds" in text
+    assert newsletter.subject_line(s).startswith("Week of 2026-08-24")
+
+
+def test_weekly_send_is_not_repeated(tmp_path, monkeypatch):
+    """A week already sent must never go out twice."""
+    from proofodds import newsletter
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path)
+    assert not newsletter.already_sent("2026-08-24")
+    newsletter.mark_sent("2026-08-24", 12345)
+    assert newsletter.already_sent("2026-08-24")
+    newsletter.mark_sent("2026-08-24", 12345)          # idempotent
+    data = json.loads((tmp_path / newsletter.SENT_FILE).read_text())
+    assert data["weeks"] == ["2026-08-24"]
+
+
+def test_sending_without_a_key_raises_rather_than_pretending():
+    from proofodds import newsletter
+    import pytest as _pytest
+    if config.KIT_API_KEY:
+        _pytest.skip("a real key is configured")
+    with _pytest.raises(RuntimeError, match="KIT_API_KEY"):
+        newsletter.send_broadcast("s", "<p>x</p>", "p")
+
+
+def test_week_bounds_is_the_week_that_just_finished():
+    from proofodds import newsletter
+    start, end = newsletter.week_bounds(dt.date(2026, 8, 31))   # a Monday
+    assert start == dt.date(2026, 8, 24) and end == dt.date(2026, 8, 30)
+    assert start.weekday() == 0 and end.weekday() == 6

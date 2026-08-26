@@ -24,3 +24,6 @@ __pycache__/
 # Editor / OS
 .DS_Store
 *.swp
+
+# SSH deploy key - never commit.
+.ssh/

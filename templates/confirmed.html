@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}You're on the list — {{ site_name }}{% endblock %}
+{% block description %}Confirmed. The first scorecard arrives on Monday.{% endblock %}
+
+{% block content %}
+<div class="shell hero">
+  <p class="eyebrow">Confirmed</p>
+  <h1>You're on the list.</h1>
+  <p class="lead">The next scorecard goes out on Monday morning. It will say what the
+  week actually did — and given that the model runs about 0.017 nats behind the
+  closing line, most weeks it will not be flattering. That is the point.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="prose">
+      <h2>While you wait</h2>
+      <ul>
+        <li><a href="/scorecard/">The live record</a> — every match we published in
+        advance, scored against Pinnacle's close.</li>
+        <li><a href="/ledger/">The ledger</a> — the hash chain, and how to recompute
+        it yourself.</li>
+        <li><a href="/method/">The method</a> — how the model works and what it is
+        not allowed to do.</li>
+      </ul>
+      <p>Every email has a one-click unsubscribe, and leaving removes the address
+      rather than parking it somewhere. See <a href="/privacy/">privacy</a>.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

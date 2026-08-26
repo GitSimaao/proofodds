@@ -1,5 +1,5 @@
 [Unit]
-Description=ProofOdds — seal predictions, grade results, rebuild the site
+Description=ProofOdds — send the weekly scorecard email
 After=network-online.target
 Wants=network-online.target
 
@@ -9,10 +9,9 @@ User=proofodds
 Group=proofodds
 WorkingDirectory=/opt/proofodds
 EnvironmentFile=-/opt/proofodds/.env
-ExecStart=/opt/proofodds/.venv/bin/python scripts/daily.py
-TimeoutStartSec=900
+ExecStart=/opt/proofodds/.venv/bin/python scripts/weekly.py --send
+TimeoutStartSec=300
 
-# The job only ever writes inside its own directory.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

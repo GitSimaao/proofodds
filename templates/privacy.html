@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Privacy — {{ site_name }}{% endblock %}
+{% block description %}What this site collects, what it does not, and how to get it deleted.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Privacy</p>
+  <h1>What we hold, and what we don't</h1>
+  <p class="lead">Short version: if you have not given us your email address, we hold
+  nothing about you. If you have, we hold that address and nothing else, and you can
+  have it deleted by replying to any email.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="prose">
+
+      <h2>If you just read the site</h2>
+      <p>Nothing is collected. There are no analytics, no advertising pixels, no
+      cookies and no third-party trackers on these pages. The only external request
+      a page makes is to Google Fonts, which serves the two typefaces; that request
+      reaches Google with your IP address, as any request for any file does.</p>
+      <p>Our web server keeps standard access logs — IP address, time, the page
+      requested — for a short period, to keep the site working and to spot abuse.
+      Those logs are not linked to anything else and are not used to build a profile.</p>
+
+      <h2>If you subscribe to the weekly scorecard</h2>
+      <p>What <em>we</em> ask you for is one thing: <strong>your email address</strong>.
+      Not your name, not your country, not what you bet on. It is used for one
+      purpose — sending the weekly summary of how the model scored against the
+      closing line — and for nothing else.</p>
+
+      <p>But the honest answer is longer than that, because we do not send the
+      emails ourselves. <strong>Kit, our email provider, records whether you opened
+      an email and whether you clicked a link in it</strong>, using a tracking pixel
+      and rewritten links. Every mainstream email platform does this and our plan
+      gives us no way to switch it off. We do not use that data to profile anyone,
+      we do not export it, and it plays no part in what gets sent — the weekly
+      email is identical for everybody. But it exists, Kit holds it, and a privacy
+      page that told you otherwise would be the exact kind of comfortable
+      half-truth this site was built to argue against.</p>
+
+      <p>One practical consequence: links in the email point at a Kit domain that
+      redirects to ours. That is the click tracking. If you would rather not be
+      counted, the same pages are always reachable directly at
+      <a href="{{ site_url }}/scorecard/">{{ site_url }}/scorecard/</a>.</p>
+      <ul>
+        <li><strong>Legal basis:</strong> your consent, given by submitting the form.
+        Consent you can withdraw at any moment.</li>
+        <li><strong>Confirmation:</strong> you receive an email asking you to confirm.
+        Until you click it, you are not on the list.</li>
+        <li><strong>Unsubscribing:</strong> a one-click link in every email. No
+        questions, no "are you sure", and the address is removed rather than
+        marked inactive.</li>
+        <li><strong>Processor:</strong> the list is held by Kit (kit.com), a US email
+        provider, under their data processing terms. Data leaving the EU is covered by
+        their standard contractual clauses.</li>
+        <li><strong>Retention:</strong> until you unsubscribe. There is no archive of
+        people who left.</li>
+        <li><strong>Sharing:</strong> never. The list is not sold, rented, swapped or
+        given to affiliates, bookmakers or anyone else. There is no business here
+        that would be improved by doing so.</li>
+      </ul>
+
+      <h2>What this site will never do with your address</h2>
+      <ul>
+        <li>Send betting tips, picks or promotions.</li>
+        <li>Pass it to a bookmaker or an affiliate network.</li>
+        <li>Use it to work out who you are or what you wager.</li>
+        <li>Segment the list so that different people are told different numbers.
+        There is one scorecard and everybody gets it.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>Under the GDPR you can ask for a copy of what we hold about you, ask for it
+      to be corrected, or ask for it to be erased. Since what we hold is a single
+      email address, all three are quick. Write to
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>, or simply reply to
+      any email you have had from us. You also have the right to complain to your
+      national supervisory authority; in Portugal that is the
+      <a href="https://www.cnpd.pt/" rel="noopener">CNPD</a>.</p>
+
+      <h2>Who is responsible</h2>
+      <p>The data controller is {{ data_controller }}, contactable at
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+
+      <p style="color:var(--ink-3);font-size:15px">Last updated {{ built_at }}.
+      If this page ever changes in a way that affects what we do with your address,
+      the change is announced in the weekly email before it takes effect.</p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

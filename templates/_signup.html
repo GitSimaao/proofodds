@@ -1,0 +1,27 @@
+{% if signup_action %}
+<section class="band signup-band">
+  <div class="shell">
+    <div class="signup">
+      <div class="signup-copy">
+        <h2>The scorecard, once a week</h2>
+        <p>Every Monday: how many matches we graded, our log loss, the closing
+        line's, and the gap between them. Nothing else — no picks, no promotions.
+        You are subscribing to a report card, and it arrives whether or not it
+        flatters us.</p>
+      </div>
+      <form class="signup-form" action="{{ signup_action }}" method="post">
+        <label class="sr-only" for="signup-email">Email address</label>
+        <div class="signup-row">
+          <input id="signup-email" type="email" name="email_address"
+                 placeholder="you@example.com" required autocomplete="email"
+                 spellcheck="false">
+          <button type="submit">Send me the score</button>
+        </div>
+        <p class="signup-fine">One email a week. Unsubscribe from any of them in
+        one click. We never share the address — see
+        <a href="/privacy/">privacy</a>.</p>
+      </form>
+    </div>
+  </div>
+</section>
+{% endif %}

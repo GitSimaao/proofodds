@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Check your email — {{ site_name }}{% endblock %}
+{% block description %}One more click and you are on the list.{% endblock %}
+
+{% block content %}
+<div class="shell hero">
+  <p class="eyebrow">Almost there</p>
+  <h1>Check your email.</h1>
+  <p class="lead">We have sent you a message with a confirmation link. Click it and
+  you are on the list — until then you are not, which is deliberate: nobody gets
+  added to this list without asking twice.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="prose">
+      <h2>What arrives, and when</h2>
+      <p>One email every Monday. It contains the week's scorecard: how many matches
+      we graded, our log loss, the closing line's, and the gap between them — plus
+      each match with the probability we gave to what actually happened, next to the
+      market's.</p>
+      <p>That is the whole newsletter. No picks, no promotions, no bookmaker offers.
+      If a week has no graded matches, nothing is sent rather than something being
+      padded out.</p>
+      <p>Nothing in the confirmation email? Look in spam, and if it is there, marking
+      it as not-spam does us both a favour. Still nothing after ten minutes, write to
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+      <p><a href="/scorecard/">See the current record</a> while you wait.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 PREDICTIONS_DIR = ROOT / "predictions"
 SITE_DIR = ROOT / "site"
+OUTPUT_DIR = ROOT / "outputs"
 TEMPLATE_DIR = ROOT / "templates"
 STATIC_DIR = ROOT / "static"
 
@@ -23,8 +24,25 @@ STATIC_DIR = ROOT / "static"
 SITE_NAME = "ProofOdds"
 SITE_URL = os.environ.get("PROOFODDS_URL", "https://proofodds.com")
 SITE_TAGLINE = "Every prediction published before kickoff. Every score kept."
-REPO_URL = os.environ.get("PROOFODDS_REPO", "https://github.com/yourname/proofodds")
+REPO_URL = os.environ.get("PROOFODDS_REPO", "https://github.com/GitSimaao/proofodds")
 CONTACT_EMAIL = os.environ.get("PROOFODDS_EMAIL", "hello@proofodds.com")
+
+# --- newsletter -------------------------------------------------------------
+# The signup box only renders when there is somewhere for it to post. Leave
+# this unset and the site simply has no form — better than a box that swallows
+# addresses into nothing.
+#
+# Get it from Kit: Grow -> Landing Pages & Forms -> your form -> Embed -> HTML.
+# The action looks like https://app.kit.com/forms/1234567/subscriptions
+SIGNUP_ACTION = os.environ.get("PROOFODDS_SIGNUP_ACTION", "")
+KIT_API_KEY = os.environ.get("PROOFODDS_KIT_API_KEY", "")
+
+# Minutes between creating the broadcast and Kit sending it. A small delay is
+# a free undo: if the Monday summary looks wrong, you can still kill it in Kit.
+NEWSLETTER_DELAY_MIN = int(os.environ.get("PROOFODDS_NEWSLETTER_DELAY_MIN", "15"))
+
+# Who is responsible for the personal data, for the privacy page.
+DATA_CONTROLLER = os.environ.get("PROOFODDS_CONTROLLER", "the operator of ProofOdds")
 
 # --- leagues ---------------------------------------------------------------
 # football-data.co.uk division codes. Phase 0 is one league on purpose:
@@ -89,5 +107,5 @@ BACKTEST = {
     "test_n": 1730,
     "test_model": 0.9693,
     "test_market": 0.9468,
-    "repo": "https://github.com/yourname/pl-dixon-coles",
+    "repo": "https://github.com/GitSimaao/pl-dixon-coles",
 }
