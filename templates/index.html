@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}{{ site_name }} — Premier League probabilities, published before kickoff{% endblock %}
+{% block description %}Model probabilities for every Premier League match, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
+{% block og_title %}{{ site_name }} — published before kickoff, scored afterwards{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Premier League · Dixon-Coles · {{ n_upcoming }} matches priced</p>
+  <h1>Published before kickoff. Scored afterwards.</h1>
+  <p class="lead">Every probability on this site was written down and hashed before the whistle,
+  then graded against Pinnacle's closing line — the sharpest public number in football.
+  The running score is on the front page whether it flatters us or not.</p>
+
+  <div class="strip">
+    {% if score.live %}
+    <div>
+      <div class="k">Our log loss</div>
+      <div class="v">{{ '%.4f'|format(score.model_log_loss) }}</div>
+      <div class="n">over {{ score.n }} graded matches</div>
+    </div>
+    <div>
+      <div class="k">Closing line</div>
+      <div class="v muted">{{ '%.4f'|format(score.market_log_loss) }}</div>
+      <div class="n">the number to beat</div>
+    </div>
+    <div>
+      <div class="k">Gap</div>
+      <div class="v {{ 'ahead' if score.beats_market else 'behind' }}">{{ '%+.4f'|format(score.gap) }}</div>
+      <div class="n">{{ 'ahead of' if score.beats_market else 'behind' }} the market, per match</div>
+    </div>
+    <div>
+      <div class="k">No knowledge</div>
+      <div class="v muted">{{ '%.4f'|format(score.uniform_log_loss) }}</div>
+      <div class="n">predicting 1/3 every week</div>
+    </div>
+    {% else %}
+    <div>
+      <div class="k">Live record</div>
+      <div class="v muted">—</div>
+      <div class="n">{{ score.pending|default(0) }} predictions published, none graded yet</div>
+    </div>
+    <div>
+      <div class="k">Closing line</div>
+      <div class="v muted">{{ '%.4f'|format(backtest.market_log_loss) }}</div>
+      <div class="n">the number to beat</div>
+    </div>
+    <div>
+      <div class="k">Backtest</div>
+      <div class="v muted">{{ '%.4f'|format(backtest.model_log_loss) }}</div>
+      <div class="n">walk-forward, {{ backtest.period }} — <a href="/method/">not the live record</a></div>
+    </div>
+    <div>
+      <div class="k">No knowledge</div>
+      <div class="v muted">{{ '%.4f'|format(uniform_log_loss) }}</div>
+      <div class="n">predicting 1/3 every week</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <h2>Next {{ lookahead_days }} days</h2>
+    <p class="section-note">Probabilities from a Dixon-Coles goals model fitted only on matches
+    played before publication. Fair odds are the probability inverted, with no margin added —
+    they are what a bookmaker would price if it took no cut.</p>
+
+    {% if not fixture_days %}
+      <div class="empty">
+        <h3>No fixtures priced right now</h3>
+        <p>Either the league is between matchdays, or the fixture feed has not been
+        configured yet. Predictions publish automatically once fixtures appear.</p>
+      </div>
+    {% endif %}
+
+    {% for day in fixture_days %}
+      <div class="day-head">
+        <h3>{{ day.label }}</h3>
+        <span class="count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span>
+      </div>
+      <div class="cards">
+        {% for m in day.matches %}
+        <article class="card">
+          <div class="card-when"><span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span></div>
+          <div class="teams">
+            <div class="team home">{{ m.home }}</div>
+            <div class="vs">v</div>
+            <div class="team away">{{ m.away }}</div>
+          </div>
+          {{ m.bar|safe }}
+          <div class="probs">
+            <div class="prob h">
+              <span class="lbl">Home</span>
+              <span class="pv">{{ (m.p_H * 100)|round|int }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_H) }}</span>
+            </div>
+            <div class="prob d">
+              <span class="lbl">Draw</span>
+              <span class="pv">{{ (m.p_D * 100)|round|int }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_D) }}</span>
+            </div>
+            <div class="prob a">
+              <span class="lbl">Away</span>
+              <span class="pv">{{ (m.p_A * 100)|round|int }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_A) }}</span>
+            </div>
+          </div>
+          {% if m.cold_start %}
+          <p class="cold">{{ m.cold_start|join(' and ') }}
+          {{ 'have' if m.cold_start|length > 1 else 'has' }} almost no record in this
+          league yet — priced at league average, so treat this one as our weakest.</p>
+          {% endif %}
+          <div class="card-foot">
+            <span>xG {{ '%.2f'|format(m.xg_home) }} – {{ '%.2f'|format(m.xg_away) }}</span>
+            <span>sealed {{ m.published_at[:10] }}</span>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>Why you can check this</h2>
+    <p class="section-note">Three properties, each enforced by code rather than by promise.</p>
+    <div class="pair">
+      <div class="box yes">
+        <h4>Sealed before kickoff</h4>
+        <p>Each day's predictions are written to a JSON file
+        and hashed. A file is never rewritten, and no prediction is issued for a match that has
+        already started.</p>
+      </div>
+      <div class="box yes">
+        <h4>Chained</h4>
+        <p>Every file carries the hash of the one before it.
+        Alter any past prediction and every entry after it fails verification, publicly, on the
+        <a href="/ledger/">ledger</a>.</p>
+      </div>
+      <div class="box yes">
+        <h4>Graded against the close</h4>
+        <p>Not against our own opinion of a good result.
+        Against Pinnacle's closing price, the number that has absorbed all the informed money.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

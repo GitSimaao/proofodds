@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ tagline }}{% endblock %}">
+<link rel="canonical" href="{{ site_url }}{{ canonical|default('/') }}">
+<meta property="og:site_name" content="{{ site_name }}">
+<meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ tagline }}{% endblock %}">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="shell head-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5 9 18.5 20 6"/></svg>
+      </span>
+      <span class="brand-word">Proof<span class="brand-word-2">Odds</span></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="/"{% if page == 'index' %} aria-current="page"{% endif %}>Matches</a>
+      <a href="/scorecard/"{% if page == 'scorecard' %} aria-current="page"{% endif %}>Scorecard</a>
+      <a href="/ledger/"{% if page == 'ledger' %} aria-current="page"{% endif %}>Ledger</a>
+      <a href="/method/"{% if page == 'method' %} aria-current="page"{% endif %}>Method</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+
+<footer class="site-foot">
+  <div class="shell foot-inner">
+    <div class="foot-brand">
+      <div class="brand-word">Proof<span class="brand-word-2">Odds</span></div>
+      <p>{{ tagline }}</p>
+    </div>
+    <div class="foot-links">
+      <h4>The record</h4>
+      <a href="/scorecard/">Scorecard</a>
+      <a href="/ledger/">Prediction ledger</a>
+      <a href="/predictions/">Raw JSON</a>
+    </div>
+    <div class="foot-links">
+      <h4>How it works</h4>
+      <a href="/method/">Method</a>
+      <a href="{{ repo_url }}" rel="noopener">Source code</a>
+      <a href="https://www.football-data.co.uk/englandm.php" rel="noopener">Data source</a>
+    </div>
+  </div>
+  <div class="shell foot-legal">
+    <p>Statistical forecasts published for informational purposes. Not betting
+    advice. 18+. If gambling stops being fun, it is worth talking to someone —
+    <a href="https://www.begambleaware.org/" rel="noopener">BeGambleAware</a>.</p>
+    <p>Built {{ built_at }} · Odds and results from football-data.co.uk</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Kickoff times are stored in UTC; render them in the reader's timezone.
+  document.querySelectorAll("[data-utc]").forEach(function (el) {
+    var d = new Date(el.getAttribute("data-utc"));
+    if (isNaN(d)) return;
+    var opts = { weekday: "short", day: "numeric", month: "short",
+                 hour: "2-digit", minute: "2-digit" };
+    el.textContent = d.toLocaleString(undefined, opts);
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Method — {{ site_name }}{% endblock %}
+{% block description %}How the model works, how it is measured, and what it is not allowed to do. Including the backtest, labelled as a backtest.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Method</p>
+  <h1>How this is built and how it is measured</h1>
+  <p class="lead">Short version: a Dixon-Coles goals model, refitted every day on matches played
+  before that day, published before kickoff, and scored with log loss against Pinnacle's
+  closing line. The code is public.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="prose">
+
+      <h2>The model</h2>
+      <p>Every team carries an attack rating and a defence rating, and there is one league-wide
+      home advantage. Expected goals for a fixture are</p>
+      <p><code>λ_home = α_home × β_away × γ × league_mean</code><br>
+         <code>λ_away = α_away × β_home × league_mean</code></p>
+      <p>Goals are then modelled as Poisson counts. Two Poissons multiply into a grid of
+      scorelines; below the diagonal is a home win, the diagonal is a draw, above it an away win.
+      Nothing in the model knows anything about football — the ratings are chosen by maximum
+      penalised likelihood, which is to say the numbers are pushed around until the observed
+      results stop being surprising.</p>
+
+      <p>Dixon and Coles (1997) add two things to that, and both matter:</p>
+      <ul>
+        <li><strong>A low-score correction.</strong> Independent Poissons say the two teams' goals
+        are unrelated. They are not: 0-0 and 1-1 happen more often than the maths predicts and
+        1-0 and 0-1 less often, because a level game is played differently from a decided one.
+        Four cells of the grid get a multiplier.</li>
+        <li><strong>Exponential time decay.</strong> A match from 2016 says nothing about this
+        season. Each match enters with weight <code>exp(−ξ · days_ago)</code>. We use
+        ξ = {{ xi }} per day, a half-life of {{ half_life }} days.</li>
+      </ul>
+
+      <h2>The rule that makes the numbers mean anything</h2>
+      <p>To price a match on date D, the model may only see matches played strictly before D.
+      No exceptions. Fit on everything and then "predict" the past and the results come out
+      spectacular and worthless — that is lookahead bias, and it invalidates most amateur
+      backtests you will ever be shown.</p>
+      <p>Here it is enforced structurally rather than by care: matches are sorted by date once and
+      the training slice is taken by binary search, so a future match physically cannot enter a
+      fit. The same discipline applies to the two hyperparameters — the decay rate and the prior
+      width were chosen on 2017/18–2020/21 and then frozen, because picking them on the data you
+      report is a slower form of the same bias.</p>
+
+      <h2>How the score is computed</h2>
+      <p>Log loss: take the probability we gave to the outcome that actually happened, apply
+      <code>−log(p)</code>, average over matches. Say 90% and be right, you pay 0.105. Say 10%
+      and be right, you pay 2.303. Lower is better, and unlike ROI it cannot be flattered by
+      picking which bets to count.</p>
+      <p>Closing odds are turned into probabilities by inverting the three prices and dividing
+      each by their total, which removes the bookmaker's margin proportionally. Two reference
+      points frame every number on this site: predicting 1/3 each time scores
+      <strong>{{ '%.4f'|format(uniform_log_loss) }}</strong>, and the closing line scores about
+      <strong>{{ '%.4f'|format(backtest.market_log_loss) }}</strong>. The whole of football
+      knowledge is the gap between those two.</p>
+
+      <h2>The backtest — and why it is on this page, not the scorecard</h2>
+      <p>Before a single live prediction existed, this exact model was run walk-forward over nine
+      seasons. That result is a useful prior and it is not a track record, so it lives here and
+      never appears next to the live numbers.</p>
+    </div>
+
+    <div class="strip" style="margin-top:26px">
+      <div>
+        <div class="k">Backtest, model</div>
+        <div class="v">{{ '%.4f'|format(backtest.model_log_loss) }}</div>
+        <div class="n">{{ backtest.n }} matches, {{ backtest.period }}</div>
+      </div>
+      <div>
+        <div class="k">Backtest, closing line</div>
+        <div class="v muted">{{ '%.4f'|format(backtest.market_log_loss) }}</div>
+        <div class="n">same matches</div>
+      </div>
+      <div>
+        <div class="k">Gap</div>
+        <div class="v behind">{{ '%+.4f'|format(backtest.gap) }}</div>
+        <div class="n">the model loses, per match</div>
+      </div>
+      <div>
+        <div class="k">Held-out slice</div>
+        <div class="v behind">{{ '%+.4f'|format(backtest.test_model - backtest.test_market) }}</div>
+        <div class="n">{{ backtest.test_n }} matches that informed no decision</div>
+      </div>
+    </div>
+
+    <div class="prose" style="margin-top:34px">
+      <div class="callout">
+        <strong>We do not beat the closing line, and we say so on the front page</strong>
+        A goals-only model loses to a market that also knows about injuries, lineups, rest days
+        and dead rubbers. Publishing that is the point. Anyone selling you certainty is either
+        not measuring, or is measuring and not showing you.
+      </div>
+
+      <h2>What this site will not do</h2>
+      <ul>
+        <li>Sell picks, "sure things" or accumulator tips.</li>
+        <li>Put an "AI" badge on a number without the score beside it.</li>
+        <li>Quote a return on investment as evidence of skill.</li>
+        <li>Start the record over after a bad run.</li>
+      </ul>
+
+      <h2>Limitations, plainly</h2>
+      <ul>
+        <li><strong>Goals only.</strong> No shot data, no expected goals, no lineups. The model
+        has never heard of a suspension.</li>
+        <li><strong>Promoted teams start at league average</strong> and shrink towards their real
+        level as matches arrive. Their first few weeks are the model's worst.</li>
+        <li><strong>De-vigging is proportional</strong>, the simplest method. It slightly
+        overstates longshot probabilities, which if anything flatters us.</li>
+        <li><strong>Closing odds are not available for every match.</strong> Matches without them
+        stay out of the score rather than being quietly counted.</li>
+      </ul>
+
+      <p>Source, data and the full backtest: <a href="{{ repo_url }}" rel="noopener">{{ repo_url }}</a>.
+      Results and closing prices come from
+      <a href="https://www.football-data.co.uk/englandm.php" rel="noopener">football-data.co.uk</a>.</p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

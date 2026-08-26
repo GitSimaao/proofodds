@@ -1,0 +1,48 @@
+# ProofOdds — Caddy config for a Hetzner VPS.
+#
+# Install:   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# TLS is automatic: Caddy provisions and renews a Let's Encrypt certificate as
+# soon as the A/AAAA records point here. Nothing to configure.
+
+proofodds.com, www.proofodds.com {
+	root * /opt/proofodds/site
+
+	# www -> apex, one canonical host so the SEO effort is not split in two
+	@www host www.proofodds.com
+	redir @www https://proofodds.com{uri} permanent
+
+	encode zstd gzip
+
+	# The ledger is the product's evidence. Serve it raw, allow anyone to fetch
+	# it from anywhere, and never cache it long enough to look stale.
+	@ledger path /predictions/*
+	header @ledger {
+		Access-Control-Allow-Origin "*"
+		Content-Type "application/json; charset=utf-8"
+		Cache-Control "public, max-age=300"
+	}
+
+	@assets path *.css *.svg *.xml *.txt
+	header @assets Cache-Control "public, max-age=3600"
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Google Fonts is the only third party the pages touch.
+		Content-Security-Policy "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'"
+		-Server
+	}
+
+	file_server
+	handle_errors {
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+
+	log {
+		output file /var/log/caddy/proofodds.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Prediction ledger — {{ site_name }}{% endblock %}
+{% block description %}Every set of predictions ever published, hashed and chained. Verify it yourself.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">{{ chain.n_entries }} entries · SHA-256 chain</p>
+  <h1>The ledger</h1>
+  <p class="lead">One entry per publication day. Each carries the hash of the entry before it,
+  so the whole history is a chain: change any past prediction and everything after it breaks,
+  visibly, right here.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+
+    <div class="verify {{ 'ok' if chain.ok else 'bad' }}">
+      <span class="vmark" aria-hidden="true">
+        {% if chain.ok %}
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l5 5L20 6"/></svg>
+        {% else %}
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        {% endif %}
+      </span>
+      <span class="vbody">
+        {% if chain.ok %}
+          <strong>Chain intact across all {{ chain.n_entries }} entries</strong>
+          Head: <code>{{ chain.head }}</code>
+        {% else %}
+          <strong>Chain broken — {{ chain.broken|length }} problem(s)</strong>
+          {% for b in chain.broken %}{{ b.file }}: {{ b.reason }}{% if not loop.last %} · {% endif %}{% endfor %}
+        {% endif %}
+      </span>
+    </div>
+
+    <h3>Verify it yourself</h3>
+    <p class="section-note">The raw files are served unmodified and the repository is public.
+    Nothing here asks you to take our word for anything.</p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Published</th>
+            <th class="num">Matches</th>
+            <th>Entry hash</th>
+            <th>Links to</th>
+            <th class="num">Raw</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            <td>{{ e.published_at[:16]|replace('T', ' ') }}</td>
+            <td class="num">{{ e.n }}</td>
+            <td><span class="hash">{{ e.hash[:20] }}…</span></td>
+            <td><span class="hash">{{ '—' if e.prev_hash == genesis else e.prev_hash[:12] ~ '…' }}</span></td>
+            <td class="num"><a href="/predictions/{{ e.file }}">{{ e.file }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not entries %}
+      <div class="empty" style="margin-top:20px">
+        <h3>The ledger is empty</h3>
+        <p>The first entry is written the first time the daily job runs with fixtures ahead of it.</p>
+      </div>
+    {% endif %}
+
+    <h3>Recomputing the chain</h3>
+    <p class="section-note">Clone the repository and run one command. It reads every file in
+    <code>predictions/</code>, recomputes each SHA-256 over the entry with its own
+    <code>hash</code> field removed, and checks that each entry's <code>prev_hash</code> matches
+    the one before.</p>
+    <div class="scroll" style="padding:16px 18px;min-width:0">
+      <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">git clone {{ repo_url }}
+cd proofodds
+python -m proofodds.verify</pre>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

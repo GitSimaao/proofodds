@@ -1,0 +1,23 @@
+[Unit]
+Description=ProofOdds — seal predictions, grade results, rebuild the site
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=proofodds
+Group=proofodds
+WorkingDirectory=/opt/proofodds
+EnvironmentFile=-/opt/proofodds/.env
+ExecStart=/opt/proofodds/.venv/bin/python scripts/daily.py
+TimeoutStartSec=900
+
+# The job only ever writes inside its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds
+
+[Install]
+WantedBy=multi-user.target

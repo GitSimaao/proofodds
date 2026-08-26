@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Scorecard — {{ site_name }}{% endblock %}
+{% block description %}The live record: our log loss against Pinnacle's closing line, over every match we published in advance.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">The live record · updated after every matchday</p>
+  <h1>How we are actually doing</h1>
+  <p class="lead">One question, asked the same way every week: over the matches we published
+  before kickoff, is our log loss below the closing line or above it? Lower is better.
+  This page shows the answer whatever it is.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+
+  {% if not score.live %}
+    <div class="empty">
+      <h3>Nothing graded yet</h3>
+      <p>{{ score.pending|default(0) }} prediction{{ 's' if score.pending != 1 }} published and waiting on results.
+      A scorecard needs a few hundred matches before it means much — this one will fill up
+      slowly and in public. In the meantime the <a href="/method/">method page</a> carries the
+      walk-forward backtest, clearly labelled as a backtest.</p>
+    </div>
+  {% else %}
+
+    <div class="strip">
+      <div>
+        <div class="k">ProofOdds</div>
+        <div class="v">{{ '%.4f'|format(score.model_log_loss) }}</div>
+        <div class="n">log loss, {{ score.n }} matches</div>
+      </div>
+      <div>
+        <div class="k">Closing line</div>
+        <div class="v muted">{{ '%.4f'|format(score.market_log_loss) }}</div>
+        <div class="n">same matches, same scoring</div>
+      </div>
+      <div>
+        <div class="k">Gap per match</div>
+        <div class="v {{ 'ahead' if score.beats_market else 'behind' }}">{{ '%+.4f'|format(score.gap) }}</div>
+        <div class="n">{{ '%+.1f'|format(score.gap_total) }} nats in total</div>
+      </div>
+      <div>
+        <div class="k">Top pick correct</div>
+        <div class="v">{{ (score.accuracy * 100)|round(1) }}%</div>
+        <div class="n">market {{ (score.market_accuracy * 100)|round(1) }}%</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>How to read the gap</strong>
+      Predicting 1/3-1/3-1/3 every week scores {{ '%.4f'|format(score.uniform_log_loss) }}.
+      The closing line scores {{ '%.4f'|format(score.market_log_loss) }}. So everything anyone knows
+      about football is worth {{ '%.4f'|format(score.uniform_log_loss - score.market_log_loss) }} nats,
+      {% if score.share_of_available %}and this model captures {{ (score.share_of_available * 100)|round|int }}% of it.{% else %}and that is the whole battlefield.{% endif %}
+      A gap of a few thousandths is a real difference in this business, not a rounding error.
+    </div>
+
+    <h3>Where the ground is lost</h3>
+    <div class="chart-wrap">
+      {{ curve_chart|safe }}
+    </div>
+
+    {% if calibration_chart %}
+    <h3>Is a stated 30% really 30%?</h3>
+    <div class="chart-split">
+      {{ calibration_chart|safe }}
+      <div class="aside">
+        <p>Calibration and sharpness are different things, and only one of them is
+        our problem. If the dots sit on the diagonal, a stated probability means
+        what it says — the model is not overconfident, it is simply not seeing
+        as much as the market sees.</p>
+        <p>A model can be perfectly calibrated and still lose on log loss, by
+        hedging towards the base rates when the market is right to commit. That
+        is what the gap above is mostly made of.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if weeks %}
+    <h3>Week by week</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Week of</th>
+            <th class="num">Matches</th>
+            <th class="num">ProofOdds</th>
+            <th class="num">Closing line</th>
+            <th class="num">Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in weeks_shown %}
+          <tr>
+            <td>{{ w.week }}</td>
+            <td class="num">{{ w.n }}</td>
+            <td class="num">{{ '%.4f'|format(w.model) }}</td>
+            <td class="num">{{ '%.4f'|format(w.market) }}</td>
+            <td class="num {{ 'ahead' if w.gap < 0 else 'behind' }}">{{ '%+.4f'|format(w.gap) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if weeks|length > weeks_shown|length %}
+    <p class="table-note">Showing the most recent {{ weeks_shown|length }} of {{ weeks|length }} weeks.
+    Every week is in <a href="/predictions/">the raw ledger</a> — nothing is trimmed from the
+    headline numbers above.</p>
+    {% endif %}
+    {% endif %}
+
+  {% endif %}
+
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>What this page will never do</h2>
+    <div class="pair">
+      <div class="box no">
+        <h4>No ROI headline</h4>
+        <p>Return on investment over a few hundred bets is
+        mostly noise, and it is the number every tipster picks because it is the easiest to flatter.
+        Log loss cannot be cherry-picked.</p>
+      </div>
+      <div class="box no">
+        <h4>No hidden window</h4>
+        <p>Every graded match since the first publication is
+        in the numbers above. There is no "since we improved the model" start date.</p>
+      </div>
+      <div class="box no">
+        <h4>No quiet edits</h4>
+        <p>The <a href="/ledger/">ledger</a> is a hash chain
+        in a public repository. If a past prediction changed, this site would say so itself.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "league": "E0",
+  "published_at": "2026-08-26T12:28:40Z",
+  "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "model": {
+    "name": "dixon-coles",
+    "xi": 0.002,
+    "prior_sd": 0.6,
+    "trained_through": "2026-08-24",
+    "n_train": 4190,
+    "home_advantage": 1.2066,
+    "rho": -0.0738,
+    "league_mean_goals": 1.251
+  },
+  "predictions": [
+    {
+      "kickoff": "2026-08-28T19:00:00Z",
+      "home": "Crystal Palace",
+      "away": "Man City",
+      "p_H": 0.180861,
+      "p_D": 0.244469,
+      "p_A": 0.57467,
+      "xg_home": 0.9224,
+      "xg_away": 1.8096,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-29T11:30:00Z",
+      "home": "Liverpool",
+      "away": "Nott'm Forest",
+      "p_H": 0.574585,
+      "p_D": 0.229706,
+      "p_A": 0.195708,
+      "xg_home": 1.9863,
+      "xg_away": 1.0881,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-29T14:00:00Z",
+      "home": "Bournemouth",
+      "away": "Everton",
+      "p_H": 0.44917,
+      "p_D": 0.282426,
+      "p_A": 0.268404,
+      "xg_home": 1.442,
+      "xg_away": 1.0602,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-29T14:00:00Z",
+      "home": "Coventry City FC",
+      "away": "Hull City AFC",
+      "p_H": 0.423784,
+      "p_D": 0.270095,
+      "p_A": 0.306121,
+      "xg_home": 1.5096,
+      "xg_away": 1.251,
+      "cold_start": [
+        "Coventry City FC",
+        "Hull City AFC"
+      ]
+    },
+    {
+      "kickoff": "2026-08-29T16:30:00Z",
+      "home": "Tottenham",
+      "away": "Newcastle",
+      "p_H": 0.358405,
+      "p_D": 0.248662,
+      "p_A": 0.392933,
+      "xg_home": 1.5682,
+      "xg_away": 1.6492,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Chelsea",
+      "away": "Brighton",
+      "p_H": 0.443865,
+      "p_D": 0.258797,
+      "p_A": 0.297339,
+      "xg_home": 1.6358,
+      "xg_away": 1.3042,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Leeds",
+      "away": "Brentford",
+      "p_H": 0.362206,
+      "p_D": 0.268184,
+      "p_A": 0.36961,
+      "xg_home": 1.4114,
+      "xg_away": 1.4278,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Sunderland",
+      "away": "Fulham",
+      "p_H": 0.381713,
+      "p_D": 0.299856,
+      "p_A": 0.318431,
+      "xg_home": 1.2319,
+      "xg_away": 1.1029,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-30T15:30:00Z",
+      "home": "Man United",
+      "away": "Ipswich",
+      "p_H": 0.709415,
+      "p_D": 0.17706,
+      "p_A": 0.113524,
+      "xg_home": 2.4755,
+      "xg_away": 0.9149,
+      "cold_start": []
+    },
+    {
+      "kickoff": "2026-08-31T19:00:00Z",
+      "home": "Aston Villa",
+      "away": "Arsenal",
+      "p_H": 0.214943,
+      "p_D": 0.261262,
+      "p_A": 0.523795,
+      "xg_home": 0.9833,
+      "xg_away": 1.6601,
+      "cold_start": []
+    }
+  ],
+  "hash": "80f997ad756cb3e92eab994caf7d930a20c3f5775d31422c49b89f04f964ec58"
+}
