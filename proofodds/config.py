@@ -45,17 +45,42 @@ NEWSLETTER_DELAY_MIN = int(os.environ.get("PROOFODDS_NEWSLETTER_DELAY_MIN", "15"
 DATA_CONTROLLER = os.environ.get("PROOFODDS_CONTROLLER", "the operator of ProofOdds")
 
 # --- leagues ---------------------------------------------------------------
-# football-data.co.uk division codes. Phase 0 is one league on purpose:
-# a scorecard for one league that is genuinely honest beats five that are rushed.
+# Keys are football-data.co.uk division codes; `fdorg` is the competition code
+# football-data.org uses for the same division on its free tier. Both sides
+# matter: the first is where results and Pinnacle closing prices come from, the
+# second is where next weekend's fixtures come from, and a division is only
+# usable when BOTH cover it. That is why the Champions League is absent — the
+# fixtures are available, the closing prices are not, so it could be predicted
+# but never scored, and an unscoreable prediction is the one thing this site
+# does not publish.
 LEAGUES = {
-    "E0": {
-        "name": "Premier League",
-        "country": "England",
-        "fd_code": "E0",
-        # football-data.org competition code, used for upcoming fixtures
-        "fdorg_code": "PL",
-    },
+    "E0":  {"name": "Premier League", "short": "PL",   "country": "England",  "fdorg": "PL",  "tier": 1},
+    "E1":  {"name": "Championship",   "short": "EFL",  "country": "England",  "fdorg": "ELC", "tier": 2},
+    "SP1": {"name": "La Liga",        "short": "LIGA", "country": "Spain",    "fdorg": "PD",  "tier": 1},
+    "I1":  {"name": "Serie A",        "short": "SA",   "country": "Italy",    "fdorg": "SA",  "tier": 1},
+    "D1":  {"name": "Bundesliga",     "short": "BUN",  "country": "Germany",  "fdorg": "BL1", "tier": 1},
+    "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "fdorg": "FL1", "tier": 1},
+    "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "fdorg": "PPL", "tier": 1},
 }
+
+# Which of them are actually live. The default is deliberately just one: a
+# division goes live when somebody has read `scripts/check_names.py` and seen
+# its club names resolve, not when somebody has deployed. Adding a league is
+# one line; a league whose names do not join seals predictions that can never
+# be graded, and the ledger is never rewritten.
+#
+#   PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1
+ENABLED_LEAGUES = [c.strip().upper() for c in os.environ.get(
+    "PROOFODDS_LEAGUES", "E0").split(",") if c.strip()]
+ENABLED_LEAGUES = [c for c in ENABLED_LEAGUES if c in LEAGUES] or ["E0"]
+
+# Display order for the site, independent of which are enabled.
+LEAGUE_ORDER = list(LEAGUES)
+
+
+def league_name(code: str) -> str:
+    return LEAGUES.get(code, {}).get("name", code)
+
 
 # Seasons to download, oldest first. "2526" means 2025/26.
 SEASONS = ["1516", "1617", "1718", "1819", "1920", "2021",

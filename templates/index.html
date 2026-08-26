@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ site_name }} — Premier League probabilities, published before kickoff{% endblock %}
-{% block description %}Model probabilities for every Premier League match, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
+{% block title %}{{ site_name }} — football probabilities, published before kickoff{% endblock %}
+{% block description %}Model probabilities for every match in {{ n_leagues }} European divisions, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
 {% block og_title %}{{ site_name }} — published before kickoff, scored afterwards{% endblock %}
 
 {% block content %}
 
 <div class="shell hero">
-  <p class="eyebrow">Premier League · Dixon-Coles · {{ n_upcoming }} matches priced</p>
+  <p class="eyebrow">{{ n_leagues }} divisions · Dixon-Coles · {{ n_upcoming }} matches priced</p>
   <h1>Published before kickoff. Scored afterwards.</h1>
   <p class="lead">Every probability on this site was written down and hashed before the whistle,
   then graded against Pinnacle's closing line — the sharpest public number in football.
@@ -62,9 +62,10 @@
 <section class="band">
   <div class="shell">
     <h2>Next {{ lookahead_days }} days</h2>
-    <p class="section-note">Probabilities from a Dixon-Coles goals model fitted only on matches
-    played before publication. Fair odds are the probability inverted, with no margin added —
-    they are what a bookmaker would price if it took no cut.</p>
+    <p class="section-note">{{ league_list|join(', ') }}. Probabilities from a Dixon-Coles
+    goals model fitted separately for each division, only on matches played before
+    publication. Fair odds are the probability inverted, with no margin added — they are
+    what a bookmaker would price if it took no cut.</p>
 
     {% if not fixture_days %}
       <div class="empty">
@@ -79,8 +80,13 @@
         <h3>{{ day.label }}</h3>
         <span class="count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span>
       </div>
+      {% for lg in day.leagues %}
+      <div class="league-head">
+        <span class="badge">{{ lg.short }}</span>
+        <span class="league-name">{{ lg.name }}</span>
+      </div>
       <div class="cards">
-        {% for m in day.matches %}
+        {% for m in lg.matches %}
         <article class="card">
           <div class="card-when"><span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span></div>
           <div class="teams">
@@ -111,6 +117,10 @@
           {{ 'have' if m.cold_start|length > 1 else 'has' }} almost no record in this
           league yet — priced at league average, so treat this one as our weakest.</p>
           {% endif %}
+          {% if m.name_provisional %}
+          <p class="cold">One of these club names has not appeared in the results
+          file yet, so this match may take a few days to be graded.</p>
+          {% endif %}
           <div class="card-foot">
             <span>xG {{ '%.2f'|format(m.xg_home) }} – {{ '%.2f'|format(m.xg_away) }}</span>
             <span>sealed {{ m.published_at[:10] }}</span>
@@ -118,6 +128,7 @@
         </article>
         {% endfor %}
       </div>
+      {% endfor %}
     {% endfor %}
   </div>
 </section>

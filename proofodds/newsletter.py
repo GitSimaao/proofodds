@@ -64,17 +64,39 @@ def summarise(graded: pd.DataFrame, start: dt.date, end: dt.date) -> dict | None
     model_all = float(done["model_loss"].mean())
     market_all = float(done["market_loss"].mean())
 
+    order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
+    week = week.copy()
+    week["_order"] = week["league"].map(lambda c: order.get(c, 99))
+
     rows = []
-    for r in week.sort_values("date").itertuples():
+    for r in week.sort_values(["_order", "date"]).itertuples():
         rows.append({
             "date": r.date.date().isoformat(),
+            "league": r.league,
+            "league_name": config.league_name(r.league),
             "home": r.home, "away": r.away,
             "score": f"{int(r.FTHG)}-{int(r.FTAG)}",
             "said": {"H": r.p_H, "D": r.p_D, "A": r.p_A}[r.FTR],
             "market_said": {"H": r.mkt_H, "D": r.mkt_D, "A": r.mkt_A}[r.FTR],
         })
 
+    # Per-division rows for the week. Small samples, and the email says so —
+    # but a reader who only follows one league should not have to take a
+    # seven-league average on faith.
+    per_league = []
+    for code, block in week.groupby("league"):
+        per_league.append({
+            "league": code,
+            "name": config.league_name(code),
+            "n": int(len(block)),
+            "model": float(block["model_loss"].mean()),
+            "market": float(block["market_loss"].mean()),
+            "gap": float((block["model_loss"] - block["market_loss"]).mean()),
+        })
+    per_league.sort(key=lambda r: order.get(r["league"], 99))
+
     return {
+        "leagues": per_league,
         "start": start.isoformat(), "end": end.isoformat(),
         "n": int(len(week)),
         "model": model_w, "market": market_w, "gap": model_w - market_w,
@@ -116,6 +138,15 @@ def render_text(s: dict) -> str:
         f"  Closing line  {s['market_all']:.4f}",
         f"  Gap           {s['gap_all']:+.4f}",
         "",
+    ]
+    if len(s.get("leagues", [])) > 1:
+        lines += ["By division this week (small samples — the numbers above are",
+                  "the ones with enough matches behind them):", ""]
+        for l in s["leagues"]:
+            lines.append(f"  {l['name']:<16} {l['n']:>3} matches   "
+                         f"{l['model']:.4f} vs {l['market']:.4f}   {l['gap']:+.4f}")
+        lines.append("")
+    lines += [
         "Log loss, lower is better. Predicting 1/3-1/3-1/3 every week",
         f"scores {config.UNIFORM_LOG_LOSS:.4f}, so the distance between that and the",
         "closing line is everything anyone knows about football.",
@@ -124,8 +155,12 @@ def render_text(s: dict) -> str:
         "happened, next to the market's:",
         "",
     ]
+    current = None
     for m in s["matches"]:
-        lines.append(f"  {m['date']}  {m['home']} {m['score']} {m['away']}"
+        if m["league_name"] != current:
+            current = m["league_name"]
+            lines += ["", f"  {current}"]
+        lines.append(f"    {m['date']}  {m['home']} {m['score']} {m['away']}"
                      f"   us {m['said']:.0%} / market {m['market_said']:.0%}")
     lines += [
         "",
@@ -143,15 +178,23 @@ def render_text(s: dict) -> str:
 def render_html(s: dict) -> str:
     """A deliberately plain HTML version. Email clients punish cleverness."""
     e = html.escape
-    rows = "".join(
-        f'<tr>'
-        f'<td style="padding:4px 10px 4px 0;color:#6b7280;white-space:nowrap">{e(m["date"])}</td>'
-        f'<td style="padding:4px 10px 4px 0">{e(m["home"])} '
-        f'<strong>{e(m["score"])}</strong> {e(m["away"])}</td>'
-        f'<td style="padding:4px 0;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">'
-        f'{m["said"]:.0%} <span style="color:#9ca3af">/ {m["market_said"]:.0%}</span></td>'
-        f'</tr>'
-        for m in s["matches"])
+    parts, current = [], None
+    for m in s["matches"]:
+        if m["league_name"] != current:
+            current = m["league_name"]
+            parts.append(
+                f'<tr><td colspan="3" style="padding:14px 0 4px;font-size:12px;'
+                f'letter-spacing:.06em;text-transform:uppercase;color:#6b7280">'
+                f'{e(current)}</td></tr>')
+        parts.append(
+            f'<tr>'
+            f'<td style="padding:4px 10px 4px 0;color:#6b7280;white-space:nowrap">{e(m["date"])}</td>'
+            f'<td style="padding:4px 10px 4px 0">{e(m["home"])} '
+            f'<strong>{e(m["score"])}</strong> {e(m["away"])}</td>'
+            f'<td style="padding:4px 0;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">'
+            f'{m["said"]:.0%} <span style="color:#9ca3af">/ {m["market_said"]:.0%}</span></td>'
+            f'</tr>')
+    rows = "".join(parts)
 
     def block(label, model, market, gap):
         return (

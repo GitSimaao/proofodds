@@ -32,7 +32,7 @@ from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 GENESIS = "0" * 64
 
 
@@ -122,74 +122,98 @@ def _model_for(now: dt.datetime, league: str = "E0", extra_teams=()):
     return model, teams, past
 
 
-def build_entry(fixtures: list[Fixture], now: dt.datetime,
-                league: str = "E0") -> dict | None:
+def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
     """
-    Score every fixture that has not kicked off yet and assemble the entry.
+    Score every fixture that has not kicked off yet, across every division.
 
-    Returns None when there is nothing to publish.
+    One entry per publication day covers all divisions: the chain stays a
+    single line, which is what makes it checkable, and each row carries the
+    division it belongs to. A division whose model cannot be fitted — too
+    little history, a download that failed — is recorded as skipped inside the
+    entry rather than quietly left out. The file has to say what it does not
+    contain, or "complete" means nothing.
     """
     future = [f for f in fixtures if f.kickoff > now]
     if not future:
         log.info("no future fixtures to publish")
         return None
 
-    needed = sorted({f.home for f in future} | {f.away for f in future})
-    model, teams, past = _model_for(now, league, extra_teams=needed)
-    index = {t: i for i, t in enumerate(teams)}
-
-    # How much each club actually contributes to the fit — the TIME-WEIGHTED
-    # count, not the raw one. A club that played 76 matches ten years ago has an
-    # effective sample of almost nothing under a 347-day half-life, and its
-    # rating is really the prior. Counting raw appearances would hide that.
-    weights = dc.time_weights(past["Date"].to_numpy(), np.datetime64(now.date()),
-                              config.XI)
-    effective = {}
-    for name, w in zip(past["HomeTeam"], weights):
-        effective[name] = effective.get(name, 0.0) + w
-    for name, w in zip(past["AwayTeam"], weights):
-        effective[name] = effective.get(name, 0.0) + w
-
-    rows = []
+    by_league: dict[str, list[Fixture]] = {}
     for fx in future:
-        h, a = index[fx.home], index[fx.away]
-        probs = model.outcome_probs(h, a)
-        lam, mu = model.expected_goals(h, a)
-        thin = [name for name in (fx.home, fx.away)
-                if effective.get(name, 0.0) < config.COLD_START_MATCHES]
+        by_league.setdefault(fx.league, []).append(fx)
 
-        # Round to six places, then put the rounding residue back into the
-        # largest component so the three published numbers sum to exactly 1.
-        # Three independently rounded values can sum to 1.000001, and a ledger
-        # that invites people to check its arithmetic should not ship numbers
-        # that fail the first check anyone would run.
-        p = [round(float(x), 6) for x in probs]
-        big = max(range(3), key=lambda i: p[i])
-        p[big] = round(1.0 - sum(p[i] for i in range(3) if i != big), 6)
+    rows: list[dict] = []
+    models: dict[str, dict] = {}
+    skipped: list[dict] = []
 
-        rows.append({
-            "kickoff": fx.kickoff.astimezone(dt.timezone.utc)
-                                 .strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "home": fx.home,
-            "away": fx.away,
-            "p_H": p[0],
-            "p_D": p[1],
-            "p_A": p[2],
-            "xg_home": round(float(lam), 4),
-            "xg_away": round(float(mu), 4),
-            "cold_start": thin,
-        })
+    for league in sorted(by_league):
+        block = by_league[league]
+        needed = sorted({f.home for f in block} | {f.away for f in block})
+        try:
+            model, teams, past = _model_for(now, league, extra_teams=needed)
+        except Exception as exc:
+            log.error("%s: cannot fit a model (%s) — %d fixtures not published",
+                      league, exc, len(block))
+            skipped.append({"league": league, "n": len(block),
+                            "reason": str(exc)[:200]})
+            continue
 
-    if not rows:
-        return None
+        index = {t: i for i, t in enumerate(teams)}
 
-    previous = last_entry()
-    payload = {
-        "version": SCHEMA_VERSION,
-        "league": league,
-        "published_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "prev_hash": previous["hash"] if previous else GENESIS,
-        "model": {
+        # How much each club actually contributes to the fit — the TIME-WEIGHTED
+        # count, not the raw one. A club that played 76 matches ten years ago has
+        # an effective sample of almost nothing under a 347-day half-life, and its
+        # rating is really the prior. Counting raw appearances would hide that.
+        weights = dc.time_weights(past["Date"].to_numpy(),
+                                  np.datetime64(now.date()), config.XI)
+        effective: dict[str, float] = {}
+        for name, w in zip(past["HomeTeam"], weights):
+            effective[name] = effective.get(name, 0.0) + w
+        for name, w in zip(past["AwayTeam"], weights):
+            effective[name] = effective.get(name, 0.0) + w
+
+        for fx in block:
+            h, a = index[fx.home], index[fx.away]
+            probs = model.outcome_probs(h, a)
+            lam, mu = model.expected_goals(h, a)
+            thin = [name for name in (fx.home, fx.away)
+                    if effective.get(name, 0.0) < config.COLD_START_MATCHES]
+
+            # Round to six places, then put the rounding residue back into the
+            # largest component so the three published numbers sum to exactly 1.
+            # Three independently rounded values can sum to 1.000001, and a
+            # ledger that invites people to check its arithmetic should not ship
+            # numbers that fail the first check anyone would run.
+            p = [round(float(x), 6) for x in probs]
+            big = max(range(3), key=lambda i: p[i])
+            p[big] = round(1.0 - sum(p[i] for i in range(3) if i != big), 6)
+
+            row = {
+                "league": league,
+                "kickoff": fx.kickoff.astimezone(dt.timezone.utc)
+                                     .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "home": fx.home,
+                "away": fx.away,
+                "p_H": p[0],
+                "p_D": p[1],
+                "p_A": p[2],
+                "xg_home": round(float(lam), 4),
+                "xg_away": round(float(mu), 4),
+                "cold_start": thin,
+            }
+            # Seal the fixture feed's own spelling whenever it differs from the
+            # one we grade on. It costs a few bytes and it means no naming
+            # mistake is ever permanent: the entry always carries enough to
+            # redo the mapping later, without rewriting a single past file.
+            if fx.home_raw != fx.home:
+                row["home_raw"] = fx.home_raw
+            if fx.away_raw != fx.away:
+                row["away_raw"] = fx.away_raw
+            if not fx.resolved:
+                row["name_provisional"] = True
+            rows.append(row)
+
+        models[league] = {
             "name": "dixon-coles",
             "xi": config.XI,
             "prior_sd": config.PRIOR_SD,
@@ -198,15 +222,28 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime,
             "home_advantage": round(model.gamma, 4),
             "rho": round(model.rho, 4),
             "league_mean_goals": round(model.league_mean, 4),
-        },
+        }
+
+    if not rows:
+        return None
+
+    rows.sort(key=lambda r: (r["kickoff"], r["league"], r["home"]))
+    previous = last_entry()
+    payload = {
+        "version": SCHEMA_VERSION,
+        "leagues": sorted(models),
+        "published_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "prev_hash": previous["hash"] if previous else GENESIS,
+        "models": models,
         "predictions": rows,
     }
+    if skipped:
+        payload["skipped"] = skipped
     payload["hash"] = compute_hash(payload)
     return payload
 
 
-def publish(fixtures: list[Fixture], now: dt.datetime | None = None,
-            league: str = "E0") -> Path | None:
+def publish(fixtures: list[Fixture], now: dt.datetime | None = None) -> Path | None:
     """
     Write today's entry. Refuses to touch a file that already exists.
 
@@ -220,14 +257,15 @@ def publish(fixtures: list[Fixture], now: dt.datetime | None = None,
         log.info("%s already published — leaving it alone", path.name)
         return None
 
-    entry = build_entry(fixtures, now, league)
+    entry = build_entry(fixtures, now)
     if entry is None:
         return None
 
     path.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
-    log.info("published %d predictions to %s (hash %s)",
-             len(entry["predictions"]), path.name, entry["hash"][:12])
+    log.info("published %d predictions across %s to %s (hash %s)",
+             len(entry["predictions"]), ",".join(entry["leagues"]),
+             path.name, entry["hash"][:12])
     return path
 
 
@@ -243,13 +281,18 @@ def all_predictions() -> list[dict]:
     seen, out = set(), []
     for path in ledger_files():
         entry = read(path)
+        # Schema 1 named the division once, at entry level, because there was
+        # only ever one. Schema 2 names it per row. Reading both is what lets
+        # the earlier entries stay exactly as they were sealed.
+        default_league = entry.get("league", "E0")
         for row in entry["predictions"]:
-            key = (row["kickoff"][:10], row["home"], row["away"])
+            league = row.get("league", default_league)
+            key = (league, row["kickoff"][:10], row["home"], row["away"])
             if key in seen:
                 continue
             seen.add(key)
             out.append({**row,
                         "published_at": entry["published_at"],
                         "entry_hash": entry["hash"],
-                        "league": entry.get("league", "E0")})
+                        "league": league})
     return out

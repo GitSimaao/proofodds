@@ -20,8 +20,8 @@ import numpy as np
 import pandas as pd
 
 from . import config
-from .data import (add_market_probabilities, canonical, load_matches, log_loss,
-                   result_index)
+from .data import (add_market_probabilities, load_all_matches, log_loss,
+                   resolve, result_index)
 from .ledger import all_predictions
 
 log = logging.getLogger(__name__)
@@ -30,9 +30,29 @@ PROB_COLS = ["p_H", "p_D", "p_A"]
 MKT_COLS = ["mkt_H", "mkt_D", "mkt_A"]
 
 
-def graded_frame(league: str = "E0") -> pd.DataFrame:
+def _canonical_for(name: str, raw: str, league: str) -> str:
     """
-    Join published predictions to finished matches.
+    The results-file spelling for a name that was sealed some time ago.
+
+    Tried in order: the name as sealed, then the fixture feed's own spelling if
+    the entry kept one. The second chance is the point of sealing `home_raw` —
+    a club the resolver could not place in August is placed the moment somebody
+    adds one line to data.OVERRIDES, and every prediction ever sealed for it
+    joins retroactively. The ledger file is never touched.
+    """
+    hit, _ = resolve(name, league)
+    if hit:
+        return hit
+    if raw and raw != name:
+        hit, _ = resolve(raw, league)
+        if hit:
+            return hit
+    return name
+
+
+def graded_frame(leagues=None) -> pd.DataFrame:
+    """
+    Join published predictions to finished matches, across every division.
 
     Only matches that have been played AND have closing odds can be graded —
     everything else stays in the table with `graded = False` so the site can
@@ -43,6 +63,12 @@ def graded_frame(league: str = "E0") -> pd.DataFrame:
         return preds
 
     preds["date"] = pd.to_datetime(preds["kickoff"]).dt.tz_convert(None).dt.normalize()
+    if "league" not in preds.columns:
+        preds["league"] = "E0"
+    for col in ("home_raw", "away_raw"):
+        if col not in preds.columns:
+            preds[col] = ""
+    preds[["home_raw", "away_raw"]] = preds[["home_raw", "away_raw"]].fillna("")
 
     # Canonicalise the LEDGER side at read time, never at write time.
     #
@@ -53,16 +79,26 @@ def graded_frame(league: str = "E0") -> pd.DataFrame:
     # an unmatched prediction is one that never gets scored, which is the one
     # outcome this project cannot allow. Normalising here fixes the past
     # without rewriting it.
-    preds["home"] = preds["home"].map(canonical)
-    preds["away"] = preds["away"].map(canonical)
+    preds["home"] = [_canonical_for(h, r, lg) for h, r, lg
+                     in zip(preds["home"], preds["home_raw"], preds["league"])]
+    preds["away"] = [_canonical_for(a, r, lg) for a, r, lg
+                     in zip(preds["away"], preds["away_raw"], preds["league"])]
 
-    results = add_market_probabilities(load_matches(league))
-    results = results.rename(columns={"HomeTeam": "home", "AwayTeam": "away"})
+    # Load the results for every division that is enabled AND every division
+    # that appears in the ledger. Turning a league off must never make its past
+    # predictions vanish from the score — that would be the most flattering
+    # possible bug.
+    wanted = list(dict.fromkeys(list(leagues or config.ENABLED_LEAGUES)
+                                + sorted(preds["league"].unique())))
+    results = add_market_probabilities(load_all_matches(wanted))
+    results = results.rename(columns={"HomeTeam": "home", "AwayTeam": "away",
+                                      "League": "league"})
     results["date"] = results["Date"].dt.normalize()
 
-    cols = ["date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
+    cols = ["league", "date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
             "PSCH", "PSCD", "PSCA", "has_odds"] + MKT_COLS
-    merged = preds.merge(results[cols], on=["date", "home", "away"], how="left")
+    merged = preds.merge(results[cols], on=["league", "date", "home", "away"],
+                         how="left")
 
     merged["played"] = merged["FTR"].notna()
     merged["graded"] = merged["played"] & merged["has_odds"].fillna(False)
@@ -87,12 +123,13 @@ def graded_frame(league: str = "E0") -> pd.DataFrame:
                    (merged["date"] < pd.Timestamp.utcnow().tz_localize(None)
                     - pd.Timedelta(days=3))]
     if not stale.empty:
-        pairs = ", ".join(f"{r.home} v {r.away}" for r in stale.head(6).itertuples())
+        pairs = ", ".join(f"{r.league} {r.home} v {r.away}"
+                          for r in stale.head(8).itertuples())
         log.warning("%d sealed prediction(s) still unmatched more than 3 days "
                     "after kickoff — check club spellings: %s",
                     len(stale), pairs)
 
-    return merged.sort_values("date").reset_index(drop=True)
+    return merged.sort_values(["date", "league"]).reset_index(drop=True)
 
 
 def scorecard(graded: pd.DataFrame) -> dict:
@@ -153,6 +190,40 @@ def by_week(graded: pd.DataFrame) -> list[dict]:
     return rows
 
 
+def by_league(graded: pd.DataFrame) -> list[dict]:
+    """
+    The same question, division by division.
+
+    Worth its own table for a reason beyond curiosity: with one league the
+    sample is too small to separate a real edge from noise for years. Seven
+    divisions is roughly 2,400 matches a season instead of 380, which is the
+    difference between a scorecard that means something this season and one
+    that means something in 2031. The per-division rows also show whether any
+    apparent edge is a real pattern or one league's lucky autumn.
+    """
+    if graded.empty or "graded" not in graded.columns:
+        return []
+    rows = []
+    order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
+    for code, block in graded.groupby("league"):
+        done = block[block["graded"]]
+        row = {
+            "league": code,
+            "name": config.league_name(code),
+            "n": int(len(done)),
+            "pending": int((~block["graded"]).sum()),
+        }
+        if len(done):
+            row.update({
+                "model": float(done["model_loss"].mean()),
+                "market": float(done["market_loss"].mean()),
+                "gap": float((done["model_loss"] - done["market_loss"]).mean()),
+                "accuracy": float(done["hit"].mean()) if "hit" in done else None,
+            })
+        rows.append(row)
+    return sorted(rows, key=lambda r: order.get(r["league"], 99))
+
+
 def calibration(graded: pd.DataFrame, n_bins: int = 10) -> list[dict]:
     """Of the matches where we said ~30%, did ~30% happen?"""
     if graded.empty or "graded" not in graded.columns:
@@ -180,7 +251,7 @@ def calibration(graded: pd.DataFrame, n_bins: int = 10) -> list[dict]:
     return out
 
 
-def backfill_scorecard(league: str = "E0") -> dict:
+def backfill_scorecard(leagues=None) -> dict:
     """
     The historical walk-forward record, for the page that explains the method.
 
@@ -188,7 +259,7 @@ def backfill_scorecard(league: str = "E0") -> dict:
     it is a backtest, reproducible from the public repo, and it exists to give
     a reader a prior before the live sample is big enough to mean anything.
     """
-    matches = add_market_probabilities(load_matches(league))
+    matches = add_market_probabilities(load_all_matches(leagues))
     graded = matches[matches["has_odds"] & (matches["Date"] >= config.SCORECARD_START)]
     if graded.empty:
         return {}

@@ -19,6 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import league_names  # noqa: E402  (tests/ is on sys.path via conftest)
 from proofodds import charts, config, data  # noqa: E402
 
 
@@ -184,47 +185,124 @@ def test_first_publication_wins(ledger_in, tmp_path):
 # --------------------------------------------------------------------------- #
 #  Data handling
 # --------------------------------------------------------------------------- #
-def test_team_names_normalise():
-    assert data.canonical("Manchester City FC") == "Man City"
-    assert data.canonical("Nottingham Forest") == "Nott'm Forest"
-    assert data.canonical("Brighton & Hove Albion FC") == "Brighton"
-    assert data.canonical("Arsenal") == "Arsenal"
-
-
-@pytest.mark.parametrize("feed_name,expected", [
-    ("Hull City AFC", "Hull"),            # the AFC suffix, not FC
-    ("Coventry City FC", "Coventry"),     # promoted, never in the alias table before
-    ("AFC Bournemouth", "Bournemouth"),   # prefix, not suffix
-    ("Wolverhampton Wanderers FC", "Wolves"),
-    ("Tottenham Hotspur FC", "Tottenham"),
-    ("Sunderland AFC", "Sunderland"),
-    ("Leeds United FC", "Leeds"),
-])
-def test_fixture_feed_names_reach_the_results_spelling(feed_name, expected):
+@pytest.fixture
+def real_names(monkeypatch):
     """
-    Every club spelling a fixture feed can emit must land on the spelling the
-    results file uses.
+    Pin the canonical sets to the club names really used in 2025/26.
+
+    The resolver normally learns them from the downloaded CSVs, which means
+    these tests would otherwise pass or fail depending on which files happen to
+    be cached on the machine running them. Pinning makes the test about the
+    algorithm. It is also the harder version: only one season of names is
+    supplied, so the fuzzy stage has fewer near-misses available to reject.
+    """
+    for code, names in league_names.KNOWN.items():
+        monkeypatch.setitem(data._known_cache, code,
+                            (data._cache_key(code), frozenset(names)))
+    return league_names
+
+
+ALL_PAIRS = [(lg, src, want)
+             for lg, feed in league_names.FEED.items()
+             for src, want in feed.items()]
+
+
+@pytest.mark.parametrize("league,feed_name,expected", ALL_PAIRS,
+                         ids=[f"{lg}:{src}" for lg, src, _ in ALL_PAIRS])
+def test_every_club_in_every_division_resolves(real_names, league, feed_name,
+                                               expected):
+    """
+    Every club spelling the fixture feed can emit must land on the spelling the
+    results file uses, in all seven divisions.
 
     This is the highest-stakes mapping in the project. A club that does not
     resolve is sealed into the ledger under a name the grader cannot join, so
     the prediction is published and then never scored — the scorecard shrinks
-    in silence, which is the exact failure this whole product exists to rule out.
+    in silence, which is the exact failure this whole product exists to rule
+    out. One hundred and thirty-odd clubs is too many to check by eye every
+    August, so they are checked here instead.
     """
-    assert data.canonical(feed_name) == expected
+    got, how = data.resolve(feed_name, league)
+    assert got == expected, f"{feed_name!r} resolved to {got!r} via {how}"
 
 
-def test_a_ledger_entry_grades_even_if_it_was_sealed_under_a_feed_spelling():
+@pytest.mark.parametrize("league,feed_name", [
+    ("D1", "FC Schalke 04"),          # a division below
+    ("D1", "Fortuna Düsseldorf"),
+    ("SP1", "Real Valladolid CF"),    # shares a word with Real Madrid
+    ("SP1", "Sporting Gijón"),
+    ("I1", "Empoli FC"),              # rhymes with Napoli
+    ("I1", "AC Monza"),
+    ("F1", "Montpellier HSC"),
+    ("E0", "Leicester City FC"),      # in E1 that season, not E0
+    ("E1", "Luton Town FC"),
+    ("P1", "Portimonense SC"),
+])
+def test_a_club_that_is_not_in_the_division_is_refused(real_names, league,
+                                                       feed_name):
+    """
+    Refusing is the correct answer, and it has to beat guessing.
+
+    An unresolved name is loud, recoverable and fixed by one line in
+    OVERRIDES. A name resolved to the WRONG club is silent, sealed, and grades
+    our prediction against somebody else's result — which is worse than not
+    grading it at all.
+    """
+    got, how = data.resolve(feed_name, league)
+    assert got is None, f"{feed_name!r} was wrongly matched to {got!r} via {how}"
+
+
+def test_ambiguity_is_refused_rather_than_broken_by_coin_flip(real_names):
+    """
+    "Milan" opens "Milano", so Internazionale looks like AC Milan under the
+    abbreviation rule. The override settles it; without one, the resolver must
+    refuse rather than pick.
+    """
+    assert data.resolve("FC Internazionale Milano", "I1")[0] == "Inter"
+    assert data.resolve("AC Milan", "I1")[0] == "Milan"
+
+    stripped = dict(data.OVERRIDES["I1"])
+    stripped.pop("fc internazionale milano", None)
+    stripped.pop("internazionale milano", None)
+    saved = data.OVERRIDES["I1"]
+    data.OVERRIDES["I1"] = stripped
+    try:
+        got, how = data.resolve("FC Internazionale Milano", "I1")
+    finally:
+        data.OVERRIDES["I1"] = saved
+    assert got is None and how == "ambiguous"
+
+
+def test_names_are_never_resolved_across_divisions(real_names):
+    """
+    Bayern Munich is not a Championship club, however hard you squint. The
+    canonical set is per division for exactly this reason.
+    """
+    assert data.resolve("FC Bayern München", "D1")[0] == "Bayern Munich"
+    assert data.resolve("FC Bayern München", "E1")[0] is None
+
+
+def test_a_club_the_results_files_have_never_seen_still_gets_a_usable_label():
+    """
+    A genuinely new promotion has no entry anywhere until its first result is
+    published. It still has to be priced and published, so the feed name is
+    reduced to something readable and the raw name is sealed alongside it.
+    """
+    assert data.display_from_feed("Wrexham AFC") == "Wrexham"
+    assert data.display_from_feed("FC Alverca") == "Alverca"
+    assert data.display_from_feed("Bologna FC 1909") == "Bologna"
+
+
+def test_a_ledger_entry_grades_even_if_it_was_sealed_under_a_feed_spelling(real_names):
     """
     The ledger is immutable, so the fix for a bad spelling has to be on the
     READ side. An entry already sealed as "Hull City AFC" must still join.
     """
-    import pandas as pd
-    from proofodds.data import canonical
-    sealed = pd.DataFrame([{"home": "Hull City AFC", "away": "Manchester United FC"}])
-    sealed["home"] = sealed["home"].map(canonical)
-    sealed["away"] = sealed["away"].map(canonical)
-    assert sealed.loc[0, "home"] == "Hull"
-    assert sealed.loc[0, "away"] == "Man United"
+    from proofodds.grade import _canonical_for
+    assert _canonical_for("Hull City AFC", "", "E1") == "Hull"
+    assert _canonical_for("Manchester United FC", "", "E0") == "Man United"
+    # and the raw name is the second chance, for a name sealed provisionally
+    assert _canonical_for("Wolverhampton", "Wolverhampton Wanderers FC", "E0") == "Wolves"
 
 
 def test_unknown_statuses_do_not_silently_drop_fixtures():
@@ -284,6 +362,167 @@ def _seed(ledger_module, tmp_path, days: int):
             now=now)
 
 
+# --------------------------------------------------------------------------- #
+#  Seven divisions in one chain
+# --------------------------------------------------------------------------- #
+class _StubModel:
+    """Enough of a fitted model to build an entry without reading any CSVs."""
+    gamma = 1.3
+    rho = -0.03
+    league_mean = 1.35
+
+    def outcome_probs(self, h, a):
+        return [0.5, 0.25, 0.25]
+
+    def expected_goals(self, h, a):
+        return 1.6, 1.1
+
+
+def _stub_past(teams):
+    import pandas as pd
+    return pd.DataFrame({
+        "Date": pd.to_datetime(["2026-08-01"] * 200),
+        "HomeTeam": [teams[0]] * 200,
+        "AwayTeam": [teams[1]] * 200,
+    })
+
+
+@pytest.fixture
+def stub_models(monkeypatch):
+    """Fit nothing; the point of these tests is the bookkeeping around the fit."""
+    from proofodds import ledger as ledger_module
+
+    def fake(now, league, extra_teams=()):
+        if league == "BROKEN":
+            raise RuntimeError("not enough history to fit a model")
+        teams = list(extra_teams) or ["A", "B"]
+        return _StubModel(), teams, _stub_past(teams)
+
+    monkeypatch.setattr(ledger_module, "_model_for", fake)
+    return ledger_module
+
+
+def test_one_entry_covers_every_division_and_names_them(ledger_in, stub_models,
+                                                        tmp_path):
+    """
+    All divisions share a single chain. Splitting the ledger per league would
+    give seven chains to check instead of one, and the whole argument rests on
+    a stranger being able to check it in a minute.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    kick = now + dt.timedelta(days=2)
+    stub_models.publish([
+        Fixture(kick, "Arsenal", "Chelsea", league="E0"),
+        Fixture(kick, "Real Madrid", "Sevilla", league="SP1"),
+        Fixture(kick, "Porto", "Benfica", league="P1"),
+    ], now=now)
+
+    entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
+    assert entry["version"] == 2
+    assert entry["leagues"] == ["E0", "P1", "SP1"]
+    assert set(entry["models"]) == {"E0", "P1", "SP1"}
+    assert {r["league"] for r in entry["predictions"]} == {"E0", "P1", "SP1"}
+    assert stub_models.verify_chain()["ok"]
+
+
+def test_a_division_that_cannot_be_fitted_is_recorded_not_hidden(
+        ledger_in, stub_models, tmp_path):
+    """
+    Six divisions published and one recorded as skipped beats seven published
+    or nothing published. What it must never be is six published and the
+    seventh missing without a word — an entry has to say what it does not
+    contain, or "complete" means nothing.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    kick = now + dt.timedelta(days=2)
+    stub_models.publish([
+        Fixture(kick, "Arsenal", "Chelsea", league="E0"),
+        Fixture(kick, "X", "Y", league="BROKEN"),
+    ], now=now)
+
+    entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
+    assert entry["leagues"] == ["E0"]
+    assert entry["skipped"] == [{"league": "BROKEN", "n": 1,
+                                 "reason": "not enough history to fit a model"}]
+
+
+def test_the_feed_spelling_is_sealed_alongside_the_graded_one(
+        ledger_in, stub_models, tmp_path):
+    """
+    Sealing the raw name is what makes a naming mistake recoverable. Without
+    it, a club we could not place in August is a prediction nobody can ever
+    score; with it, one line in OVERRIDES grades every one of them, and no
+    ledger file is touched.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    stub_models.publish([
+        Fixture(now + dt.timedelta(days=2), "Newtown", "Arsenal", league="E0",
+                home_raw="Newtown Rovers FC", away_raw="Arsenal",
+                resolved=False),
+    ], now=now)
+
+    row = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())["predictions"][0]
+    assert row["home_raw"] == "Newtown Rovers FC"
+    assert row["name_provisional"] is True
+    # Stored only when it differs — an entry should carry information, not noise
+    assert "away_raw" not in row
+
+
+def test_the_same_pairing_in_two_divisions_is_not_deduplicated(
+        ledger_in, stub_models, tmp_path):
+    """
+    The de-duplication key gained the division for a reason. Without it, a
+    coincidence of names across two countries would silently delete a
+    prediction from the record.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    kick = now + dt.timedelta(days=2)
+    stub_models.publish([
+        Fixture(kick, "Valencia", "Sporting", league="SP1"),
+        Fixture(kick, "Valencia", "Sporting", league="P1"),
+    ], now=now)
+
+    rows = stub_models.all_predictions()
+    assert len(rows) == 2
+    assert {r["league"] for r in rows} == {"SP1", "P1"}
+
+
+def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
+    """
+    The first entries name the division once, at entry level, because there was
+    only one. They must keep working untouched — rewriting them to the new
+    shape would break their hashes, which is precisely the thing that must
+    never happen.
+    """
+    entry = {
+        "version": 1, "league": "E0",
+        "published_at": "2026-08-24T06:00:00Z",
+        "prev_hash": ledger_in.GENESIS,
+        "model": {"name": "dixon-coles"},
+        "predictions": [{"kickoff": "2026-08-26T19:00:00Z",
+                         "home": "Arsenal", "away": "Chelsea",
+                         "p_H": 0.5, "p_D": 0.25, "p_A": 0.25}],
+    }
+    entry["hash"] = ledger_in.compute_hash(entry)
+    (tmp_path / "2026-08-24.json").write_text(json.dumps(entry))
+
+    assert ledger_in.verify_chain()["ok"]
+    rows = ledger_in.all_predictions()
+    assert len(rows) == 1 and rows[0]["league"] == "E0"
+
+
+def test_the_scorecard_splits_by_division(real_names):
+    from proofodds import grade
+    rows = grade.by_league(_fake_week())
+    assert [r["league"] for r in rows] == ["E0", "SP1"]
+    assert rows[0]["n"] == 2 and rows[1]["n"] == 1
+    assert rows[0]["name"] == "Premier League"
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
 
@@ -294,12 +533,14 @@ if __name__ == "__main__":
 def _fake_week():
     import pandas as pd
     rows = []
-    for i, (h, a, ftr, p, m) in enumerate([
-        ("Arsenal", "Chelsea", "H", 0.55, 0.50),
-        ("Leeds", "Everton", "A", 0.20, 0.30),
+    for i, (lg, h, a, ftr, p, m) in enumerate([
+        ("E0", "Arsenal", "Chelsea", "H", 0.55, 0.50),
+        ("E0", "Leeds", "Everton", "A", 0.20, 0.30),
+        ("SP1", "Real Madrid", "Sevilla", "H", 0.60, 0.58),
     ]):
         rows.append({
-            "date": pd.Timestamp("2026-08-29") + pd.Timedelta(days=i),
+            "date": pd.Timestamp("2026-08-28") + pd.Timedelta(days=i),
+            "league": lg,
             "home": h, "away": a, "FTR": ftr, "FTHG": 2, "FTAG": 1,
             "p_H": p, "p_D": 0.25, "p_A": 1 - p - 0.25,
             "mkt_H": m, "mkt_D": 0.25, "mkt_A": 1 - m - 0.25,
@@ -326,7 +567,7 @@ def test_a_week_with_no_graded_matches_sends_nothing():
 def test_weekly_summary_reports_the_gap_both_ways():
     from proofodds import newsletter
     s = newsletter.summarise(_fake_week(), dt.date(2026, 8, 24), dt.date(2026, 8, 30))
-    assert s is not None and s["n"] == 2
+    assert s is not None and s["n"] == 3
     # gap is model minus market: positive means we are behind
     assert abs(s["gap"] - (s["model"] - s["market"])) < 1e-12
     assert s["gap"] > 0

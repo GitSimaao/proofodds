@@ -51,9 +51,11 @@ def main() -> int:
     ap.add_argument("--to", dest="end", default="2026-05-24")
     ap.add_argument("--every", type=int, default=3,
                     help="publish every N days (the real job runs daily)")
+    ap.add_argument("--league", default="E0",
+                    help="which division to replay")
     args = ap.parse_args()
 
-    matches = data.load_matches("E0")
+    matches = data.load_matches(args.league)
     start = dt.date.fromisoformat(args.start)
     end = dt.date.fromisoformat(args.end)
 
@@ -75,11 +77,11 @@ def main() -> int:
         fx = [Fixture(
                   kickoff=dt.datetime.combine(row.Date.date(), dt.time(15, 0),
                                               tzinfo=dt.timezone.utc),
-                  home=row.HomeTeam, away=row.AwayTeam)
+                  home=row.HomeTeam, away=row.AwayTeam, league=args.league)
               for row in window.itertuples()]
 
         if fx:
-            path = ledger.publish(fx, now=now, league="E0")
+            path = ledger.publish(fx, now=now)
             if path:
                 published += 1
                 if published % 10 == 0:

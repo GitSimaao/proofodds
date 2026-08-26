@@ -78,6 +78,48 @@
     </div>
     {% endif %}
 
+    {% if leagues|length > 1 %}
+    <h3>Division by division</h3>
+    <p class="section-note">The same question asked seven times. A model that is
+    genuinely close to the market should be close in most of them; an edge that
+    lives in one division and nowhere else is usually a lucky autumn, not an edge.</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Division</th>
+            <th class="num">Graded</th>
+            <th class="num">ProofOdds</th>
+            <th class="num">Closing line</th>
+            <th class="num">Gap</th>
+            <th class="num">Pending</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in leagues %}
+          <tr>
+            <td><span class="badge">{{ l.league }}</span> {{ l.name }}</td>
+            <td class="num">{{ l.n }}</td>
+            {% if l.n %}
+            <td class="num">{{ '%.4f'|format(l.model) }}</td>
+            <td class="num">{{ '%.4f'|format(l.market) }}</td>
+            <td class="num {{ 'ahead' if l.gap < 0 else 'behind' }}">{{ '%+.4f'|format(l.gap) }}</td>
+            {% else %}
+            <td class="num muted">—</td>
+            <td class="num muted">—</td>
+            <td class="num muted">—</td>
+            {% endif %}
+            <td class="num muted">{{ l.pending }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">Per-division rows are small samples for a long time. The
+    headline at the top of this page is the one with enough matches behind it to be
+    worth reading, and even that needs a season.</p>
+    {% endif %}
+
     {% if weeks %}
     <h3>Week by week</h3>
     <div class="scroll">

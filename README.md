@@ -1,12 +1,25 @@
 # ProofOdds
 
-Premier League match probabilities, **published before kickoff and scored afterwards**
-against Pinnacle's closing line.
+Football match probabilities for seven European divisions, **published before kickoff
+and scored afterwards** against Pinnacle's closing line.
 
-The model is a Dixon-Coles goals model. It does not beat the closing line — a
-walk-forward backtest over nine seasons puts it about 0.017 nats per match behind —
-and the site says so on the front page. That is the product: not a prediction service,
-a measurement one. Anyone can publish probabilities; almost nobody publishes the score.
+| | | |
+|---|---|---|
+| `E0` Premier League | `SP1` La Liga | `D1` Bundesliga |
+| `E1` Championship | `I1` Serie A | `F1` Ligue 1 |
+| | | `P1` Primeira Liga |
+
+One Dixon-Coles model is fitted per division, on that division's matches only. It does
+not beat the closing line — a walk-forward backtest over nine Premier League seasons
+puts it about 0.017 nats per match behind — and the site says so on the front page.
+That is the product: not a prediction service, a measurement one. Anyone can publish
+probabilities; almost nobody publishes the score.
+
+Seven divisions rather than one is a statistical decision before it is a product one.
+A season of the Premier League is 380 matches; the margin of error on the model-minus-
+market gap at that sample is wider than the gap itself, so a single-league scorecard
+cannot say anything for years. Seven divisions is roughly 2,400 matches a season, which
+brings the answer inside one.
 
 ---
 
@@ -48,7 +61,8 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 31 tests
+python -m pytest tests -q          # 181 tests
+python scripts/check_names.py     # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain
 ```
 
@@ -101,6 +115,50 @@ for grading and rebuilding after matches finish, not for publishing.
 
 ---
 
+## Adding a division
+
+Two feeds, two spellings, one join. Results come from football-data.co.uk, which
+writes `Ein Frankfurt` and `M'gladbach` and `Ath Madrid`. Fixtures come from
+football-data.org, which writes `Eintracht Frankfurt` and `Borussia Mönchengladbach`
+and `Club Atlético de Madrid`. Every prediction is keyed on a club name, and a name
+that does not join is a prediction that is published, hashed, and then never scored.
+
+With one division that risk was a hand-written list of twenty clubs. With seven it is
+about a hundred and forty, changing every summer with promotion — a list nobody
+maintains. So there is no list. The canonical set of names for a division is whatever
+appears in that division's own results files, and a feed name is resolved onto it in
+stages: exact, then an explicit override, then the same name with the club-type words
+folded away, then an abbreviation rule (`Ein` opens `Eintracht`, `Ath` opens
+`Atlético`), then similarity. When two candidates are plausible — `Milan` opens
+`Milano`, so Internazionale looks like AC Milan — it returns nothing rather than
+picking one.
+
+Two things make a mistake survivable. Unresolved names still get published, under a
+readable form of the feed's own spelling, **with the raw feed name sealed alongside**;
+grading tries both, so one line in `data.OVERRIDES` grades every affected prediction
+retroactively, without touching a single ledger file. And each entry records the
+divisions it could not fit, so an entry always says what it does not contain.
+
+Before turning a division on:
+
+```bash
+python scripts/check_names.py --leagues P1
+```
+
+It prints every club the fixture feed will send for the next 90 days, the spelling the
+results file uses, and which rule connected them — then exits non-zero if anything is
+unresolved. Add the division to `PROOFODDS_LEAGUES` once it is clean.
+
+```bash
+PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1
+```
+
+The 138 club names of the 2025/26 season are checked in `tests/league_names.py` and
+asserted on every test run, so a change to the resolver cannot quietly break a
+division that used to work.
+
+---
+
 ## The weekly email
 
 The list exists to turn a one-day traffic spike into an audience. What it sends
@@ -142,8 +200,8 @@ Phase 0 runs on the VPS plus a domain. Nothing else is required:
 
 | | |
 |---|---|
-| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/englandm.php) — free |
-| Upcoming fixtures | football-data.org free tier, or `data/fixtures.csv` |
+| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — free, all seven divisions |
+| Upcoming fixtures | football-data.org free tier — covers exactly these seven |
 | Live pre-match odds | optional, not needed for grading |
 
 ---
@@ -153,7 +211,7 @@ Phase 0 runs on the VPS plus a domain. Nothing else is required:
 ```
 proofodds/
   config.py        settings, league list, tuned hyperparameters, the backtest prior
-  data.py          download + cache football-data.co.uk, team-name normalisation
+  data.py          download + cache football-data.co.uk, club-name resolution
   dixon_coles.py   the model: tau, weighted likelihood with analytic gradient, fitting
   fixtures.py      upcoming fixtures (football-data.org, or a CSV fallback)
   ledger.py        seal predictions, hash chain, publication rules

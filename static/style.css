@@ -206,6 +206,24 @@ h4 {
 .day-head h3 { margin: 0; font-size: 15px; letter-spacing: .01em; }
 .day-head .count { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3); }
 
+/* A division heading inside a day. Quiet on purpose: the day is what a reader
+   looks for first, the league is how they narrow it down once they are there. */
+.league-head {
+  display: flex; align-items: center; gap: 9px;
+  margin: 20px 0 10px;
+}
+.league-head .league-name {
+  font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: .01em;
+}
+.badge {
+  display: inline-block; min-width: 34px; text-align: center;
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 6px; border-radius: 4px;
+  background: var(--surface-2); color: var(--ink-2);
+  border: 1px solid var(--rule);
+}
+
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 
 .card {

@@ -71,20 +71,23 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-git", action="store_true")
     ap.add_argument("--build-only", action="store_true")
-    ap.add_argument("--league", default="E0")
+    ap.add_argument("--leagues", default="",
+                    help="comma-separated division codes; default is "
+                         "config.ENABLED_LEAGUES")
     args = ap.parse_args()
 
+    leagues = ([c.strip().upper() for c in args.leagues.split(",") if c.strip()]
+               or list(config.ENABLED_LEAGUES))
+
     if not args.build_only:
-        log.info("refreshing results")
-        data.refresh(args.league)
+        log.info("refreshing results for %s", ", ".join(leagues))
+        data.refresh(leagues)
 
         log.info("fetching fixtures")
-        upcoming = fixtures.upcoming(args.league)
-        log.info("%d fixtures in the next %d days", len(upcoming),
-                 config.LOOKAHEAD_DAYS)
+        upcoming = fixtures.upcoming(leagues)
 
         now = dt.datetime.now(dt.timezone.utc)
-        path = ledger.publish(upcoming, now=now, league=args.league)
+        path = ledger.publish(upcoming, now=now)
         if path and not args.no_git:
             commit_ledger(path)
 

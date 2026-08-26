@@ -64,24 +64,38 @@ def upcoming_view() -> list[dict]:
         # file is the record and it is served raw at /predictions/ — but the
         # site is a VIEW of the record, and a view that calls the same club
         # "Hull" on nine cards and "Hull City AFC" on the tenth is just noise.
+        league = row.get("league", "E0")
         row = {**row,
-               "home": canonical(row["home"]),
-               "away": canonical(row["away"]),
-               "cold_start": [canonical(n) for n in row.get("cold_start", [])]}
+               "league": league,
+               "league_name": config.league_name(league),
+               "league_short": config.LEAGUES.get(league, {}).get("short", league),
+               "home": canonical(row["home"], league),
+               "away": canonical(row["away"], league),
+               "cold_start": [canonical(n, league) for n in row.get("cold_start", [])]}
         rows.append({**row,
                      "kickoff_dt": kickoff,
                      "kickoff_label": kickoff.strftime("%a %d %b, %H:%M UTC"),
                      "bar": charts.outcome_bar(row["p_H"], row["p_D"], row["p_A"])})
 
-    rows.sort(key=lambda r: (r["kickoff_dt"], r["home"]))
+    order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
+    rows.sort(key=lambda r: (r["kickoff_dt"], order.get(r["league"], 99), r["home"]))
 
+    # Grouped by day, then by division inside the day. Seven leagues on one
+    # page is a wall unless something separates them, and the day is what a
+    # reader is actually looking for first.
     days, current = [], None
     for row in rows:
         label = row["kickoff_dt"].strftime("%A %d %B")
         if current is None or current["label"] != label:
-            current = {"label": label, "matches": []}
+            current = {"label": label, "matches": [], "leagues": []}
             days.append(current)
         current["matches"].append(row)
+        if not current["leagues"] or current["leagues"][-1]["code"] != row["league"]:
+            current["leagues"].append({"code": row["league"],
+                                       "name": row["league_name"],
+                                       "short": row["league_short"],
+                                       "matches": []})
+        current["leagues"][-1]["matches"].append(row)
     return days
 
 
@@ -117,6 +131,7 @@ def build(out_dir=None) -> None:
     graded = grade.graded_frame()
     score = grade.scorecard(graded)
     weeks = grade.by_week(graded)
+    leagues = grade.by_league(graded)
     calib = grade.calibration(graded)
     chain = ledger.verify_chain()
     days = upcoming_view()
@@ -131,6 +146,9 @@ def build(out_dir=None) -> None:
         "backtest": config.BACKTEST,
         "score": score,
         "genesis": ledger.GENESIS,
+        "leagues": leagues,
+        "n_leagues": len(config.ENABLED_LEAGUES),
+        "league_list": [config.league_name(c) for c in config.ENABLED_LEAGUES],
         "signup_action": config.SIGNUP_ACTION,
         "contact_email": config.CONTACT_EMAIL,
         "data_controller": config.DATA_CONTROLLER,

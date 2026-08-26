@@ -160,7 +160,12 @@ cat <<DONE
   Still to do:
     1. ${WEB:+$([[ $WEB == nginx ]] && echo "certbot --nginx -d $DOMAIN -d www.$DOMAIN" || echo "nothing — Caddy handles TLS")}
     2. Put a football-data.org token in $APP_DIR/.env  (free, for fixtures)
-    3. Add a git remote so the ledger gets an independent timestamp:
+    3. Audit the club names before the first real publication:
+         sudo -u $APP_USER $APP_DIR/.venv/bin/python $APP_DIR/scripts/check_names.py
+       A club whose name does not resolve gets sealed under a spelling the
+       grader cannot join, and the ledger is never rewritten. Keep a division
+       out of PROOFODDS_LEAGUES until this exits clean.
+    4. Add a git remote so the ledger gets an independent timestamp:
          cd $APP_DIR
          sudo -u $APP_USER git remote add origin git@github.com:yourname/proofodds.git
 
