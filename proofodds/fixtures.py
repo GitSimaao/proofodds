@@ -38,11 +38,12 @@ FDORG_URL = "https://api.football-data.org/v4/competitions/{code}/matches"
 
 class Fixture:
     __slots__ = ("kickoff", "league", "home", "away", "home_raw", "away_raw",
-                 "resolved", "matchday")
+                 "resolved", "time_confirmed", "matchday")
 
     def __init__(self, kickoff: dt.datetime, home: str, away: str,
                  league: str = "E0", home_raw: str = "", away_raw: str = "",
-                 resolved: bool = True, matchday=None):
+                 resolved: bool = True, time_confirmed: bool = True,
+                 matchday=None):
         self.kickoff = kickoff
         self.league = league
         self.home = home
@@ -50,6 +51,12 @@ class Fixture:
         self.home_raw = home_raw or home
         self.away_raw = away_raw or away
         self.resolved = resolved
+        # football-data.org sets TIMED once a kickoff is fixed. Before that a
+        # match sits at SCHEDULED with a rough date and a placeholder time.
+        # Publishing early is fine — the eight-day window seals these days
+        # ahead of any kickoff — but printing a clock time we were handed as a
+        # guess is not, so the fixture carries the distinction.
+        self.time_confirmed = time_confirmed
         self.matchday = matchday
 
     @property
@@ -147,7 +154,9 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
         away, ok_a = _name(away_raw, league, unresolved)
         out.append(Fixture(kickoff=kickoff, league=league, home=home, away=away,
                            home_raw=home_raw, away_raw=away_raw,
-                           resolved=ok_h and ok_a, matchday=m.get("matchday")))
+                           resolved=ok_h and ok_a,
+                           time_confirmed=str(m.get("status", "")).upper() == "TIMED",
+                           matchday=m.get("matchday")))
 
     if unresolved:
         # An error, not a warning. Every one of these is a club whose sealed
@@ -187,8 +196,10 @@ def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:
             date = dt.date.fromisoformat(row["date"].strip())
             if not (today <= date <= horizon):
                 continue
-            time_s = (row.get("time") or "").strip() or "12:00"
-            hh, mm = (int(x) for x in time_s.split(":"))
+            # An empty time column is not midday. It is a time we do not know,
+            # and the row says so rather than inventing one.
+            time_s = (row.get("time") or "").strip()
+            hh, mm = (int(x) for x in (time_s or "12:00").split(":"))
             kickoff = dt.datetime.combine(date, dt.time(hh, mm),
                                           tzinfo=dt.timezone.utc)
             home, ok_h = _name(row["home"].strip(), league, unresolved)
@@ -197,6 +208,7 @@ def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:
                                home_raw=row["home"].strip(),
                                away_raw=row["away"].strip(),
                                resolved=ok_h and ok_a,
+                               time_confirmed=bool(time_s),
                                matchday=row.get("matchday")))
 
     if unresolved:

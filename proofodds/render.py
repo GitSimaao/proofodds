@@ -72,9 +72,13 @@ def upcoming_view() -> list[dict]:
                "home": sealed_name(row["home"], league, row.get("home_raw", "")),
                "away": sealed_name(row["away"], league, row.get("away_raw", "")),
                "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])]}
+        tbc = bool(row.get("kickoff_tbc"))
         rows.append({**row,
                      "kickoff_dt": kickoff,
-                     "kickoff_label": kickoff.strftime("%a %d %b, %H:%M UTC"),
+                     "kickoff_tbc": tbc,
+                     "kickoff_label": (kickoff.strftime("%a %d %b") + ", time TBC"
+                                       if tbc else
+                                       kickoff.strftime("%a %d %b, %H:%M UTC")),
                      "bar": charts.outcome_bar(row["p_H"], row["p_D"], row["p_A"])})
 
     order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}

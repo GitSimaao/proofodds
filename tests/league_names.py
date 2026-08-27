@@ -1,6 +1,13 @@
 """
 Real club names from both feeds, captured for 2025/26.
 
+Transcribed from the feeds, not written from memory. Four entries here were
+once guesses — "LOSC Lille", "SL Benfica", "SC Braga", "Sporting CP" — and all
+four were strings football-data.org never emits. They resolved anyway, so the
+tests stayed green while asserting against spellings that do not exist. Run
+`scripts/check_names.py --emit-fixture` to regenerate this from what the feeds
+actually said.
+
 The left-hand side of each pair is how football-data.org spells a club; the
 right-hand side is how football-data.co.uk spells the same club in that
 division's results file. These are not invented examples — they are the two
@@ -136,7 +143,7 @@ FEED = {
     "F1": {
         "Angers SCO": "Angers", "AJ Auxerre": "Auxerre",
         "Stade Brestois 29": "Brest", "Le Havre AC": "Le Havre",
-        "Racing Club de Lens": "Lens", "LOSC Lille": "Lille",
+        "Racing Club de Lens": "Lens", "Lille OSC": "Lille",
         "FC Lorient": "Lorient", "Olympique Lyonnais": "Lyon",
         "Olympique de Marseille": "Marseille", "FC Metz": "Metz",
         "AS Monaco FC": "Monaco", "FC Nantes": "Nantes", "OGC Nice": "Nice",
@@ -146,14 +153,14 @@ FEED = {
     },
     "P1": {
         "FC Alverca": "Alverca", "FC Arouca": "Arouca",
-        "AVS Futebol SAD": "AVS", "SL Benfica": "Benfica",
+        "AVS Futebol SAD": "AVS", "Sport Lisboa e Benfica": "Benfica",
         "Boavista FC": "Boavista", "Casa Pia AC": "Casa Pia",
         "GD Estoril Praia": "Estoril", "CF Estrela da Amadora": "Estrela",
         "FC Famalicão": "Famalicao", "Gil Vicente FC": "Gil Vicente",
         "Vitória SC": "Guimaraes", "Moreirense FC": "Moreirense",
         "CD Nacional": "Nacional", "FC Porto": "Porto", "Rio Ave FC": "Rio Ave",
-        "CD Santa Clara": "Santa Clara", "SC Braga": "Sp Braga",
-        "Sporting CP": "Sp Lisbon", "CD Tondela": "Tondela",
+        "CD Santa Clara": "Santa Clara", "Sporting Clube de Braga": "Sp Braga",
+        "Sporting Clube de Portugal": "Sp Lisbon", "CD Tondela": "Tondela",
     },
     # Observed on 27 Aug 2026 by scripts/check_names.py against the live
     # football-data.org feed. Three of these are NOT what a reasonable person

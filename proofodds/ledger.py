@@ -219,6 +219,10 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
                 row["away_raw"] = fx.away_raw
             if not fx.resolved:
                 row["name_provisional"] = True
+            # Sealed only when it is true, so entries where every kickoff is
+            # confirmed stay exactly as they were before this existed.
+            if not fx.time_confirmed:
+                row["kickoff_tbc"] = True
             rows.append(row)
 
         models[league] = {

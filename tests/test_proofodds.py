@@ -618,6 +618,34 @@ def test_the_same_match_sealed_under_two_spellings_is_one_prediction(
     assert rows[0]["p_H"] == 0.423784
 
 
+def test_a_kickoff_the_feed_has_not_fixed_is_not_printed_as_a_time(
+        ledger_in, stub_models, tmp_path):
+    """
+    football-data.org sets TIMED once a kickoff is fixed. Before that a match
+    sits at SCHEDULED, carrying a rough date and a placeholder time — nine of
+    eighteen Primeira Liga fixtures on the day this was written.
+
+    Publishing them is right: the eight-day window seals them days before any
+    plausible kickoff, so the promise holds. Printing the placeholder as though
+    it were a kickoff time is not. A site that insists on precision does not
+    get to invent the one number it was handed as a guess.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    kick = now + dt.timedelta(days=4)
+    stub_models.publish([
+        Fixture(kick, "Porto", "Benfica", league="P1", time_confirmed=False),
+        Fixture(kick, "Arsenal", "Chelsea", league="E0"),
+    ], now=now)
+
+    rows = {r["home"]: r for r in
+            json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())["predictions"]}
+    assert rows["Porto"]["kickoff_tbc"] is True
+    # and absent, not False, where the time is known — an entry says what is
+    # true of it and stays silent about the rest
+    assert "kickoff_tbc" not in rows["Arsenal"]
+
+
 def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
     """
     The first entries name the division once, at entry level, because there was

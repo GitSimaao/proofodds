@@ -88,7 +88,13 @@
       <div class="cards">
         {% for m in lg.matches %}
         <article class="card">
-          <div class="card-when"><span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span></div>
+          <div class="card-when">
+            {% if m.kickoff_tbc %}
+            <span title="The fixture list has the date but not the kick-off time yet">{{ m.kickoff_label }}</span>
+            {% else %}
+            <span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span>
+            {% endif %}
+          </div>
           <div class="teams">
             <div class="team home">{{ m.home }}</div>
             <div class="vs">v</div>

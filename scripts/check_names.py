@@ -163,8 +163,18 @@ def main() -> int:
         print("FEED = {")
         for lg, (_, feed) in observed.items():
             print(f"    {lg!r}: {{")
+            known = set(observed[lg][0])
             for raw, hit in feed.items():
-                mark = "" if hit != "?" else "   # UNRESOLVED — fix before pasting"
+                if hit == "?":
+                    mark = "   # UNRESOLVED — fix before pasting"
+                elif hit not in known:
+                    # An override aimed at a spelling the results files have
+                    # not published yet — Elversberg, promoted before
+                    # football-data.co.uk opened the season's file. True, and
+                    # worth flagging so nobody reads it as a typo.
+                    mark = "   # not in the results files yet"
+                else:
+                    mark = ""
                 print(f"        {raw!r}: {hit!r},{mark}")
             print("    },")
         print("}")
