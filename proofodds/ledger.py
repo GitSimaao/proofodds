@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config, dixon_coles as dc
-from .data import load_matches
+from .data import load_matches, sealed_name
 from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
@@ -277,6 +277,13 @@ def all_predictions() -> list[dict]:
     wins. Publishing earlier is harder, so grading the earliest entry is the
     conservative choice — and it stops a later, better-informed prediction from
     quietly replacing an earlier one.
+
+    The key is the club names as they will be GRADED, never as they were
+    sealed. Those differ the moment a name that could not be resolved in
+    August resolves in September: Coventry was sealed as "Coventry City FC" on
+    the 26th and as "Coventry" on the 27th, and keying on the raw strings let
+    the same match through twice — two cards on the front page with different
+    probabilities, and worse, one match counted twice in the log loss.
     """
     seen, out = set(), []
     for path in ledger_files():
@@ -287,7 +294,9 @@ def all_predictions() -> list[dict]:
         default_league = entry.get("league", "E0")
         for row in entry["predictions"]:
             league = row.get("league", default_league)
-            key = (league, row["kickoff"][:10], row["home"], row["away"])
+            key = (league, row["kickoff"][:10],
+                   sealed_name(row["home"], league, row.get("home_raw", "")),
+                   sealed_name(row["away"], league, row.get("away_raw", "")))
             if key in seen:
                 continue
             seen.add(key)

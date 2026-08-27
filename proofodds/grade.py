@@ -21,7 +21,7 @@ import pandas as pd
 
 from . import config
 from .data import (add_market_probabilities, load_all_matches, log_loss,
-                   resolve, result_index)
+                   result_index, sealed_name)
 from .ledger import all_predictions
 
 log = logging.getLogger(__name__)
@@ -31,23 +31,8 @@ MKT_COLS = ["mkt_H", "mkt_D", "mkt_A"]
 
 
 def _canonical_for(name: str, raw: str, league: str) -> str:
-    """
-    The results-file spelling for a name that was sealed some time ago.
-
-    Tried in order: the name as sealed, then the fixture feed's own spelling if
-    the entry kept one. The second chance is the point of sealing `home_raw` —
-    a club the resolver could not place in August is placed the moment somebody
-    adds one line to data.OVERRIDES, and every prediction ever sealed for it
-    joins retroactively. The ledger file is never touched.
-    """
-    hit, _ = resolve(name, league)
-    if hit:
-        return hit
-    if raw and raw != name:
-        hit, _ = resolve(raw, league)
-        if hit:
-            return hit
-    return name
+    """Read-side club-name resolution. Lives in data.sealed_name; see there."""
+    return sealed_name(name, league, raw)
 
 
 def graded_frame(leagues=None) -> pd.DataFrame:

@@ -556,6 +556,54 @@ def test_the_same_pairing_in_two_divisions_is_not_deduplicated(
     assert {r["league"] for r in rows} == {"SP1", "P1"}
 
 
+def test_the_same_match_sealed_under_two_spellings_is_one_prediction(
+        ledger_in, tmp_path, real_names):
+    """
+    The duplicate that reached production.
+
+    Coventry went up to the Premier League for 2026/27. On the 26th the club
+    had no line in the results file, so the fixture was sealed under the feed's
+    spelling, "Coventry City FC". By the 27th their first result had been
+    published, the resolver found them, and the same fixture was sealed again
+    as "Coventry". Keying de-duplication on the raw strings let both through:
+    two cards on the front page for one match, showing 42% and 18% for a home
+    win — and, far worse than the eyesore, the same match counted twice in the
+    log loss.
+
+    So the key is the name as it will be GRADED, and the earlier entry wins.
+    Not because it is better — it is worse, priced with no history at all —
+    but because it was published first, and a later, better-informed
+    prediction must never be allowed to quietly replace one already sealed.
+    """
+    # The results file has caught up by now — which is exactly the moment the
+    # duplicate becomes visible, and therefore the moment it must be merged.
+    # (KNOWN is pinned to 2025/26; the live E0 set spans eleven seasons, so it
+    # already holds Hull from 2016/17 and gains Coventry with their first
+    # 2026/27 result.)
+    data._known_cache["E0"] = (
+        data._cache_key("E0"),
+        frozenset(set(league_names.KNOWN["E0"]) | {"Coventry", "Hull"}))
+
+    kickoff = "2026-08-29T14:00:00Z"
+    for day, home, away, p_h, raw in [
+            ("2026-08-26", "Coventry City FC", "Hull City AFC", 0.423784, None),
+            ("2026-08-27", "Coventry", "Hull", 0.179277, "Coventry City FC")]:
+        row = {"league": "E0", "kickoff": kickoff, "home": home, "away": away,
+               "p_H": p_h, "p_D": 0.27, "p_A": round(1 - p_h - 0.27, 6)}
+        if raw:
+            row["home_raw"], row["away_raw"] = raw, "Hull City AFC"
+        entry = {"version": 2, "leagues": ["E0"],
+                 "published_at": f"{day}T00:09:00Z",
+                 "prev_hash": ledger_in.GENESIS, "models": {}, "predictions": [row]}
+        entry["hash"] = ledger_in.compute_hash(entry)
+        (tmp_path / f"{day}.json").write_text(json.dumps(entry))
+
+    rows = ledger_in.all_predictions()
+    assert len(rows) == 1
+    assert rows[0]["published_at"].startswith("2026-08-26")
+    assert rows[0]["p_H"] == 0.423784
+
+
 def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
     """
     The first entries name the division once, at entry level, because there was

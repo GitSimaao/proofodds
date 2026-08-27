@@ -489,6 +489,27 @@ def display_from_feed(name: str) -> str:
     return " ".join(words).strip() or (name or "").strip()
 
 
+def sealed_name(name: str, league: str, raw: str = "") -> str:
+    """
+    The results-file spelling for a club name that was sealed some time ago.
+
+    Tried in order: the name as sealed, then the fixture feed's own spelling if
+    the entry kept one, then the name unchanged. Every part of the project that
+    READS the ledger must go through this one function — grading, the front
+    page, and above all the de-duplication of repeated fixtures. If two of them
+    disagree about what a sealed name means, the same match ends up counted
+    twice, which is how a scorecard starts lying.
+    """
+    hit, _ = resolve(name, league)
+    if hit:
+        return hit
+    if raw and raw != name:
+        hit, _ = resolve(raw, league)
+        if hit:
+            return hit
+    return name
+
+
 def is_known(name: str, league: str) -> bool:
     return name in known_teams(league)
 

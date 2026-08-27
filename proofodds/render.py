@@ -17,7 +17,7 @@ import shutil
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import charts, config, grade, ledger
-from .data import canonical
+from .data import sealed_name
 
 log = logging.getLogger(__name__)
 
@@ -69,9 +69,9 @@ def upcoming_view() -> list[dict]:
                "league": league,
                "league_name": config.league_name(league),
                "league_short": config.LEAGUES.get(league, {}).get("short", league),
-               "home": canonical(row["home"], league),
-               "away": canonical(row["away"], league),
-               "cold_start": [canonical(n, league) for n in row.get("cold_start", [])]}
+               "home": sealed_name(row["home"], league, row.get("home_raw", "")),
+               "away": sealed_name(row["away"], league, row.get("away_raw", "")),
+               "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])]}
         rows.append({**row,
                      "kickoff_dt": kickoff,
                      "kickoff_label": kickoff.strftime("%a %d %b, %H:%M UTC"),
