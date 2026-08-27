@@ -130,6 +130,7 @@ def build(out_dir=None) -> None:
 
     graded = grade.graded_frame()
     score = grade.scorecard(graded)
+    totals = grade.totals_scorecard(graded)
     weeks = grade.by_week(graded)
     leagues = grade.by_league(graded)
     calib = grade.calibration(graded)
@@ -145,6 +146,8 @@ def build(out_dir=None) -> None:
         "uniform_log_loss": config.UNIFORM_LOG_LOSS,
         "backtest": config.BACKTEST,
         "score": score,
+        "totals": totals,
+        "totals_line": config.TOTALS_LINE,
         "genesis": ledger.GENESIS,
         "leagues": leagues,
         "n_leagues": len(config.ENABLED_LEAGUES),

@@ -226,6 +226,25 @@ h4 {
 
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 
+/* The second market, on one line. Deliberately quieter than the 1X2 block:
+   it is a real graded number, not a headline, and a card with two equally
+   loud blocks reads as twice the claim. */
+.totals {
+  display: grid; grid-template-columns: auto auto 1fr auto auto auto;
+  align-items: baseline; gap: 0 8px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--rule);
+  font-size: 12.5px;
+}
+.totals .tl, .totals .td {
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+}
+.totals .td { text-align: right; }
+.totals .tv { font-weight: 700; font-variant-numeric: tabular-nums; }
+.totals .to {
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+}
+
 .card {
   background: var(--surface); border: 1px solid var(--rule);
   border-radius: var(--radius); padding: 17px 18px 15px; box-shadow: var(--shadow-1);

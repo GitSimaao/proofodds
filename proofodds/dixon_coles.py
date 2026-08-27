@@ -247,6 +247,27 @@ class DixonColes:
         away = float(np.triu(grid, 1).sum())
         return np.array([home, draw, away])
 
+    def totals_probs(self, home_id, away_id, line: float = 2.5,
+                     max_goals: int = MAX_GOALS) -> np.ndarray:
+        """
+        [P(over the line), P(under)] for total goals in the match.
+
+        Nothing new is estimated here. The scoreline grid already contains the
+        whole distribution; this reads a different sum out of it, which is why
+        a second market costs no extra modelling and carries exactly the same
+        assumptions — including the low-score correction, which matters more
+        for totals than for 1X2 because it moves 0-0 and 1-1 specifically.
+
+        The line is a half-goal, so no match can push: every result is one side
+        or the other. Under is summed and over taken as the remainder, so the
+        two published numbers add to exactly one.
+        """
+        grid = self.score_matrix(home_id, away_id, max_goals)
+        goals = np.arange(max_goals + 1)
+        total = goals[:, None] + goals[None, :]
+        under = float(grid[total < line].sum())
+        return np.array([1.0 - under, under])
+
     def predict(self, home_ids, away_ids, max_goals: int = MAX_GOALS) -> np.ndarray:
         """
         1X2 probabilities for many fixtures at once, shape (n, 3).

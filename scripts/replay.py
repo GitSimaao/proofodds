@@ -105,6 +105,14 @@ def main() -> int:
         print(f"Gap      : {score['gap']:+.4f} per match "
               f"({score['gap_total']:+.1f} nats total)")
         print(f"Accuracy : {score['accuracy']:.1%} vs market {score['market_accuracy']:.1%}")
+
+        totals = grade.totals_scorecard(graded)
+        if totals.get("live"):
+            print(f"\nO/U {totals['line']}  : {totals['n']} matches, "
+                  f"{totals['over_rate']:.1%} went over")
+            print(f"Model    : {totals['model_log_loss']:.4f}")
+            print(f"Market   : {totals['market_log_loss']:.4f}")
+            print(f"Gap      : {totals['gap']:+.4f} per match")
     else:
         print("\nNothing graded — check that results and closing odds are present.")
 

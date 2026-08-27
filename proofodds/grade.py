@@ -28,6 +28,8 @@ log = logging.getLogger(__name__)
 
 PROB_COLS = ["p_H", "p_D", "p_A"]
 MKT_COLS = ["mkt_H", "mkt_D", "mkt_A"]
+OU_PROB_COLS = ["p_over25", "p_under25"]
+OU_MKT_COLS = ["mkt_over25", "mkt_under25"]
 
 
 def _canonical_for(name: str, raw: str, league: str) -> str:
@@ -80,8 +82,9 @@ def graded_frame(leagues=None) -> pd.DataFrame:
                                       "League": "league"})
     results["date"] = results["Date"].dt.normalize()
 
-    cols = ["league", "date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
-            "PSCH", "PSCD", "PSCA", "has_odds"] + MKT_COLS
+    cols = (["league", "date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
+             "PSCH", "PSCD", "PSCA", "has_odds", "has_ou_odds", "over25"]
+            + MKT_COLS + OU_MKT_COLS)
     merged = preds.merge(results[cols], on=["league", "date", "home", "away"],
                          how="left")
 
@@ -100,6 +103,29 @@ def graded_frame(leagues=None) -> pd.DataFrame:
         merged.loc[g, "model_loss"] = -np.log(np.clip(p_model, 1e-15, 1))
         merged.loc[g, "market_loss"] = -np.log(np.clip(p_market, 1e-15, 1))
         merged.loc[g, "hit"] = (sub[PROB_COLS].to_numpy(float).argmax(axis=1) == idx)
+
+    # The totals market is graded separately, on its own subset. A match can
+    # be gradeable on 1X2 and not on over/under — Pinnacle's closing total is
+    # only published from 2019/20, and an entry sealed before this market
+    # existed carries no probability for it at all. Neither gap is allowed to
+    # borrow matches from the other.
+    for col in OU_PROB_COLS:
+        if col not in merged.columns:
+            merged[col] = np.nan
+    merged["ou_graded"] = (merged["played"]
+                           & merged["has_ou_odds"].fillna(False)
+                           & merged[OU_PROB_COLS].notna().all(axis=1))
+    merged["ou_model_loss"] = np.nan
+    merged["ou_market_loss"] = np.nan
+    o = merged["ou_graded"].to_numpy()
+    if o.any():
+        sub = merged[o]
+        idx = np.where(sub["over25"].to_numpy().astype(bool), 0, 1)
+        rows = np.arange(len(sub))
+        pm = sub[OU_PROB_COLS].to_numpy(float)[rows, idx]
+        pk = sub[OU_MKT_COLS].to_numpy(float)[rows, idx]
+        merged.loc[o, "ou_model_loss"] = -np.log(np.clip(pm, 1e-15, 1))
+        merged.loc[o, "ou_market_loss"] = -np.log(np.clip(pk, 1e-15, 1))
 
     # A prediction whose match kicked off days ago and still has no result is
     # almost always a name that failed to join, not a fixture that vanished.
@@ -152,6 +178,47 @@ def scorecard(graded: pd.DataFrame) -> dict:
             {"date": d.date().isoformat(), "value": float(v)}
             for d, v in zip(done["date"], cumulative)
         ],
+    }
+
+
+def totals_scorecard(graded: pd.DataFrame) -> dict:
+    """
+    The over/under 2.5 record, kept apart from the 1X2 one on purpose.
+
+    Two markets, two reference points: guessing 1/3-1/3-1/3 scores 1.0986,
+    guessing a coin flip on a half-goal line scores 0.6931. Averaging the two
+    would produce a number that means nothing.
+
+    The gaps are not comparable either, and that is the trap this function
+    exists to defuse. Everything anyone knows about a football result is worth
+    about 0.150 nats on 1X2; on total goals it is worth about 0.020. There is
+    roughly seven times less to know, so a model will sit closer to the closing
+    line on totals almost regardless of how good it is — and reading that as
+    "we are better at goals" would be exactly backwards. `share_of_available`
+    divides each gap by what was there to win, which is the only comparison
+    between the two that means anything.
+    """
+    if graded.empty or "ou_graded" not in graded.columns:
+        return {"n": 0, "live": False}
+    done = graded[graded["ou_graded"]]
+    if done.empty:
+        return {"n": 0, "live": False}
+
+    model = float(done["ou_model_loss"].mean())
+    market = float(done["ou_market_loss"].mean())
+    uniform = config.UNIFORM_LOG_LOSS_BINARY
+    return {
+        "live": True,
+        "n": int(len(done)),
+        "line": config.TOTALS_LINE,
+        "model_log_loss": model,
+        "market_log_loss": market,
+        "uniform_log_loss": uniform,
+        "gap": model - market,
+        "beats_market": model < market,
+        "over_rate": float(done["over25"].mean()),
+        "share_of_available": ((uniform - model) / (uniform - market)
+                               if market < uniform else None),
     }
 
 

@@ -115,7 +115,11 @@ LOOKAHEAD_DAYS = int(os.environ.get("PROOFODDS_LOOKAHEAD_DAYS", "8"))
 # model needs history before it can say anything. Two seasons of burn-in.
 SCORECARD_START = "2017-08-01"
 
-UNIFORM_LOG_LOSS = 1.0986122886681098   # -log(1/3)
+UNIFORM_LOG_LOSS = 1.0986122886681098        # -log(1/3), three-way
+UNIFORM_LOG_LOSS_BINARY = 0.6931471805599453  # -log(1/2), two-way
+
+# The goals line we publish. A half-goal, so no match can push.
+TOTALS_LINE = 2.5
 
 # --- the prior --------------------------------------------------------------
 # Walk-forward backtest of this exact model, 2017/18-2025/26, reproducible from

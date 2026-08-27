@@ -28,6 +28,10 @@ log = logging.getLogger(__name__)
 
 CORE_COLS = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
 ODDS_COLS = ["PSCH", "PSCD", "PSCA"]
+# Pinnacle's CLOSING over/under 2.5 line. Published from 2019/20 onwards only,
+# which is why the totals record has four seasons less history behind it than
+# the 1X2 one — the method page says so rather than quietly averaging them.
+OU_COLS = ["PC>2.5", "PC<2.5"]
 OUTCOME_INDEX = {"H": 0, "D": 1, "A": 2}
 
 
@@ -558,13 +562,13 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
             log.error("%s is unreadable (%s) — delete it and re-run to "
                       "re-download", path.name, exc)
             continue
-        keep = [c for c in CORE_COLS + ODDS_COLS if c in raw.columns]
+        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS if c in raw.columns]
         missing = [c for c in CORE_COLS if c not in raw.columns]
         if missing:
             log.warning("%s is missing %s — skipping it", path.name, missing)
             continue
         df = raw[keep].copy()
-        for col in ODDS_COLS:
+        for col in ODDS_COLS + OU_COLS:
             if col not in df.columns:
                 df[col] = np.nan
         df["Season"] = f"20{season[:2]}/{season[2:]}"
@@ -627,6 +631,20 @@ def add_market_probabilities(matches: pd.DataFrame) -> pd.DataFrame:
     out["has_odds"] = has
     out["overround"] = np.nan
     out.loc[has, "overround"] = total.ravel() - 1.0
+
+    # The same de-vigging, applied to the two-way total. A two-way book has a
+    # thinner margin than a three-way one, so this number is if anything a
+    # harder benchmark to beat than the 1X2 close.
+    has_ou = out[OU_COLS].notna().all(axis=1) & (out[OU_COLS] > 1).all(axis=1)
+    for col in ["mkt_over25", "mkt_under25"]:
+        out[col] = np.nan
+    if has_ou.any():
+        inv_ou = 1.0 / out.loc[has_ou, OU_COLS].to_numpy(dtype=float)
+        out.loc[has_ou, ["mkt_over25", "mkt_under25"]] = (
+            inv_ou / inv_ou.sum(axis=1, keepdims=True))
+    out["has_ou_odds"] = has_ou
+    out["total_goals"] = out["FTHG"] + out["FTAG"]
+    out["over25"] = out["total_goals"] > 2
     return out
 
 

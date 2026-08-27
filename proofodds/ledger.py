@@ -32,7 +32,7 @@ from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 GENESIS = "0" * 64
 
 
@@ -188,6 +188,12 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
             big = max(range(3), key=lambda i: p[i])
             p[big] = round(1.0 - sum(p[i] for i in range(3) if i != big), 6)
 
+            # Total goals, read out of the same scoreline grid. No second
+            # model, no second set of assumptions — one fit, two markets.
+            totals = model.totals_probs(h, a, config.TOTALS_LINE)
+            p_over = round(float(totals[0]), 6)
+            p_under = round(1.0 - p_over, 6)
+
             row = {
                 "league": league,
                 "kickoff": fx.kickoff.astimezone(dt.timezone.utc)
@@ -197,6 +203,8 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
                 "p_H": p[0],
                 "p_D": p[1],
                 "p_A": p[2],
+                "p_over25": p_over,
+                "p_under25": p_under,
                 "xg_home": round(float(lam), 4),
                 "xg_away": round(float(mu), 4),
                 "cold_start": thin,
@@ -222,6 +230,7 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
             "home_advantage": round(model.gamma, 4),
             "rho": round(model.rho, 4),
             "league_mean_goals": round(model.league_mean, 4),
+            "totals_line": config.TOTALS_LINE,
         }
 
     if not rows:

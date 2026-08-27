@@ -442,6 +442,10 @@ class _StubModel:
     def expected_goals(self, h, a):
         return 1.6, 1.1
 
+    def totals_probs(self, h, a, line=2.5):
+        import numpy as _np
+        return _np.array([0.54, 0.46])
+
 
 def _stub_past(teams):
     import pandas as pd
@@ -484,7 +488,7 @@ def test_one_entry_covers_every_division_and_names_them(ledger_in, stub_models,
     ], now=now)
 
     entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
-    assert entry["version"] == 2
+    assert entry["version"] == ledger_in.SCHEMA_VERSION
     assert entry["leagues"] == ["E0", "P1", "SP1"]
     assert set(entry["models"]) == {"E0", "P1", "SP1"}
     assert {r["league"] for r in entry["predictions"]} == {"E0", "P1", "SP1"}
@@ -636,6 +640,103 @@ def test_the_scorecard_splits_by_division(real_names):
     assert rows[0]["name"] == "Premier League"
 
 
+# --------------------------------------------------------------------------- #
+#  The second market
+# --------------------------------------------------------------------------- #
+def _fitted():
+    import datetime as _dt
+    from proofodds import ledger as _l
+    model, teams, _ = _l._model_for(
+        _dt.datetime(2026, 5, 1, tzinfo=_dt.timezone.utc), "E0")
+    return model, {t: i for i, t in enumerate(teams)}
+
+
+def test_totals_come_out_of_the_same_grid_as_the_result():
+    """
+    No second model. The scoreline grid already holds the whole distribution,
+    so the total is a different sum of the same numbers — which is why both
+    markets carry identical assumptions, the low-score correction included.
+    """
+    import numpy as np
+    model, idx = _fitted()
+    h, a = idx["Liverpool"], idx["Everton"]
+
+    grid = model.score_matrix(h, a)
+    goals = np.arange(grid.shape[0])
+    by_hand = float(grid[(goals[:, None] + goals[None, :]) > 2].sum())
+
+    over, under = model.totals_probs(h, a, 2.5)
+    assert abs(over - by_hand) < 1e-12
+    assert abs(over + under - 1.0) < 1e-12       # a half-goal line cannot push
+
+
+def test_a_stronger_attack_pushes_the_total_up():
+    model, idx = _fitted()
+    big = model.totals_probs(idx["Liverpool"], idx["Everton"])[0]
+    small = model.totals_probs(idx["Everton"], idx["Burnley"])[0]
+    assert big > small
+
+
+def test_both_markets_are_sealed_and_each_sums_to_exactly_one(
+        ledger_in, stub_models, tmp_path):
+    """
+    Same rule as the 1X2 probabilities: a ledger that invites people to check
+    its arithmetic must not ship numbers that fail the first check anyone runs.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    stub_models.publish(
+        [Fixture(now + dt.timedelta(days=2), "Arsenal", "Chelsea", league="E0")],
+        now=now)
+    row = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())["predictions"][0]
+    assert row["p_H"] + row["p_D"] + row["p_A"] == 1.0
+    assert row["p_over25"] + row["p_under25"] == 1.0
+
+
+def test_the_two_markets_are_graded_on_their_own_matches():
+    """
+    A match can be scoreable on the result and not on the total: Pinnacle's
+    closing total only exists from 2019/20, and entries sealed before this
+    market was published carry no probability for it at all. Neither gap may
+    borrow matches from the other.
+    """
+    from proofodds import grade
+    week = _fake_week().copy()
+    week.loc[week.index[-1], ["ou_graded", "ou_model_loss", "ou_market_loss"]] = \
+        [False, float("nan"), float("nan")]
+
+    s, t = grade.scorecard(week), grade.totals_scorecard(week)
+    assert s["n"] == 3 and t["n"] == 2
+    assert t["uniform_log_loss"] == config.UNIFORM_LOG_LOSS_BINARY
+    assert s["uniform_log_loss"] == config.UNIFORM_LOG_LOSS
+    assert t["uniform_log_loss"] != s["uniform_log_loss"]
+
+
+def test_the_totals_market_reports_share_of_available_not_just_the_gap():
+    """
+    The trap this guards. About 0.150 nats of knowledge sit in a 1X2 closing
+    line and about 0.020 in a closing total, so a model lands closer to the
+    market on goals almost regardless of how good it is. Two gaps of equal size
+    mean very different things, and only the normalised figure compares them.
+    """
+    from proofodds import grade
+    t = grade.totals_scorecard(_fake_week())
+    assert t["share_of_available"] is not None
+    expected = ((config.UNIFORM_LOG_LOSS_BINARY - t["model_log_loss"])
+                / (config.UNIFORM_LOG_LOSS_BINARY - t["market_log_loss"]))
+    assert abs(t["share_of_available"] - expected) < 1e-12
+
+
+def test_the_weekly_email_reports_the_second_market_separately():
+    from proofodds import newsletter
+    s = newsletter.summarise(_fake_week(), dt.date(2026, 8, 24), dt.date(2026, 8, 30))
+    assert s["totals"]["n"] == 3
+    text = newsletter.render_text(s)
+    assert "Over/under 2.5 goals" in text
+    assert "not comparable" in text
+    assert newsletter.render_html(s)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
 
@@ -660,6 +761,11 @@ def _fake_week():
             "graded": True,
             "model_loss": -__import__("math").log(p),
             "market_loss": -__import__("math").log(m),
+            "p_over25": 0.54, "p_under25": 0.46,
+            "mkt_over25": 0.55, "mkt_under25": 0.45,
+            "over25": True, "ou_graded": True,
+            "ou_model_loss": -__import__("math").log(0.54),
+            "ou_market_loss": -__import__("math").log(0.55),
         })
     return pd.DataFrame(rows)
 

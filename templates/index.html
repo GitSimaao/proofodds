@@ -112,6 +112,16 @@
               <span class="odds">{{ '%.2f'|format(1 / m.p_A) }}</span>
             </div>
           </div>
+          {% if m.p_over25 %}
+          <div class="totals">
+            <span class="tl">Over {{ totals_line }}</span>
+            <span class="tv">{{ (m.p_over25 * 100)|round|int }}%</span>
+            <span class="to">{{ '%.2f'|format(1 / m.p_over25) }}</span>
+            <span class="td">Under</span>
+            <span class="tv">{{ (m.p_under25 * 100)|round|int }}%</span>
+            <span class="to">{{ '%.2f'|format(1 / m.p_under25) }}</span>
+          </div>
+          {% endif %}
           {% if m.cold_start %}
           <p class="cold">{{ m.cold_start|join(' and ') }}
           {{ 'have' if m.cold_start|length > 1 else 'has' }} almost no record in this

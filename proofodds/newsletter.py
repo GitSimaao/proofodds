@@ -95,7 +95,26 @@ def summarise(graded: pd.DataFrame, start: dt.date, end: dt.date) -> dict | None
         })
     per_league.sort(key=lambda r: order.get(r["league"], 99))
 
+    # The second market, on the same week's matches. Reported separately and
+    # never averaged into the first: the two have different reference points
+    # and wildly different amounts of knowledge available in them.
+    ou = done[done["ou_graded"]] if "ou_graded" in done.columns else done.iloc[0:0]
+    ou_week = ou[(ou["date"].dt.date >= start) & (ou["date"].dt.date <= end)]
+    totals = None
+    if len(ou_week):
+        totals = {
+            "n": int(len(ou_week)),
+            "model": float(ou_week["ou_model_loss"].mean()),
+            "market": float(ou_week["ou_market_loss"].mean()),
+            "gap": float((ou_week["ou_model_loss"] - ou_week["ou_market_loss"]).mean()),
+            "n_all": int(len(ou)),
+            "model_all": float(ou["ou_model_loss"].mean()),
+            "market_all": float(ou["ou_market_loss"].mean()),
+            "gap_all": float((ou["ou_model_loss"] - ou["ou_market_loss"]).mean()),
+        }
+
     return {
+        "totals": totals,
         "leagues": per_league,
         "start": start.isoformat(), "end": end.isoformat(),
         "n": int(len(week)),
@@ -139,6 +158,20 @@ def render_text(s: dict) -> str:
         f"  Gap           {s['gap_all']:+.4f}",
         "",
     ]
+    if s.get("totals"):
+        t = s["totals"]
+        lines += [
+            f"Over/under 2.5 goals, same weekend, {t['n']} matches:",
+            f"  ProofOdds     {t['model']:.4f}",
+            f"  Closing line  {t['market']:.4f}",
+            f"  Gap           {t['gap']:+.4f}",
+            "",
+            "Different market, different scale: a coin flip on a half-goal line",
+            f"scores {config.UNIFORM_LOG_LOSS_BINARY:.4f}, not {config.UNIFORM_LOG_LOSS:.4f}. There is far less",
+            "to know about total goals than about who wins, so the two gaps above",
+            "are not comparable to each other.",
+            "",
+        ]
     if len(s.get("leagues", [])) > 1:
         lines += ["By division this week (small samples — the numbers above are",
                   "the ones with enough matches behind them):", ""]
@@ -219,6 +252,7 @@ Week of {e(s['start'])} – {e(s['end'])}</p>
 <p style="margin:0 0 20px;font-size:20px;font-weight:700">{s['n']} matches graded.</p>
 {block("This week", s['model'], s['market'], s['gap'])}
 {block(f"Since the start &mdash; {s['n_all']} matches", s['model_all'], s['market_all'], s['gap_all'])}
+{block(f"Over/under 2.5 this week &mdash; {s['totals']['n']} matches", s['totals']['model'], s['totals']['market'], s['totals']['gap']) if s.get('totals') else ''}
 <p style="margin:0 0 18px;color:#4e5760">Log loss, lower is better. Predicting
 1/3-1/3-1/3 every week scores {config.UNIFORM_LOG_LOSS:.4f}, so the distance between
 that and the closing line is everything anyone knows about football.</p>

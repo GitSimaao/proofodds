@@ -9,6 +9,12 @@ and scored afterwards** against Pinnacle's closing line.
 | `E1` Championship | `I1` Serie A | `F1` Ligue 1 |
 | | | `P1` Primeira Liga |
 
+Two markets are published for every match — the result, and whether it goes over 2.5
+goals — both out of one fitted model and both graded against Pinnacle's closing price.
+There is no both-teams-to-score, no over 1.5 and no most-likely-scoreline, for one
+reason: no closing line is published for them, so we could state a number and never be
+shown to be wrong about it.
+
 One Dixon-Coles model is fitted per division, on that division's matches only. It does
 not beat the closing line — a walk-forward backtest over nine Premier League seasons
 puts it about 0.017 nats per match behind — and the site says so on the front page.
@@ -61,7 +67,7 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 181 tests
+python -m pytest tests -q          # 191 tests
 python scripts/check_names.py     # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain
 ```
@@ -249,6 +255,13 @@ research repository, including the walk-forward backtest and its 3,250-match rec
 see `config.BACKTEST["repo"]`.
 
 ## Limitations
+
+The two markets are not comparable by their gaps. A 1X2 closing line holds about
+0.150 nats of knowledge over guessing; a closing total holds about 0.020. There is
+roughly seven times less to know about goals, so any model sits closer to the market
+there — the scorecard reports the share of what was available in each, which is the
+only honest comparison. The closing total is also published only from 2019/20, four
+seasons less history than the result market.
 
 Goals only — no shots, no expected goals, no lineups. The model has never heard of a
 suspension, which is most of why the closing line beats it. Promoted teams start at

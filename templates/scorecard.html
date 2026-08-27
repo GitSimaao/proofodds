@@ -53,7 +53,11 @@
       Predicting 1/3-1/3-1/3 every week scores {{ '%.4f'|format(score.uniform_log_loss) }}.
       The closing line scores {{ '%.4f'|format(score.market_log_loss) }}. So everything anyone knows
       about football is worth {{ '%.4f'|format(score.uniform_log_loss - score.market_log_loss) }} nats,
-      {% if score.share_of_available %}and this model captures {{ (score.share_of_available * 100)|round|int }}% of it.{% else %}and that is the whole battlefield.{% endif %}
+      {% if not score.share_of_available %}and that is the whole battlefield.
+      {% elif score.share_of_available <= 1 %}and this model captures
+      {{ (score.share_of_available * 100)|round|int }}% of it.
+      {% else %}and this model is currently scoring better than the closing line itself —
+      which at {{ score.n }} matches is far more likely to be noise than an edge.{% endif %}
       A gap of a few thousandths is a real difference in this business, not a rounding error.
     </div>
 
@@ -75,6 +79,57 @@
         hedging towards the base rates when the market is right to commit. That
         is what the gap above is mostly made of.</p>
       </div>
+    </div>
+    {% endif %}
+
+    {% if totals.live %}
+    <h3>Over/under {{ totals.line }} goals</h3>
+    <p class="section-note">A second market, scored the same way and kept apart from
+    the first. The reference points differ — guessing 1/3-1/3-1/3 on a result scores
+    {{ '%.4f'|format(score.uniform_log_loss) }}, guessing a coin flip on a half-goal
+    line scores {{ '%.4f'|format(totals.uniform_log_loss) }} — so averaging the two
+    would produce a number that means nothing.</p>
+
+    <div class="strip">
+      <div>
+        <div class="k">ProofOdds</div>
+        <div class="v">{{ '%.4f'|format(totals.model_log_loss) }}</div>
+        <div class="n">log loss, {{ totals.n }} matches</div>
+      </div>
+      <div>
+        <div class="k">Closing line</div>
+        <div class="v muted">{{ '%.4f'|format(totals.market_log_loss) }}</div>
+        <div class="n">Pinnacle's closing total</div>
+      </div>
+      <div>
+        <div class="k">Gap per match</div>
+        <div class="v {{ 'ahead' if totals.beats_market else 'behind' }}">{{ '%+.4f'|format(totals.gap) }}</div>
+        <div class="n">{{ 'ahead of' if totals.beats_market else 'behind' }} the market</div>
+      </div>
+      <div>
+        <div class="k">Went over</div>
+        <div class="v muted">{{ (totals.over_rate * 100)|round(1) }}%</div>
+        <div class="n">of the graded matches</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Do not compare these two gaps directly</strong>
+      Everything anyone knows about a football result is worth about 0.150 nats on
+      the 1X2 market. On total goals it is worth about 0.020 — there is roughly
+      seven times less to know, because a closing total barely beats a coin flip.
+      A model therefore sits closer to the market on goals almost regardless of how
+      good it is, and reading a smaller gap as "better at goals" is backwards.
+      {% if totals.share_of_available and score.share_of_available %}
+      The comparison that means something is the share of what was there to win:
+      <strong>{{ (score.share_of_available * 100)|round|int }}%</strong> on the
+      result, <strong>{{ (totals.share_of_available * 100)|round|int }}%</strong>
+      on the total.
+      {% if score.share_of_available > 1 or totals.share_of_available > 1 %}
+      A figure above 100% means the model is currently beating the closing line in
+      that market. It happens, and over a few hundred matches it usually unhappens.
+      {% endif %}
+      {% endif %}
     </div>
     {% endif %}
 
