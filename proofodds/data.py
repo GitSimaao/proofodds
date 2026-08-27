@@ -38,19 +38,65 @@ def season_path(league: str, season: str):
     return config.DATA_DIR / f"{league}_{season}.csv"
 
 
+def looks_like_results(raw: bytes) -> bool:
+    """
+    Is this actually a football-data.co.uk results file?
+
+    It has to be asked, because `raise_for_status` does not ask it. A season
+    that has not been published yet answers 300 Multiple Choices with an HTML
+    page, and 300 is not an error status, so the page sails through and gets
+    written to disk as `D1_2627.csv`. Nothing complains until pandas trips over
+    line 7 of some HTML weeks later, in a division nobody was looking at.
+
+    The header row is the cheap, honest test: every one of these files starts
+    with a line naming the two teams.
+    """
+    head = raw[:2000].lstrip().lstrip(b"\xef\xbb\xbf")
+    if head[:1] in (b"<", b"{"):
+        return False
+    first = head.split(b"\n", 1)[0]
+    return b"HomeTeam" in first and b"AwayTeam" in first
+
+
+def is_cached(path) -> bool:
+    """A cached file only counts if it is readable data, not a saved error."""
+    if not path.exists() or path.stat().st_size == 0:
+        return False
+    with path.open("rb") as fh:
+        return looks_like_results(fh.read(2000))
+
+
 def download_season(league: str, season: str, force: bool = False) -> bool:
-    """Fetch one season CSV. Returns True if the file was written."""
+    """
+    Fetch one season CSV. Returns True if the file was written.
+
+    Two rules, both learned the hard way. Only a 200 carrying a real header row
+    is written at all; and it is written to a temporary file and moved into
+    place, so a bad answer can never overwrite a good file that is already
+    cached. Losing nine seasons of Bundesliga results because the tenth was not
+    published yet is not a trade worth making.
+    """
     path = season_path(league, season)
-    if path.exists() and not force:
+    if is_cached(path) and not force:
         return False
 
     url = f"{config.FOOTBALL_DATA_BASE}/{season}/{league}.csv"
     log.info("downloading %s", url)
     resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"{url} returned {resp.status_code} "
+            f"({resp.reason or 'no reason given'}) — most likely this season "
+            f"is not published yet")
+    if not looks_like_results(resp.content):
+        raise RuntimeError(
+            f"{url} returned {len(resp.content)} bytes that are not a results "
+            f"file — refusing to cache it")
 
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(resp.content)
+    tmp = path.with_suffix(".csv.part")
+    tmp.write_bytes(resp.content)
+    tmp.replace(path)
     # Seven divisions times twelve seasons is eighty-four files on a cold
     # start. football-data.co.uk is a free service run by one person; a short
     # pause costs us half a minute once and costs them nothing.
@@ -81,10 +127,13 @@ def refresh(leagues=None) -> None:
                 log.warning("could not fetch %s %s: %s", league, season, exc)
         for season in config.SEASONS[-2:]:
             try:
-                # The newest season may not exist yet in July; not an error.
+                # The newest season may not exist yet in July, and a division
+                # can lag its neighbours by weeks — football-data.co.uk had
+                # the 2026/27 Bundesliga 2 up before the Bundesliga. Whatever
+                # was cached before stays exactly as it was.
                 download_season(league, season, force=True)
             except Exception as exc:
-                log.warning("%s %s not available: %s", league, season, exc)
+                log.info("%s %s not refreshed: %s", league, season, exc)
 
 
 # --------------------------------------------------------------------------- #
@@ -210,6 +259,12 @@ OVERRIDES: dict[str, dict[str, str]] = {
         "fc augsburg": "Augsburg",
         "vfl wolfsburg": "Wolfsburg",
         "tsg 1899 hoffenheim": "Hoffenheim",
+        # Promoted for 2026/27. football-data.co.uk has not published the
+        # 2026/27 Bundesliga file yet, so the name is not in D1's canonical
+        # set — but the same publisher has spelled this club "Elversberg" in
+        # every 2. Bundesliga file since 2023/24, so this is their spelling
+        # rather than a guess at it.
+        "sv 07 elversberg": "Elversberg",
     },
     "F1": {
         "paris saint germain fc": "Paris SG",
@@ -473,7 +528,15 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
         path = season_path(league, season)
         if not path.exists():
             continue
-        raw = pd.read_csv(path, encoding="utf-8-sig")
+        try:
+            raw = pd.read_csv(path, encoding="utf-8-sig")
+        except Exception as exc:
+            # Loud, and then carry on. Six divisions published with one season
+            # missing beats a crash that publishes nothing, and the stale-
+            # prediction warning in grade.py is the backstop if it persists.
+            log.error("%s is unreadable (%s) — delete it and re-run to "
+                      "re-download", path.name, exc)
+            continue
         keep = [c for c in CORE_COLS + ODDS_COLS if c in raw.columns]
         missing = [c for c in CORE_COLS if c not in raw.columns]
         if missing:

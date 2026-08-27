@@ -282,6 +282,71 @@ def test_names_are_never_resolved_across_divisions(real_names):
     assert data.resolve("FC Bayern München", "E1")[0] is None
 
 
+class _Resp:
+    def __init__(self, status, content, reason=""):
+        self.status_code, self.content, self.reason = status, content, reason
+
+
+def test_a_page_that_is_not_a_results_file_is_never_cached(tmp_path, monkeypatch):
+    """
+    football-data.co.uk answers 300 Multiple Choices, with an HTML page, for a
+    season it has not published yet. 300 is not an error status, so
+    `raise_for_status` waves it through and the page lands on disk as a .csv.
+    Nothing complains until pandas trips over line 7 of some HTML weeks later,
+    in a division nobody was watching.
+
+    Worse, that write would have replaced a good cached file. Ten seasons of
+    Bundesliga results are not worth losing because the eleventh is late.
+    """
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    good = b"Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR\nD1,15/08/25,Bayern Munich,Mainz,3,1,H\n"
+    (tmp_path / "D1_2627.csv").write_bytes(good)
+
+    monkeypatch.setattr(data.requests, "get", lambda *a, **k: _Resp(
+        300, b"<html><head><title>300 Multiple Choices</title></head>", "Multiple Choices"))
+    with pytest.raises(RuntimeError, match="300"):
+        data.download_season("D1", "2627", force=True)
+    assert (tmp_path / "D1_2627.csv").read_bytes() == good
+
+    # A 200 carrying an error page is the same problem wearing a better suit.
+    monkeypatch.setattr(data.requests, "get", lambda *a, **k: _Resp(
+        200, b"<!doctype html><h1>Not found</h1>"))
+    with pytest.raises(RuntimeError, match="not a results file"):
+        data.download_season("D1", "2627", force=True)
+    assert (tmp_path / "D1_2627.csv").read_bytes() == good
+
+    # And a cached file that is junk must not count as cached.
+    (tmp_path / "D1_2526.csv").write_bytes(b"<html>300</html>")
+    assert not data.is_cached(tmp_path / "D1_2526.csv")
+    assert data.is_cached(tmp_path / "D1_2627.csv")
+
+
+def test_the_header_row_is_what_makes_it_a_results_file():
+    assert data.looks_like_results(
+        b"Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG\nE0,...")
+    assert data.looks_like_results(
+        b"\xef\xbb\xbfDiv,Date,HomeTeam,AwayTeam,FTHG\n")      # BOM
+    assert not data.looks_like_results(b"<html><title>300 Multiple Choices")
+    assert not data.looks_like_results(b"")
+    assert not data.looks_like_results(b"Div,Date,Time\nE0,15/08/25,15:00")
+
+
+def test_a_promotion_the_results_file_has_not_caught_up_with_is_pinned(real_names):
+    """
+    SV 07 Elversberg went up to the Bundesliga for 2026/27, and
+    football-data.co.uk had not published that division's file yet — so the
+    club has no spelling in D1's canonical set to resolve onto.
+
+    The override is not a guess at what they will call it. The same publisher
+    has spelled this club "Elversberg" in every 2. Bundesliga file since
+    2023/24. It resolves now, and it keeps resolving when the file lands.
+    """
+    got, how = data.resolve("SV 07 Elversberg", "D1")
+    assert (got, how) == ("Elversberg", "override")
+    # and even with no override at all, the fallback label is already correct
+    assert data.display_from_feed("SV 07 Elversberg") == "Elversberg"
+
+
 def test_a_club_the_results_files_have_never_seen_still_gets_a_usable_label():
     """
     A genuinely new promotion has no entry anywhere until its first result is
