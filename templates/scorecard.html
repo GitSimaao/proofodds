@@ -84,8 +84,13 @@
 
     {% if totals.live %}
     <h3>Over/under {{ totals.line }} goals</h3>
-    <p class="section-note">A second market, scored the same way and kept apart from
-    the first. The reference points differ — guessing 1/3-1/3-1/3 on a result scores
+    <p class="section-note">Fewer matches than the table above, and a reader is owed the
+    reason. Every fixture is graded from the first entry that published it — one fixture,
+    one file, so anyone checking by hand knows exactly where to look — and entries sealed
+    before this market was added carry no probability for it. The Premier League therefore
+    joins the totals record in September rather than August. That is a choice about how
+    auditable we want the rule to be, not a law of nature.
+    The reference points differ too — guessing 1/3-1/3-1/3 on a result scores
     {{ '%.4f'|format(score.uniform_log_loss) }}, guessing a coin flip on a half-goal
     line scores {{ '%.4f'|format(totals.uniform_log_loss) }} — so averaging the two
     would produce a number that means nothing.</p>
