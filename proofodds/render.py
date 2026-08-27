@@ -148,7 +148,6 @@ def build(out_dir=None) -> None:
         "genesis": ledger.GENESIS,
         "leagues": leagues,
         "n_leagues": len(config.ENABLED_LEAGUES),
-        "league_list": [config.league_name(c) for c in config.ENABLED_LEAGUES],
         "signup_action": config.SIGNUP_ACTION,
         "contact_email": config.CONTACT_EMAIL,
         "data_controller": config.DATA_CONTROLLER,
@@ -163,9 +162,27 @@ def build(out_dir=None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
 
+    # Name the divisions that are actually on the page, not the ones in the
+    # config. They differ more often than you would think — a division goes
+    # live mid-window, an international break empties one country's calendar,
+    # Ligue 1 finishes a fortnight before the Premier League — and a site whose
+    # whole argument is that it says what is true should not list seven
+    # competitions above a page showing one.
+    #
+    # It lists them and stops there. Saying WHY one is missing would mean
+    # guessing: this function reads the ledger and nothing else, so it cannot
+    # tell a division with no fixtures from one that simply has nothing sealed
+    # for this window yet. A vague sentence is fine; a confident wrong one is
+    # not.
+    shown = [c for c in config.LEAGUE_ORDER
+             if any(lg["code"] == c for d in days for lg in d["leagues"])]
+    league_list = [config.league_name(c) for c in
+                   (shown or config.ENABLED_LEAGUES)]
+
     write("index.html", env.get_template("index.html").render(
         page="index", canonical="/",
         fixture_days=days,
+        league_list=league_list,
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,
         **common))
