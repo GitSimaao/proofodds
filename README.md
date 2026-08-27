@@ -1,13 +1,13 @@
 # ProofOdds
 
-Football match probabilities for seven European divisions, **published before kickoff
+Football match probabilities for eight European divisions, **published before kickoff
 and scored afterwards** against Pinnacle's closing line.
 
 | | | |
 |---|---|---|
 | `E0` Premier League | `SP1` La Liga | `D1` Bundesliga |
 | `E1` Championship | `I1` Serie A | `F1` Ligue 1 |
-| | | `P1` Primeira Liga |
+| `N1` Eredivisie | | `P1` Primeira Liga |
 
 Two markets are published for every match — the result, and whether it goes over 2.5
 goals — both out of one fitted model and both graded against Pinnacle's closing price.
@@ -21,10 +21,10 @@ puts it about 0.017 nats per match behind — and the site says so on the front 
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
-Seven divisions rather than one is a statistical decision before it is a product one.
+Eight divisions rather than one is a statistical decision before it is a product one.
 A season of the Premier League is 380 matches; the margin of error on the model-minus-
 market gap at that sample is wider than the gap itself, so a single-league scorecard
-cannot say anything for years. Seven divisions is roughly 2,400 matches a season, which
+cannot say anything for years. Eight divisions is roughly 2,700 matches a season, which
 brings the answer inside one.
 
 ---
@@ -72,7 +72,7 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 191 tests; 12 skip without the CSVs
+python -m pytest tests -q          # 209 tests; 12 skip without the CSVs
 python scripts/check_names.py     # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain
 ```
@@ -161,10 +161,10 @@ results file uses, and which rule connected them — then exits non-zero if anyt
 unresolved. Add the division to `PROOFODDS_LEAGUES` once it is clean.
 
 ```bash
-PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1
+PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1
 ```
 
-The 138 club names of the 2025/26 season are checked in `tests/league_names.py` and
+The 157 club names of the 2025/26 season are checked in `tests/league_names.py` and
 asserted on every test run, so a change to the resolver cannot quietly break a
 division that used to work.
 

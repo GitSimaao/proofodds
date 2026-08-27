@@ -60,6 +60,9 @@ def main() -> int:
     ap.add_argument("--leagues", default="")
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--no-refresh", action="store_true")
+    ap.add_argument("--emit-fixture", action="store_true",
+                    help="print tests/league_names.py entries from what the "
+                         "feeds actually said, instead of the audit report")
     args = ap.parse_args()
 
     # Every configured division by default, not only the enabled ones. The
@@ -74,6 +77,7 @@ def main() -> int:
 
     total_unresolved = 0
     total_fuzzy = 0
+    observed: dict[str, tuple[list, dict]] = {}
 
     for league in leagues:
         meta = config.LEAGUES.get(league, {})
@@ -107,6 +111,13 @@ def main() -> int:
             seen.setdefault(fx.home_raw, fx.home)
             seen.setdefault(fx.away_raw, fx.away)
 
+        observed[league] = (sorted(data.known_teams(league)),
+                            {raw: data.resolve(raw, league)[0] or "?"
+                             for raw in sorted(seen)})
+        if args.emit_fixture:
+            print(f"  {len(seen)} clubs captured")
+            continue
+
         print(f"  fixtures  {len(got)} matches, {len(seen)} clubs\n")
         bad, fuzzy = [], []
         for raw in sorted(seen):
@@ -135,6 +146,29 @@ def main() -> int:
             print(f"  {DIM}Add to data.OVERRIDES[{league!r}]:{OFF}")
             for raw, _ in bad:
                 print(f'      "{data.fold(raw)}": "<results-file spelling>",')
+
+    if args.emit_fixture:
+        # The test fixture must be a transcript, not a recollection. Names a
+        # human types from memory are plausible; names a feed emits are true,
+        # and the difference has already cost us once — "NEC" is not
+        # "NEC Nijmegen", and no rule was ever going to bridge that.
+        print("\n\n# ---- paste into tests/league_names.py ----\n")
+        print("KNOWN = {")
+        for lg, (known, _) in observed.items():
+            print(f"    {lg!r}: [")
+            for i in range(0, len(known), 4):
+                print("        " + " ".join(f"{n!r}," for n in known[i:i + 4]))
+            print("    ],")
+        print("}\n")
+        print("FEED = {")
+        for lg, (_, feed) in observed.items():
+            print(f"    {lg!r}: {{")
+            for raw, hit in feed.items():
+                mark = "" if hit != "?" else "   # UNRESOLVED — fix before pasting"
+                print(f"        {raw!r}: {hit!r},{mark}")
+            print("    },")
+        print("}")
+        return 1 if total_unresolved else 0
 
     print()
     if total_unresolved:

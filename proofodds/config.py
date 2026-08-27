@@ -61,6 +61,7 @@ LEAGUES = {
     "D1":  {"name": "Bundesliga",     "short": "BUN",  "country": "Germany",  "fdorg": "BL1", "tier": 1},
     "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "fdorg": "FL1", "tier": 1},
     "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "fdorg": "PPL", "tier": 1},
+    "N1":  {"name": "Eredivisie",     "short": "ERE",  "country": "Netherlands", "fdorg": "DED", "tier": 1},
 }
 
 # Which of them are actually live. The default is deliberately just one: a

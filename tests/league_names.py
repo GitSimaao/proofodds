@@ -55,6 +55,16 @@ KNOWN = {
         "Moreirense", "Nacional", "Porto", "Rio Ave", "Santa Clara",
         "Sp Braga", "Sp Lisbon", "Tondela",
     ],
+    # Observed, not guessed: every name football-data.co.uk has used for this
+    # division across eleven seasons, read off the CSVs themselves.
+    "N1": [
+        "AZ Alkmaar", "Ajax", "Almere City", "Cambuur", "Den Haag",
+        "Excelsior", "FC Emmen", "Feyenoord", "For Sittard", "Go Ahead Eagles",
+        "Graafschap", "Groningen", "Heerenveen", "Heracles", "NAC Breda",
+        "Nijmegen", "PSV Eindhoven", "Roda", "Sparta Rotterdam", "Telstar",
+        "Twente", "Utrecht", "VVV Venlo", "Vitesse", "Volendam", "Waalwijk",
+        "Willem II", "Zwolle",
+    ],
 }
 
 FEED = {
@@ -144,5 +154,20 @@ FEED = {
         "CD Nacional": "Nacional", "FC Porto": "Porto", "Rio Ave FC": "Rio Ave",
         "CD Santa Clara": "Santa Clara", "SC Braga": "Sp Braga",
         "Sporting CP": "Sp Lisbon", "CD Tondela": "Tondela",
+    },
+    # Observed on 27 Aug 2026 by scripts/check_names.py against the live
+    # football-data.org feed. Three of these are NOT what a reasonable person
+    # would guess — "NEC", "SBV Excelsior", "Telstar 1963" — which is why this
+    # table is now transcribed from the feed rather than written from memory.
+    "N1": {
+        "ADO Den Haag": "Den Haag", "AFC Ajax": "Ajax", "AZ": "AZ Alkmaar",
+        "FC Groningen": "Groningen", "FC Twente '65": "Twente",
+        "FC Utrecht": "Utrecht", "Feyenoord Rotterdam": "Feyenoord",
+        "Fortuna Sittard": "For Sittard",
+        "Go Ahead Eagles": "Go Ahead Eagles", "NEC": "Nijmegen",
+        "PEC Zwolle": "Zwolle", "PSV": "PSV Eindhoven",
+        "SBV Excelsior": "Excelsior", "SC Cambuur-Leeuwarden": "Cambuur",
+        "SC Heerenveen": "Heerenveen", "Sparta Rotterdam": "Sparta Rotterdam",
+        "Telstar 1963": "Telstar", "Willem II Tilburg": "Willem II",
     },
 }

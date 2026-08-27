@@ -307,6 +307,20 @@ OVERRIDES: dict[str, dict[str, str]] = {
         "fc alverca": "Alverca",
         "avs futebol sad": "AVS",
     },
+    "N1": {
+        # Two clubs whose short form names a city the long form never says.
+        # Everything else in this division falls out of the rules: "Fortuna"
+        # opens "For", "De Graafschap" loses its article, "FC Twente '65"
+        # loses its year.
+        "psv": "PSV Eindhoven",
+        "az": "AZ Alkmaar",
+        "az alkmaar": "AZ Alkmaar",
+        # NEC is Nijmegen Eendracht Combinatie and the results file indexes it
+        # by the city, exactly as it does Den Haag for ADO and Zwolle for PEC.
+        # No rule can bridge "NEC" and "Nijmegen" — they share no letters in
+        # order — and no rule should try.
+        "nec": "Nijmegen",
+    },
 }
 
 # football-data.co.uk's own historical inconsistencies, applied when the
