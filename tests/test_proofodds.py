@@ -46,6 +46,7 @@ def test_hash_is_order_independent(ledger_in):
             == ledger_in.compute_hash({"b": 2, "a": 1}))
 
 
+@pytest.mark.needs_data
 def test_chain_detects_a_tampered_prediction(ledger_in, tmp_path):
     _seed(ledger_in, tmp_path, days=3)
     assert ledger_in.verify_chain()["ok"]
@@ -60,6 +61,7 @@ def test_chain_detects_a_tampered_prediction(ledger_in, tmp_path):
     assert any("hash mismatch" in b["reason"] for b in report["broken"])
 
 
+@pytest.mark.needs_data
 def test_chain_detects_a_rehashed_tamper(ledger_in, tmp_path):
     """
     The subtle attack: edit a prediction AND recompute its own hash.
@@ -87,6 +89,7 @@ def test_empty_ledger_verifies(ledger_in):
 # --------------------------------------------------------------------------- #
 #  The publication rules
 # --------------------------------------------------------------------------- #
+@pytest.mark.needs_data
 def test_never_publishes_a_match_that_already_started(ledger_in):
     from proofodds.fixtures import Fixture
     now = dt.datetime(2025, 3, 1, 12, 0, tzinfo=dt.timezone.utc)
@@ -100,6 +103,7 @@ def test_never_publishes_a_match_that_already_started(ledger_in):
     assert ("Liverpool", "Everton") in pairs
 
 
+@pytest.mark.needs_data
 def test_never_rewrites_an_existing_entry(ledger_in, tmp_path):
     from proofodds.fixtures import Fixture
     now = dt.datetime(2025, 3, 1, 12, 0, tzinfo=dt.timezone.utc)
@@ -115,6 +119,7 @@ def test_never_rewrites_an_existing_entry(ledger_in, tmp_path):
     assert first.read_bytes() == before
 
 
+@pytest.mark.needs_data
 def test_model_only_sees_the_past(ledger_in):
     """The training set must end strictly before the publication date."""
     now = dt.datetime(2020, 1, 15, 0, 5, tzinfo=dt.timezone.utc)
@@ -124,6 +129,7 @@ def test_model_only_sees_the_past(ledger_in):
     assert -0.25 < model.rho < 0.25
 
 
+@pytest.mark.needs_data
 def test_a_club_with_no_history_is_priced_not_skipped(ledger_in):
     """
     A promoted club that has never appeared in the data still gets a prediction.
@@ -144,6 +150,7 @@ def test_a_club_with_no_history_is_priced_not_skipped(ledger_in):
     assert row["p_H"] + row["p_D"] + row["p_A"] == 1.0
 
 
+@pytest.mark.needs_data
 def test_cold_start_uses_the_time_weighted_sample(ledger_in):
     """
     Ancient history does not count as history.
@@ -162,6 +169,7 @@ def test_cold_start_uses_the_time_weighted_sample(ledger_in):
     assert "Arsenal" not in row["cold_start"]     # present throughout
 
 
+@pytest.mark.needs_data
 def test_first_publication_wins(ledger_in, tmp_path):
     """
     A fixture published twice is graded on the earlier entry.
@@ -382,6 +390,7 @@ def test_unknown_statuses_do_not_silently_drop_fixtures():
         assert surprising.upper() not in NOT_UPCOMING_STATUSES
 
 
+@pytest.mark.needs_data
 def test_market_probabilities_sum_to_one():
     matches = data.add_market_probabilities(data.load_matches("E0"))
     priced = matches[matches["has_odds"]]
@@ -390,6 +399,7 @@ def test_market_probabilities_sum_to_one():
     assert (priced["overround"] > 0).all()      # a book always takes a cut
 
 
+@pytest.mark.needs_data
 def test_matches_without_odds_are_kept_not_dropped():
     matches = data.add_market_probabilities(data.load_matches("E0"))
     assert (~matches["has_odds"]).sum() > 0
@@ -651,6 +661,7 @@ def _fitted():
     return model, {t: i for i, t in enumerate(teams)}
 
 
+@pytest.mark.needs_data
 def test_totals_come_out_of_the_same_grid_as_the_result():
     """
     No second model. The scoreline grid already holds the whole distribution,
@@ -670,6 +681,7 @@ def test_totals_come_out_of_the_same_grid_as_the_result():
     assert abs(over + under - 1.0) < 1e-12       # a half-goal line cannot push
 
 
+@pytest.mark.needs_data
 def test_a_stronger_attack_pushes_the_total_up():
     model, idx = _fitted()
     big = model.totals_probs(idx["Liverpool"], idx["Everton"])[0]

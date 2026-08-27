@@ -62,12 +62,17 @@ not remove it.
 ```bash
 pip install -r requirements.txt
 
+# The results CSVs are a download, not part of this repo — they are
+# football-data.co.uk's data, not ours. Twelve tests need them and skip
+# with instructions until you run this. Nothing else does.
+python -c "from proofodds import data; data.refresh('E0')"
+
 python scripts/daily.py            # refresh results, seal, grade, rebuild
 python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 191 tests
+python -m pytest tests -q          # 191 tests; 12 skip without the CSVs
 python scripts/check_names.py     # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain
 ```
