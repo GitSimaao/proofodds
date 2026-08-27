@@ -1,0 +1,180 @@
+{
+  "version": 2,
+  "leagues": [
+    "E0"
+  ],
+  "published_at": "2026-08-27T00:09:35Z",
+  "prev_hash": "80f997ad756cb3e92eab994caf7d930a20c3f5775d31422c49b89f04f964ec58",
+  "models": {
+    "E0": {
+      "name": "dixon-coles",
+      "xi": 0.002,
+      "prior_sd": 0.6,
+      "trained_through": "2026-08-24",
+      "n_train": 4190,
+      "home_advantage": 1.2067,
+      "rho": -0.0738,
+      "league_mean_goals": 1.251
+    }
+  },
+  "predictions": [
+    {
+      "league": "E0",
+      "kickoff": "2026-08-28T19:00:00Z",
+      "home": "Crystal Palace",
+      "away": "Man City",
+      "p_H": 0.180875,
+      "p_D": 0.244472,
+      "p_A": 0.574653,
+      "xg_home": 0.9224,
+      "xg_away": 1.8095,
+      "cold_start": [],
+      "home_raw": "Crystal Palace FC",
+      "away_raw": "Manchester City FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-29T11:30:00Z",
+      "home": "Liverpool",
+      "away": "Nott'm Forest",
+      "p_H": 0.574581,
+      "p_D": 0.229707,
+      "p_A": 0.195712,
+      "xg_home": 1.9863,
+      "xg_away": 1.0881,
+      "cold_start": [],
+      "home_raw": "Liverpool FC",
+      "away_raw": "Nottingham Forest FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-29T14:00:00Z",
+      "home": "Bournemouth",
+      "away": "Everton",
+      "p_H": 0.44917,
+      "p_D": 0.282424,
+      "p_A": 0.268406,
+      "xg_home": 1.442,
+      "xg_away": 1.0602,
+      "cold_start": [],
+      "home_raw": "AFC Bournemouth",
+      "away_raw": "Everton FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-29T14:00:00Z",
+      "home": "Coventry",
+      "away": "Hull",
+      "p_H": 0.179277,
+      "p_D": 0.255185,
+      "p_A": 0.565538,
+      "xg_home": 0.8595,
+      "xg_away": 1.7042,
+      "cold_start": [
+        "Coventry",
+        "Hull"
+      ],
+      "home_raw": "Coventry City FC",
+      "away_raw": "Hull City AFC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-29T16:30:00Z",
+      "home": "Tottenham",
+      "away": "Newcastle",
+      "p_H": 0.358414,
+      "p_D": 0.248663,
+      "p_A": 0.392923,
+      "xg_home": 1.5682,
+      "xg_away": 1.6492,
+      "cold_start": [],
+      "home_raw": "Tottenham Hotspur FC",
+      "away_raw": "Newcastle United FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Chelsea",
+      "away": "Brighton",
+      "p_H": 0.443865,
+      "p_D": 0.258797,
+      "p_A": 0.297338,
+      "xg_home": 1.6358,
+      "xg_away": 1.3042,
+      "cold_start": [],
+      "home_raw": "Chelsea FC",
+      "away_raw": "Brighton & Hove Albion FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Leeds",
+      "away": "Brentford",
+      "p_H": 0.362209,
+      "p_D": 0.268184,
+      "p_A": 0.369607,
+      "xg_home": 1.4114,
+      "xg_away": 1.4278,
+      "cold_start": [],
+      "home_raw": "Leeds United FC",
+      "away_raw": "Brentford FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-30T13:00:00Z",
+      "home": "Sunderland",
+      "away": "Fulham",
+      "p_H": 0.381726,
+      "p_D": 0.299849,
+      "p_A": 0.318425,
+      "xg_home": 1.232,
+      "xg_away": 1.1029,
+      "cold_start": [],
+      "home_raw": "Sunderland AFC",
+      "away_raw": "Fulham FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-30T15:30:00Z",
+      "home": "Man United",
+      "away": "Ipswich",
+      "p_H": 0.709366,
+      "p_D": 0.177082,
+      "p_A": 0.113552,
+      "xg_home": 2.4753,
+      "xg_away": 0.9149,
+      "cold_start": [],
+      "home_raw": "Manchester United FC",
+      "away_raw": "Ipswich Town FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-08-31T19:00:00Z",
+      "home": "Aston Villa",
+      "away": "Arsenal",
+      "p_H": 0.214962,
+      "p_D": 0.261263,
+      "p_A": 0.523775,
+      "xg_home": 0.9833,
+      "xg_away": 1.6601,
+      "cold_start": [],
+      "home_raw": "Aston Villa FC",
+      "away_raw": "Arsenal FC"
+    },
+    {
+      "league": "E0",
+      "kickoff": "2026-09-04T19:00:00Z",
+      "home": "Ipswich",
+      "away": "Liverpool",
+      "p_H": 0.134763,
+      "p_D": 0.18196,
+      "p_A": 0.683277,
+      "xg_home": 1.0533,
+      "xg_away": 2.5002,
+      "cold_start": [],
+      "home_raw": "Ipswich Town FC",
+      "away_raw": "Liverpool FC"
+    }
+  ],
+  "hash": "bb39ec15a61d64f223b469e9fb695e5b8de7342c7af58d662f0cdf7f468b0f72"
+}
