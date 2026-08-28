@@ -12,8 +12,9 @@ file and force-pushing, and anyone who cloned it earlier can see that.
 
 What the chain does NOT prove is *when* an entry existed. A commit date is a
 setting and a repository owner can rewrite history, so git gives observability,
-not proof of time. That needs an external anchor and one is being added. Until
-then the site claims what the chain shows and no more.
+not proof of time. New entries therefore receive a detached OpenTimestamps
+proof. The public ledger keeps older chain-only entries, pending calendar
+proofs, and matching proofs with Bitcoin attestations visibly separate.
 
 Two rules are enforced in code, not by discipline:
 
@@ -27,6 +28,7 @@ import datetime as dt
 import hashlib
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -37,8 +39,22 @@ from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 GENESIS = "0" * 64
+
+# Files whose contents can change the numbers sealed into an entry.  The git
+# commit is the readable identifier; this digest is the exact one.  Together
+# they avoid a subtle lie: a commit names the checked-in source, but a process
+# can be running with an uncommitted edit.  `dirty` says that happened and the
+# digest still identifies the bytes that actually ran.
+GENERATOR_FILES = (
+    "proofodds/config.py",
+    "proofodds/data.py",
+    "proofodds/dixon_coles.py",
+    "proofodds/fixtures.py",
+    "proofodds/ledger.py",
+    "requirements.txt",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -53,6 +69,54 @@ def canonical_json(payload: dict) -> str:
 def compute_hash(payload: dict) -> str:
     body = {k: v for k, v in payload.items() if k != "hash"}
     return hashlib.sha256(canonical_json(body).encode("utf-8")).hexdigest()
+
+
+def generator_source_hash(paths=None) -> str:
+    """SHA-256 of the exact source files that can produce a prediction."""
+    paths = paths or [config.ROOT / name for name in GENERATOR_FILES]
+    digest = hashlib.sha256()
+    for path in sorted((Path(p) for p in paths), key=lambda p: str(p)):
+        try:
+            name = path.relative_to(config.ROOT).as_posix()
+        except ValueError:
+            name = path.name
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def generator_identity() -> dict:
+    """
+    Identify both the checked-in generator and the bytes actually executed.
+
+    The source digest works without git.  In a normal deployment `commit`
+    makes the version easy to inspect on GitHub, while `dirty` prevents that
+    friendly name from being mistaken for an exact description of a modified
+    working tree.
+    """
+    commit = None
+    dirty = None
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=config.ROOT,
+            capture_output=True, text=True, timeout=5)
+        if head.returncode == 0:
+            commit = head.stdout.strip() or None
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=no", "--",
+                 *GENERATOR_FILES],
+                cwd=config.ROOT, capture_output=True, text=True, timeout=5)
+            dirty = bool(status.stdout.strip()) if status.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+    return {
+        "commit": commit,
+        "dirty": dirty,
+        "source_sha256": generator_source_hash(),
+    }
 
 
 def ledger_files() -> list[Path]:
@@ -252,6 +316,7 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
         "leagues": sorted(models),
         "published_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "prev_hash": previous["hash"] if previous else GENESIS,
+        "generator": generator_identity(),
         "models": models,
         "predictions": rows,
     }

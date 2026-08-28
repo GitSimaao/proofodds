@@ -11,7 +11,9 @@ matter most in this repository.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +31,43 @@ def ledger_in(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PREDICTIONS_DIR", tmp_path)
     from proofodds import ledger as ledger_module
     return ledger_module
+
+
+@pytest.fixture
+def anchor_in(tmp_path, monkeypatch):
+    """The external-anchor view pointed at throwaway proof storage."""
+    monkeypatch.setattr(config, "TIMESTAMPS_DIR", tmp_path / "timestamps")
+    from proofodds import anchor as anchor_module
+    return anchor_module
+
+
+def _minimal_chain(ledger_module, directory, days=3):
+    """Write valid, dependency-free entries for chain and anchor tests."""
+    prev = ledger_module.GENESIS
+    base = dt.datetime(2025, 3, 1, 0, 5, tzinfo=dt.timezone.utc)
+    for i in range(days):
+        now = base + dt.timedelta(days=i)
+        entry = {
+            "version": 4,
+            "leagues": ["E0"],
+            "published_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "prev_hash": prev,
+            "generator": {},
+            "models": {},
+            "predictions": [{
+                "league": "E0",
+                "kickoff": (now + dt.timedelta(days=2)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"),
+                "home": "Arsenal",
+                "away": "Chelsea",
+                "p_H": 0.5,
+                "p_D": 0.25,
+                "p_A": 0.25,
+            }],
+        }
+        entry["hash"] = ledger_module.compute_hash(entry)
+        (directory / f"{now.date()}.json").write_text(json.dumps(entry))
+        prev = entry["hash"]
 
 
 # --------------------------------------------------------------------------- #
@@ -84,6 +123,161 @@ def test_chain_detects_a_rehashed_tamper(ledger_in, tmp_path):
 def test_empty_ledger_verifies(ledger_in):
     report = ledger_in.verify_chain()
     assert report["ok"] and report["n_entries"] == 0
+
+
+# --------------------------------------------------------------------------- #
+#  External time anchors
+# --------------------------------------------------------------------------- #
+def test_anchor_report_keeps_chain_only_history_separate(
+        ledger_in, anchor_in, tmp_path, monkeypatch):
+    _minimal_chain(ledger_in, tmp_path, days=3)
+    config.TIMESTAMPS_DIR.mkdir()
+    files = ledger_in.ledger_files()
+    for entry in files[1:]:
+        anchor_in.proof_path(entry).write_bytes(b"detached proof")
+
+    monkeypatch.setattr(
+        anchor_in, "inspect",
+        lambda proof, entry=None: {"status": "pending", "blocks": []}
+        if proof.exists() else {"status": "none", "blocks": []})
+    report = anchor_in.report()
+
+    assert report["chain_entries"] == 3
+    assert report["chain_start"] == "2025-03-01"
+    assert report["proof_entry_start"] == "2025-03-02"
+    assert report["chain_only_before"] == 1
+    assert report["proofs"] == report["pending"] == 2
+    assert report["continuous_after_start"] is True
+
+
+def test_anchor_report_says_when_coverage_has_a_gap(
+        ledger_in, anchor_in, tmp_path, monkeypatch):
+    _minimal_chain(ledger_in, tmp_path, days=3)
+    config.TIMESTAMPS_DIR.mkdir()
+    files = ledger_in.ledger_files()
+    for entry in (files[0], files[2]):
+        anchor_in.proof_path(entry).write_bytes(b"detached proof")
+    monkeypatch.setattr(
+        anchor_in, "inspect",
+        lambda proof, entry=None: {"status": "pending", "blocks": []}
+        if proof.exists() else {"status": "none", "blocks": []})
+
+    report = anchor_in.report()
+    assert report["proof_entry_start"] == "2025-03-01"
+    assert report["gaps_after_start"] == 1
+    assert report["continuous_after_start"] is False
+
+
+def test_a_started_entry_is_never_timestamped_after_the_fact(
+        ledger_in, anchor_in, tmp_path, monkeypatch):
+    _minimal_chain(ledger_in, tmp_path, days=1)
+    entry = ledger_in.ledger_files()[0]
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("OpenTimestamps must not be called after kickoff")
+
+    monkeypatch.setattr(anchor_in, "_run", forbidden)
+    late = dt.datetime(2025, 3, 4, tzinfo=dt.timezone.utc)
+    assert anchor_in.stamp(entry, now=late) is None
+    assert not anchor_in.proof_path(entry).exists()
+
+
+def test_maintain_does_not_backfill_an_older_entry_even_before_kickoff(
+        ledger_in, anchor_in, tmp_path, monkeypatch):
+    _minimal_chain(ledger_in, tmp_path, days=1)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("an older publication must remain chain-only")
+
+    monkeypatch.setattr(anchor_in, "stamp", forbidden)
+    tomorrow = dt.datetime(2025, 3, 2, 0, 5, tzinfo=dt.timezone.utc)
+    assert anchor_in.maintain(now=tomorrow) == []
+
+
+def test_a_successful_stamp_is_moved_out_of_the_json_ledger(
+        ledger_in, anchor_in, tmp_path, monkeypatch):
+    _minimal_chain(ledger_in, tmp_path, days=1)
+    entry = ledger_in.ledger_files()[0]
+
+    def fake_run(operation, source, timeout=90):
+        if operation == "stamp":
+            assert Path(source) == entry
+            Path(f"{source}.ots").write_bytes(b"valid detached proof")
+            output = "submitted"
+        else:
+            assert operation == "info" and Path(source) == Path(f"{entry}.ots")
+            output = (f"File sha256 hash: {hashlib.sha256(entry.read_bytes()).hexdigest()}\n"
+                      "verify PendingAttestation('https://calendar.example')")
+        return subprocess.CompletedProcess([], 0, output, "")
+
+    monkeypatch.setattr(anchor_in, "_run", fake_run)
+    proof = anchor_in.stamp(
+        entry, now=dt.datetime(2025, 3, 1, 1, tzinfo=dt.timezone.utc))
+
+    assert proof == anchor_in.proof_path(entry)
+    assert proof.read_bytes() == b"valid detached proof"
+    assert not Path(f"{entry}.ots").exists()
+    assert ledger_in.ledger_files() == [entry]
+
+
+def test_a_bitcoin_attestation_is_not_confused_with_pending(
+        anchor_in, tmp_path, monkeypatch):
+    proof = tmp_path / "one.json.ots"
+    proof.write_bytes(b"proof")
+    output = ("verify PendingAttestation('https://calendar.example')\n"
+              "verify BitcoinBlockHeaderAttestation(900123)\n")
+    monkeypatch.setattr(
+        anchor_in, "_run",
+        lambda *a, **k: subprocess.CompletedProcess([], 0, output, ""))
+
+    assert anchor_in.inspect(proof) == {
+        "status": "attested", "blocks": [900123]}
+
+
+def test_a_bitcoin_attestation_for_different_bytes_is_a_mismatch(
+        anchor_in, tmp_path, monkeypatch):
+    entry = tmp_path / "one.json"
+    proof = tmp_path / "one.json.ots"
+    entry.write_bytes(b"the sealed entry")
+    proof.write_bytes(b"proof")
+    output = ("File sha256 hash: " + "0" * 64 + "\n"
+              "verify BitcoinBlockHeaderAttestation(900123)\n")
+    monkeypatch.setattr(
+        anchor_in, "_run",
+        lambda *a, **k: subprocess.CompletedProcess([], 0, output, ""))
+
+    assert anchor_in.inspect(proof, entry) == {
+        "status": "mismatch", "blocks": []}
+
+
+def test_the_ledger_template_renders_proof_and_generator_without_results_data():
+    """A clean clone can check this page without downloading the result CSVs."""
+    from proofodds import ledger, render
+    template = render.environment().get_template("ledger.html")
+    commit = "a" * 40
+    html = template.render(
+        site_name="ProofOdds", site_url="https://proofodds.com",
+        repo_url="https://github.com/GitSimaao/proofodds", asset_v="test",
+        chain={"ok": True, "n_entries": 1, "head": "b" * 64},
+        anchors={
+            "proofs": 1, "continuous_after_start": True,
+            "proof_entry_start": "2025-03-01", "chain_only_before": 0,
+            "attested": 1, "pending": 0, "mismatched": 0,
+            "unclassified": 0,
+        },
+        entries=[{
+            "file": "2025-03-01.json", "published_at": "2025-03-01T00:05:00Z",
+            "n": 1, "hash": "c" * 64, "prev_hash": ledger.GENESIS,
+            "generator_commit": commit, "generator_dirty": False,
+            "generator_source": "d" * 64,
+            "anchor": {"status": "attested", "blocks": [900123],
+                       "proof": "2025-03-01.json.ots"},
+        }],
+        genesis=ledger.GENESIS,
+    )
+    assert f"/commit/{commit}" in html
+    assert "Attestation: block 900123" in html
+    assert "Every chain entry has a proof file" in html
 
 
 # --------------------------------------------------------------------------- #
@@ -503,6 +697,46 @@ def test_one_entry_covers_every_division_and_names_them(ledger_in, stub_models,
     assert set(entry["models"]) == {"E0", "P1", "SP1"}
     assert {r["league"] for r in entry["predictions"]} == {"E0", "P1", "SP1"}
     assert stub_models.verify_chain()["ok"]
+
+
+def test_every_new_entry_identifies_the_generator(
+        ledger_in, stub_models, tmp_path, monkeypatch):
+    """
+    A parameter list is not a code version.  The commit is the readable link
+    back to the repository; the source digest still identifies the exact bytes
+    if the working tree was modified when the model ran.
+    """
+    from proofodds.fixtures import Fixture
+    identity = {
+        "commit": "a" * 40,
+        "dirty": False,
+        "source_sha256": "b" * 64,
+    }
+    monkeypatch.setattr(ledger_in, "generator_identity", lambda: identity)
+
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    stub_models.publish([
+        Fixture(now + dt.timedelta(days=2), "Arsenal", "Chelsea", league="E0"),
+    ], now=now)
+
+    entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
+    assert entry["version"] == 4
+    assert entry["generator"] == identity
+    assert stub_models.verify_chain()["ok"]
+
+
+def test_generator_source_hash_changes_with_the_source_bytes(ledger_in, tmp_path):
+    first = tmp_path / "first.py"
+    second = tmp_path / "second.py"
+    first.write_text("XI = 0.002\n")
+    second.write_text("PRIOR_SD = 0.6\n")
+
+    before = ledger_in.generator_source_hash([first, second])
+    second.write_text("PRIOR_SD = 0.7\n")
+    after = ledger_in.generator_source_hash([first, second])
+
+    assert before != after
+    assert ledger_in.generator_source_hash([second, first]) == after
 
 
 def test_a_division_that_cannot_be_fitted_is_recorded_not_hidden(

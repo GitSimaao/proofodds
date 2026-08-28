@@ -22,6 +22,14 @@ proofodds.com, www.proofodds.com {
 		Cache-Control "public, max-age=300"
 	}
 
+	# Detached timestamp proofs are binary and independently downloadable.
+	@timestamps path /timestamps/*
+	header @timestamps {
+		Access-Control-Allow-Origin "*"
+		Content-Type "application/octet-stream"
+		Cache-Control "public, max-age=300"
+	}
+
 	@assets path *.css *.svg *.xml *.txt
 	header @assets Cache-Control "public, max-age=3600"
 

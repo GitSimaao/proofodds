@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Prediction ledger — {{ site_name }}{% endblock %}
-{% block description %}Every set of predictions ever published, hashed and chained. Verify it yourself.{% endblock %}
+{% block description %}Every set of predictions ever published, hash-chained and externally timestamped where shown. Verify it yourself.{% endblock %}
 
 {% block content %}
 
 <div class="shell hero">
-  <p class="eyebrow">{{ chain.n_entries }} entries · SHA-256 chain</p>
+  <p class="eyebrow">{{ chain.n_entries }} entries · SHA-256 chain · OpenTimestamps</p>
   <h1>The ledger</h1>
   <p class="lead">One entry per publication day. Each carries the hash of the entry before it,
   so the whole history is a chain: change any past prediction without rebuilding every later
@@ -35,6 +35,33 @@
       </span>
     </div>
 
+    <div class="verify anchor">
+      <span class="vmark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>
+      </span>
+      <span class="vbody">
+        {% if not anchors.proofs %}
+          <strong>External timestamp proofs have not started</strong>
+          The chain begins {{ anchors.chain_start or 'when the first entry is published' }}.
+          External proof files will begin with the first new entry successfully submitted;
+          earlier entries remain explicitly chain-only.
+        {% elif anchors.continuous_after_start %}
+          <strong>Proof files start with the entry published {{ anchors.proof_entry_start }}</strong>
+          {% if anchors.chain_only_before %}{{ anchors.chain_only_before }} earlier entr{{ 'y is' if anchors.chain_only_before == 1 else 'ies are' }}
+          explicitly chain-only.{% else %}Every chain entry has a proof file.{% endif %}
+          Of {{ anchors.proofs }} proof{{ '' if anchors.proofs == 1 else 's' }},
+          status is {{ anchors.attested }} with a Bitcoin block attestation and {{ anchors.pending }} pending{% if anchors.mismatched %};
+          {{ anchors.mismatched }} does not match its JSON{% endif %}{% if anchors.unclassified %};
+          {{ anchors.unclassified }} could not be classified by this build{% endif %}.
+        {% else %}
+          <strong>The external proof sequence has gaps</strong>
+          Proof files start with the entry published {{ anchors.proof_entry_start }}, but {{ anchors.gaps_after_start }}
+          later entr{{ 'y has' if anchors.gaps_after_start == 1 else 'ies have' }} no proof.
+          The gaps stay visible; the chain itself still covers every entry above.
+        {% endif %}
+      </span>
+    </div>
+
     <h3>Verify it yourself</h3>
     <p class="section-note">The raw files are served unmodified and the repository is public.
     Nothing here asks you to take our word for anything.</p>
@@ -47,6 +74,8 @@
             <th class="num">Matches</th>
             <th>Entry hash</th>
             <th>Links to</th>
+            <th>Generator</th>
+            <th>External time</th>
             <th class="num">Raw</th>
           </tr>
         </thead>
@@ -57,6 +86,28 @@
             <td class="num">{{ e.n }}</td>
             <td><span class="hash">{{ e.hash[:20] }}…</span></td>
             <td><span class="hash">{{ '—' if e.prev_hash == genesis else e.prev_hash[:12] ~ '…' }}</span></td>
+            <td>
+              {% if e.generator_commit %}
+                <a class="hash" href="{{ repo_url }}/commit/{{ e.generator_commit }}" rel="noopener">{{ e.generator_commit[:10] }}</a>{% if e.generator_dirty %}<br><span class="muted">+ local changes</span>{% endif %}
+              {% elif e.generator_source %}
+                <span class="hash">{{ e.generator_source[:10] }}</span>
+              {% else %}
+                <span class="muted">Not recorded</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if e.anchor.status == 'attested' %}
+                <a href="/timestamps/{{ e.anchor.proof }}">Attestation: block {{ e.anchor.blocks[0] }}</a>
+              {% elif e.anchor.status == 'pending' %}
+                <a href="/timestamps/{{ e.anchor.proof }}">Submitted; pending</a>
+              {% elif e.anchor.status == 'mismatch' %}
+                <a href="/timestamps/{{ e.anchor.proof }}">Does not match JSON</a>
+              {% elif e.anchor.proof %}
+                <a href="/timestamps/{{ e.anchor.proof }}">Proof file</a>
+              {% else %}
+                <span class="muted">Chain only</span>
+              {% endif %}
+            </td>
             <td class="num"><a href="/predictions/{{ e.file }}">{{ e.file }}</a></td>
           </tr>
           {% endfor %}
@@ -80,6 +131,22 @@
       <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">git clone {{ repo_url }}
 cd proofodds
 python -m proofodds.verify</pre>
+    </div>
+
+    <h3>Verifying an external timestamp</h3>
+    <p class="section-note">For any row with a proof, download the JSON and its
+    matching <code>.ots</code> file into the same directory. Compare the SHA-256 shown by
+    <code>ots info</code> with the JSON, then use <code>ots verify</code> for full verification
+    against Bitcoin. That last step requires access to a Bitcoin Core node. A block number
+    on this page means the matching proof contains that attestation; it does not claim this
+    web server independently verified the Bitcoin chain.</p>
+    <div class="scroll" style="padding:16px 18px;min-width:0">
+      <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">pip install opentimestamps-client
+curl -O {{ site_url }}/predictions/YYYY-MM-DD.json
+curl -o YYYY-MM-DD.json.ots {{ site_url }}/timestamps/YYYY-MM-DD.json.ots
+sha256sum YYYY-MM-DD.json
+ots info YYYY-MM-DD.json.ots
+ots verify YYYY-MM-DD.json.ots</pre>
     </div>
 
   </div>

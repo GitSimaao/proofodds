@@ -171,7 +171,7 @@
 <section class="band">
   <div class="shell">
     <h2>Why you can check this</h2>
-    <p class="section-note">Three properties, each enforced by code rather than by promise.</p>
+    <p class="section-note">Separate evidence for content, order, time and scoring.</p>
     <div class="pair">
       <div class="box yes">
         <h4>Sealed before kickoff</h4>
@@ -185,8 +185,14 @@
         Alter a past prediction without rebuilding every later hash and verification fails,
         publicly, on the <a href="/ledger/">ledger</a>. Rebuilding the whole chain instead
         means force-pushing over a public repository, which is visible to anyone who cloned
-        it before. What none of this proves yet is <em>when</em> — that needs an external
-        anchor, and one is being added.</p>
+        it before. The ledger separately labels entries with no external proof, timestamp
+        submissions still pending, and matching proofs that contain a Bitcoin block
+        attestation.</p>
+      </div>
+      <div class="box yes">
+        <h4>Generator identified</h4>
+        <p>New entries record the source commit that produced their probabilities, whether
+        those files had local changes, and a hash of the exact generator source bytes.</p>
       </div>
       <div class="box yes">
         <h4>Graded against the close</h4>

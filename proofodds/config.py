@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = ROOT / "data"
 PREDICTIONS_DIR = ROOT / "predictions"
+TIMESTAMPS_DIR = ROOT / "timestamps"
 SITE_DIR = ROOT / "site"
 OUTPUT_DIR = ROOT / "outputs"
 TEMPLATE_DIR = ROOT / "templates"

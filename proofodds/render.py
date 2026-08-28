@@ -17,7 +17,7 @@ import shutil
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import charts, config, grade, ledger
+from . import anchor, charts, config, grade, ledger
 from .data import sealed_name
 
 log = logging.getLogger(__name__)
@@ -133,16 +133,24 @@ def upcoming_view() -> list[dict]:
     return days
 
 
-def ledger_view() -> list[dict]:
+def ledger_view(anchor_report=None) -> list[dict]:
+    anchor_report = anchor_report or anchor.report()
+    by_entry = {row["entry"]: row for row in anchor_report["entries"]}
     out = []
     for path in ledger.ledger_files():
         entry = ledger.read(path)
+        generator = entry.get("generator", {})
         out.append({
             "file": path.name,
             "published_at": entry["published_at"],
             "n": len(entry["predictions"]),
             "hash": entry["hash"],
             "prev_hash": entry["prev_hash"],
+            "generator_commit": generator.get("commit"),
+            "generator_dirty": generator.get("dirty"),
+            "generator_source": generator.get("source_sha256"),
+            "anchor": by_entry.get(path.name, {
+                "status": "none", "blocks": [], "proof": None}),
         })
     return list(reversed(out))
 
@@ -169,6 +177,8 @@ def build(out_dir=None) -> None:
     leagues = grade.by_league(graded)
     calib = grade.calibration(graded)
     chain = ledger.verify_chain()
+    anchors = anchor.report()
+    entries = ledger_view(anchors)
     days = upcoming_view()
 
     # A version stamp taken from the stylesheet's own contents.
@@ -253,7 +263,7 @@ def build(out_dir=None) -> None:
 
     write("ledger/index.html", env.get_template("ledger.html").render(
         page="ledger", canonical="/ledger/",
-        entries=ledger_view(), chain=chain, **common))
+        entries=entries, chain=chain, anchors=anchors, **common))
 
     write("method/index.html", env.get_template("method.html").render(
         page="method", canonical="/method/",
@@ -287,7 +297,18 @@ def build(out_dir=None) -> None:
     for path in ledger.ledger_files():
         shutil.copy2(path, raw / path.name)
     (raw / "index.json").write_text(
-        json.dumps({"entries": ledger_view(), "chain": chain}, indent=2),
+        json.dumps({"entries": entries, "chain": chain,
+                    "external_timestamps": anchors}, indent=2),
         encoding="utf-8")
+
+    # Detached OpenTimestamps proofs.  They live outside /predictions/ so that
+    # the raw ledger remains JSON-only and its web-server content type stays
+    # truthful.  Download a JSON and its matching .ots into the same directory
+    # to verify it with the standard client.
+    if config.TIMESTAMPS_DIR.exists():
+        proofs = out_dir / "timestamps"
+        proofs.mkdir(exist_ok=True)
+        for path in config.TIMESTAMPS_DIR.glob("*.ots"):
+            shutil.copy2(path, proofs / path.name)
 
     log.info("built %d pages into %s", 7, out_dir)

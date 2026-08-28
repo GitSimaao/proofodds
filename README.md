@@ -31,7 +31,7 @@ brings the answer inside one.
 
 ## What makes the record checkable
 
-Three properties, each enforced by code rather than by promise:
+Layers of evidence, each with a deliberately limited claim:
 
 **Sealed before kickoff.** Every run writes one JSON file into `predictions/`. A
 prediction is never issued for a match that has already started, and a file for a
@@ -46,11 +46,24 @@ its own hash) is caught by the link check, and there is a test for exactly that.
 repository. Rebuilding the chain to hide a change therefore means rewriting every later
 file and force-pushing, which anyone who cloned it earlier can see.
 
-**What this does not yet prove.** It does not prove *when* an entry existed. A commit
-date is a setting, and a repository owner can rewrite history — so the git log makes the
-record observable, not provable. Proving time needs an external anchor, and we are
-adding one. Until it is in place this page claims what the chain shows and nothing
-further.
+**Generator identified.** New entries carry the git commit of the code that produced
+their probabilities, a dirty-working-tree flag, and a SHA-256 digest of the exact source
+files used by the generator. The commit is the readable reference; the source digest
+still identifies the bytes if the deployed tree had local changes.
+
+**Externally timestamped, from the first submitted entry onward.** The daily job submits
+each new entry to OpenTimestamps and keeps upgrading its detached proof until it has a
+Bitcoin block attestation. A failed submission remains a visible gap. The ledger page
+distinguishes older chain-only entries, pending submissions, matching proofs that contain
+a block attestation, and any mismatch. It never stamps an old entry later and presents
+that as contemporaneous evidence.
+
+The distinction matters. The chain proves order and internal consistency. Git makes the
+history observable, but its dates are settings and its owner can rewrite it. An
+independently verified `.ots` file proves that the exact JSON bytes existed before the
+Bitcoin block named in the proof. A pending file is shown only as submitted. The site can
+inspect and match an attestation to its JSON; full independent Bitcoin verification
+requires a Bitcoin node.
 
 ```bash
 git clone https://github.com/GitSimaao/proofodds && cd proofodds
@@ -86,8 +99,9 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 219 tests; 14 skip without the CSVs
-python scripts/check_names.py     # audit club names before adding a division
+python -m proofodds.anchor         # retry/upgrade timestamp proofs, print their status
+python -m pytest tests -q          # data-marked tests skip until the CSVs are downloaded
+python scripts/check_names.py      # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain (no deps)
 ```
 
@@ -225,9 +239,15 @@ Phase 0 runs on the VPS plus a domain. Nothing else is required:
 
 | | |
 |---|---|
-| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — free, all seven divisions |
-| Upcoming fixtures | football-data.org free tier — covers exactly these seven |
+| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — currently used for all eight divisions |
+| Upcoming fixtures | football-data.org — currently used for all eight divisions |
+| External timestamps | OpenTimestamps — free, no account or API key |
 | Live pre-match odds | optional, not needed for grading |
+
+The current data setup is for the pre-launch project. Before charging for any
+product built on it, confirm the commercial-use terms or paid plan for each
+feed; neither this table nor the fact that an endpoint is accessible grants a
+commercial licence.
 
 ---
 
@@ -240,6 +260,7 @@ proofodds/
   dixon_coles.py   the model: tau, weighted likelihood with analytic gradient, fitting
   fixtures.py      upcoming fixtures (football-data.org, or a CSV fallback)
   ledger.py        seal predictions, hash chain, publication rules
+  anchor.py        submit, upgrade and report detached OpenTimestamps proofs
   grade.py         join predictions to results, log loss vs the closing line
   charts.py        inline SVG, themed through CSS custom properties
   render.py        Jinja2 -> static site
@@ -250,6 +271,7 @@ static/style.css   one stylesheet, light and dark
 scripts/           daily.py, weekly.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example
 predictions/       the ledger — committed, never rewritten
+timestamps/        detached .ots proofs — pending, attested and mismatched stay distinct
 tests/             the chain, the publication rules, data handling
 ```
 

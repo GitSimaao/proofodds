@@ -73,7 +73,7 @@ python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --quiet --upgrade pip
 "$APP_DIR/.venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
 
-mkdir -p "$APP_DIR/site" "$APP_DIR/data" "$APP_DIR/predictions"
+mkdir -p "$APP_DIR/site" "$APP_DIR/data" "$APP_DIR/predictions" "$APP_DIR/timestamps"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 755 "$APP_DIR"          # the web server needs to traverse into site/
 

@@ -341,6 +341,7 @@ td.num, th.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: 
 td.behind { color: var(--c-behind); }
 td.ahead { color: var(--c-ahead); }
 td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3); }
+.muted { color: var(--ink-3); }
 
 /* ---------------- verify banner ---------------- */
 .verify {
@@ -350,8 +351,10 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 }
 .verify.ok { border-left: 3px solid var(--c-ahead); }
 .verify.bad { border-left: 3px solid var(--c-away); }
+.verify.anchor { border-left: 3px solid var(--c-model); margin-top: 12px; }
 .verify .vmark { flex: none; margin-top: 2px; color: var(--c-ahead); }
 .verify.bad .vmark { color: var(--c-away); }
+.verify.anchor .vmark { color: var(--c-model); }
 .verify .vbody { font-size: 14.5px; color: var(--ink-2); }
 .verify .vbody strong { color: var(--ink); display: block; font-size: 15px; margin-bottom: 3px; }
 .verify code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-2); word-break: break-all; }

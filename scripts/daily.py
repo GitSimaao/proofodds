@@ -11,8 +11,9 @@ Order matters and is deliberate:
   1. refresh results (yesterday's matches are now history)
   2. fetch fixtures
   3. seal today's predictions   <- must happen before any kickoff
-  4. commit the ledger          <- makes the history publicly observable
-  5. grade and rebuild the site
+  4. timestamp the entry        <- independent proof of time, from this point on
+  5. commit the entry + proof   <- makes the history publicly observable
+  6. grade and rebuild the site
 
 If step 3 fails, nothing is published rather than something being published
 late. A prediction that appears after kickoff is worse than no prediction: it
@@ -30,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proofodds import config, data, fixtures, ledger, render  # noqa: E402
+from proofodds import anchor, config, data, fixtures, ledger, render  # noqa: E402
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -43,21 +44,27 @@ def git(*args: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True)
 
 
-def commit_ledger(path: Path) -> None:
+def commit_ledger(paths: list[Path], entry_path: Path | None = None) -> None:
     """
     Commit the new entry.
 
     Pushing makes the history observable — hiding a change would mean rewriting
     every later file and force-pushing, in public. It is not proof of *when*:
-    a commit date is a setting. That needs an external anchor, being added.
+    a commit date is a setting. The detached OpenTimestamps proof supplies
+    that separate evidence once it has a Bitcoin block attestation.
     """
     if not (config.ROOT / ".git").exists():
         log.warning("not a git repository — skipping commit (the public repo "
                     "is half the credibility argument; set one up)")
         return
 
-    git("add", str(path.relative_to(config.ROOT)))
-    result = git("commit", "-m", f"predictions: {path.stem}")
+    paths = list(dict.fromkeys(path for path in paths if path.exists()))
+    if not paths:
+        return
+    git("add", *(str(path.relative_to(config.ROOT)) for path in paths))
+    message = (f"predictions: {entry_path.stem}"
+               if entry_path else "timestamps: upgrade proofs")
+    result = git("commit", "-m", message)
     if result.returncode != 0 and "nothing to commit" not in result.stdout:
         log.warning("git commit failed: %s", result.stdout or result.stderr)
         return
@@ -91,8 +98,10 @@ def main() -> int:
 
         now = dt.datetime.now(dt.timezone.utc)
         path = ledger.publish(upcoming, now=now)
-        if path and not args.no_git:
-            commit_ledger(path)
+        proof_changes = anchor.maintain(now=now)
+        artifacts = ([path] if path else []) + proof_changes
+        if artifacts and not args.no_git:
+            commit_ledger(artifacts, entry_path=path)
 
     log.info("verifying chain")
     report = ledger.verify_chain()
