@@ -850,6 +850,7 @@ def test_displayed_percentages_always_sum_to_one_hundred(probs):
     assert all(abs(o - p * 100) < 1 for o, p in zip(out, probs))
 
 
+@pytest.mark.needs_data
 def test_the_stylesheet_url_changes_when_the_stylesheet_does(tmp_path, monkeypatch):
     """
     The CSS is cached for an hour and the HTML for five minutes, so after a
@@ -881,6 +882,7 @@ def test_the_stylesheet_url_changes_when_the_stylesheet_does(tmp_path, monkeypat
     assert version(tmp_path / "c") == before      # and back again, deterministic
 
 
+@pytest.mark.needs_data
 def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     """
     Both are progressive enhancement: without JavaScript every match is still

@@ -165,7 +165,7 @@ cat <<DONE
        A club whose name does not resolve gets sealed under a spelling the
        grader cannot join, and the ledger is never rewritten. Keep a division
        out of PROOFODDS_LEAGUES until this exits clean.
-    4. Add a git remote so the ledger gets an independent timestamp:
+    4. Add a git remote so the ledger's history is public and observable:
          cd $APP_DIR
          sudo -u $APP_USER git remote add origin git@github.com:yourname/proofodds.git
 

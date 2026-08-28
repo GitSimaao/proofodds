@@ -37,13 +37,20 @@ Three properties, each enforced by code rather than by promise:
 prediction is never issued for a match that has already started, and a file for a
 date that already exists is never modified.
 
-**Chained.** Each entry carries the SHA-256 of the entry before it. Alter any past
-prediction and every entry after it fails verification — visibly, on the public
-ledger page. The subtle version of the attack (edit a prediction *and* recompute its
-own hash) is caught by the link check, and there is a test for exactly that.
+**Chained.** Each entry carries the SHA-256 of the entry before it, so altering one
+prediction without rebuilding every later hash fails verification — visibly, on the
+public ledger page. The subtle version of the attack (edit a prediction *and* recompute
+its own hash) is caught by the link check, and there is a test for exactly that.
 
-**Independently timestamped.** The ledger is committed and pushed to a public git
-repository on every run. Commit timestamps are a witness we do not control.
+**Publicly observable.** Every run commits and pushes the ledger to a public
+repository. Rebuilding the chain to hide a change therefore means rewriting every later
+file and force-pushing, which anyone who cloned it earlier can see.
+
+**What this does not yet prove.** It does not prove *when* an entry existed. A commit
+date is a setting, and a repository owner can rewrite history — so the git log makes the
+record observable, not provable. Proving time needs an external anchor, and we are
+adding one. Until it is in place this page claims what the chain shows and nothing
+further.
 
 ```bash
 git clone https://github.com/GitSimaao/proofodds && cd proofodds
@@ -79,7 +86,7 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 212 tests; 12 skip without the CSVs
+python -m pytest tests -q          # 219 tests; 14 skip without the CSVs
 python scripts/check_names.py     # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain (no deps)
 ```

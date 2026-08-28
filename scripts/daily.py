@@ -11,7 +11,7 @@ Order matters and is deliberate:
   1. refresh results (yesterday's matches are now history)
   2. fetch fixtures
   3. seal today's predictions   <- must happen before any kickoff
-  4. commit the ledger          <- the independent timestamp
+  4. commit the ledger          <- makes the history publicly observable
   5. grade and rebuild the site
 
 If step 3 fails, nothing is published rather than something being published
@@ -45,8 +45,11 @@ def git(*args: str) -> subprocess.CompletedProcess:
 
 def commit_ledger(path: Path) -> None:
     """
-    Commit the new entry. The commit timestamp is a witness we do not control
-    once it is pushed, which is most of the value.
+    Commit the new entry.
+
+    Pushing makes the history observable — hiding a change would mean rewriting
+    every later file and force-pushing, in public. It is not proof of *when*:
+    a commit date is a setting. That needs an external anchor, being added.
     """
     if not (config.ROOT / ".git").exists():
         log.warning("not a git repository — skipping commit (the public repo "

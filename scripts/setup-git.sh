@@ -3,7 +3,7 @@
 #
 #   sudo bash /opt/proofodds/scripts/setup-git.sh git@github.com:USER/proofodds.git
 #
-# The ledger's independent witness is a commit timestamp on a host we do not
+# Pushing the ledger makes its history public and observable on a host we do not
 # control. Until this runs, the chain is only as trustworthy as the server it
 # sits on — which is to say, as trustworthy as us, which is the thing the whole
 # project refuses to ask anyone to assume.
@@ -134,7 +134,7 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR/.git"
 say "Done"
 cat <<DONE
 
-  The ledger now has a witness. From the next run onwards, every sealed entry
+  The ledger is now public. From the next run onwards, every sealed entry
   is committed and pushed automatically by scripts/daily.py.
 
   Two things left to make the site tell the truth about itself:

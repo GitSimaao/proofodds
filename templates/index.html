@@ -182,8 +182,11 @@
       <div class="box yes">
         <h4>Chained</h4>
         <p>Every file carries the hash of the one before it.
-        Alter any past prediction and every entry after it fails verification, publicly, on the
-        <a href="/ledger/">ledger</a>.</p>
+        Alter a past prediction without rebuilding every later hash and verification fails,
+        publicly, on the <a href="/ledger/">ledger</a>. Rebuilding the whole chain instead
+        means force-pushing over a public repository, which is visible to anyone who cloned
+        it before. What none of this proves yet is <em>when</em> — that needs an external
+        anchor, and one is being added.</p>
       </div>
       <div class="box yes">
         <h4>Graded against the close</h4>

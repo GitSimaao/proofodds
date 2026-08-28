@@ -3,12 +3,17 @@ The prediction ledger — the part of this project that makes the claim credible
 
 Every run writes one JSON file per publication day into predictions/. A file is
 never rewritten. Each file carries the SHA-256 of the previous one, so the
-whole directory is a hash chain: change any past prediction and every file
-after it fails verification, visibly, on the public scorecard.
+whole directory is a hash chain: change any past prediction without rebuilding
+every later hash and verification fails, visibly, on the public scorecard.
 
-Combined with a public git repository (the commit timestamps are the
-independent witness), that is the difference between "our record is good" and
-"here is our record, check it yourself".
+Every run also pushes to a public git repository, which makes the history
+observable: rebuilding the chain to hide a change means rewriting every later
+file and force-pushing, and anyone who cloned it earlier can see that.
+
+What the chain does NOT prove is *when* an entry existed. A commit date is a
+setting and a repository owner can rewrite history, so git gives observability,
+not proof of time. That needs an external anchor and one is being added. Until
+then the site claims what the chain shows and no more.
 
 Two rules are enforced in code, not by discipline:
 
