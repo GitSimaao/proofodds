@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ site_name }} — football probabilities, published before kickoff{% endblock %}
-{% block description %}Model probabilities for every match in {{ n_leagues }} European divisions, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
+{% block description %}Model probabilities for every match in {{ n_leagues }} European division{{ 's' if n_leagues != 1 }}, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
 {% block og_title %}{{ site_name }} — published before kickoff, scored afterwards{% endblock %}
 
 {% block content %}
 
 <div class="shell hero">
-  <p class="eyebrow">{{ n_leagues }} divisions · Dixon-Coles · {{ n_upcoming }} matches priced</p>
+  <p class="eyebrow">{{ n_shown }} division{{ 's' if n_shown != 1 }} · Dixon-Coles · {{ n_upcoming }} match{{ 'es' if n_upcoming != 1 }} priced</p>
   <h1>Published before kickoff. Scored afterwards.</h1>
   <p class="lead">Every probability on this site was written down and hashed before the whistle,
   then graded against Pinnacle's closing line — the sharpest public number in football.

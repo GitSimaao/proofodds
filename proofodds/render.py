@@ -220,6 +220,7 @@ def build(out_dir=None) -> None:
         fixture_days=days,
         league_list=league_list,
         shown_codes=shown,
+        n_shown=len(shown) or len(config.ENABLED_LEAGUES),
         league_shorts={c: config.LEAGUES[c]["short"] for c in config.LEAGUES},
         league_names_by_code={c: config.league_name(c) for c in config.LEAGUES},
         n_upcoming=sum(len(d["matches"]) for d in days),

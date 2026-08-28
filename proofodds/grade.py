@@ -131,7 +131,7 @@ def graded_frame(leagues=None) -> pd.DataFrame:
     # almost always a name that failed to join, not a fixture that vanished.
     # Say so out loud rather than letting the scorecard quietly shrink.
     stale = merged[(~merged["played"]) &
-                   (merged["date"] < pd.Timestamp.utcnow().tz_localize(None)
+                   (merged["date"] < pd.Timestamp.now("UTC").tz_localize(None)
                     - pd.Timedelta(days=3))]
     if not stale.empty:
         pairs = ", ".join(f"{r.league} {r.home} v {r.away}"

@@ -339,6 +339,7 @@ SHORT = {
 }
 
 _known_cache: dict[str, tuple[tuple, frozenset]] = {}
+_warned_pending: set[tuple[str, str]] = set()
 
 
 def _cache_key(league: str) -> tuple:
@@ -433,8 +434,15 @@ def resolve(name: str, league: str) -> tuple[str | None, str]:
     table = OVERRIDES.get(league, {})
     override = table.get(folded) or table.get(" ".join(tokens(name)))
     if override:
-        if override not in known:
-            log.warning("override %r -> %r but %r is not in %s's results files",
+        # Said once per division per run, not once per lookup. The Elversberg
+        # notice fired eight times in a single build, and a warning repeated
+        # for a known, expected condition is how people learn to scroll past
+        # warnings — including the one that matters.
+        if override not in known and (league, override) not in _warned_pending:
+            _warned_pending.add((league, override))
+            log.warning("override %r -> %r but %r is not in %s's results files "
+                        "yet — sealed predictions for it cannot be graded until "
+                        "that season's file is published",
                         name, override, override, league)
         return override, "override"
 
