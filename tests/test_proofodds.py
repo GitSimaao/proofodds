@@ -850,6 +850,37 @@ def test_displayed_percentages_always_sum_to_one_hundred(probs):
     assert all(abs(o - p * 100) < 1 for o, p in zip(out, probs))
 
 
+def test_the_stylesheet_url_changes_when_the_stylesheet_does(tmp_path, monkeypatch):
+    """
+    The CSS is cached for an hour and the HTML for five minutes, so after a
+    deploy a returning visitor gets new markup against an old stylesheet. That
+    is worse than either alone: the theme toggle showed both icons at once and
+    the mobile header collapsed into three overlapping rows, on a phone whose
+    only crime was having visited before.
+
+    Stamping the URL with the file's own hash makes that pair impossible.
+    """
+    import re
+    from proofodds import render
+
+    def version(out):
+        render.build(out)
+        return re.search(r"style\.css\?v=(\w+)",
+                         (out / "index.html").read_text()).group(1)
+
+    before = version(tmp_path / "a")
+    css = config.STATIC_DIR / "style.css"
+    original = css.read_bytes()
+    try:
+        css.write_bytes(original + b"\n/* changed */\n")
+        after = version(tmp_path / "b")
+    finally:
+        css.write_bytes(original)
+
+    assert before and after and before != after
+    assert version(tmp_path / "c") == before      # and back again, deterministic
+
+
 def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     """
     Both are progressive enhancement: without JavaScript every match is still

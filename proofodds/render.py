@@ -9,6 +9,7 @@ client-side script on the site converts kickoff times to the reader's timezone.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import logging
 import math
@@ -170,7 +171,22 @@ def build(out_dir=None) -> None:
     chain = ledger.verify_chain()
     days = upcoming_view()
 
+    # A version stamp taken from the stylesheet's own contents.
+    #
+    # The CSS is cached for an hour and the HTML for five minutes, so after a
+    # deploy a returning visitor gets the new markup against the old
+    # stylesheet — which is worse than either alone. The theme toggle showed
+    # both its icons at once and the mobile header collapsed into three
+    # overlapping rows, on a phone whose only crime was having visited before.
+    #
+    # Versioning the URL makes the stale pair impossible: change the file and
+    # the address changes with it, so a browser either has both halves old or
+    # both new.
+    css = (config.STATIC_DIR / "style.css").read_bytes()
+    asset_v = hashlib.sha256(css).hexdigest()[:10]
+
     common = {
+        "asset_v": asset_v,
         "site_name": config.SITE_NAME,
         "site_url": config.SITE_URL,
         "tagline": config.SITE_TAGLINE,
