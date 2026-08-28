@@ -18,6 +18,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# The OpenTimestamps client caches calendar responses in $HOME/.cache,
+# and this service's home IS the repository root. daily.py commits explicit
+# paths so the job would never add it — but `git add -A`, which we use by
+# hand, would sweep it straight into the public ledger repository.
+.cache/
+
 # Session backups (rollback artefacts, not record)
 *.bak*
 

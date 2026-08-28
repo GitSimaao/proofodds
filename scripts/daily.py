@@ -98,7 +98,24 @@ def main() -> int:
 
         now = dt.datetime.now(dt.timezone.utc)
         path = ledger.publish(upcoming, now=now)
-        proof_changes = anchor.maintain(now=now)
+
+        # Timestamping is an addition to the record, never a gate on it.
+        #
+        # anchor.maintain() guards the OpenTimestamps subprocess itself, which
+        # covers the network failure it was written for. It does not cover the
+        # rest: a malformed entry, an unreadable proof, a failed replace. An
+        # unhandled error here would leave the seal safely on disk from the
+        # line above and then skip the commit, the push and the site rebuild —
+        # every run, three hours apart, until somebody read the logs. The
+        # record would keep being sealed and quietly stop being published,
+        # which is the one failure this project cannot afford to have running
+        # unattended.
+        try:
+            proof_changes = anchor.maintain(now=now)
+        except Exception:
+            log.exception("anchoring failed — publishing the entry anyway")
+            proof_changes = []
+
         artifacts = ([path] if path else []) + proof_changes
         if artifacts and not args.no_git:
             commit_ledger(artifacts, entry_path=path)
