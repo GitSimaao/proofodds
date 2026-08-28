@@ -75,17 +75,31 @@
       </div>
     {% endif %}
 
+    {% if fixture_days %}
+    <div class="filters" role="group" aria-label="Filter by division">
+      <button type="button" class="chip is-on" data-filter="all">All</button>
+      {% for code in shown_codes %}
+      <button type="button" class="chip" data-filter="{{ code }}"
+              title="{{ league_names_by_code[code] }}">{{ league_shorts[code] }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div id="fixtures">
     {% for day in fixture_days %}
+      <section class="day" data-count="{{ day.matches|length }}">
       <div class="day-head">
         <h3>{{ day.label }}</h3>
         <span class="count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span>
       </div>
       {% for lg in day.leagues %}
-      <div class="league-head">
-        <span class="badge">{{ lg.short }}</span>
-        <span class="league-name">{{ lg.name }}</span>
-      </div>
-      <div class="cards">
+      <section class="league" data-league="{{ lg.code }}">
+        <div class="league-head">
+          <span class="badge">{{ lg.short }}</span>
+          <span class="league-name">{{ lg.name }}</span>
+          <span class="league-count">{{ lg.matches|length }}</span>
+        </div>
+        <div class="cards">
         {% for m in lg.matches %}
         <article class="card">
           <div class="card-when">
@@ -104,27 +118,27 @@
           <div class="probs">
             <div class="prob h">
               <span class="lbl">Home</span>
-              <span class="pv">{{ (m.p_H * 100)|round|int }}%</span>
+              <span class="pv">{{ m.pct_H }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_H) }}</span>
             </div>
             <div class="prob d">
               <span class="lbl">Draw</span>
-              <span class="pv">{{ (m.p_D * 100)|round|int }}%</span>
+              <span class="pv">{{ m.pct_D }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_D) }}</span>
             </div>
             <div class="prob a">
               <span class="lbl">Away</span>
-              <span class="pv">{{ (m.p_A * 100)|round|int }}%</span>
+              <span class="pv">{{ m.pct_A }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_A) }}</span>
             </div>
           </div>
           {% if m.p_over25 %}
           <div class="totals">
             <span class="tl">Over {{ totals_line }}</span>
-            <span class="tv">{{ (m.p_over25 * 100)|round|int }}%</span>
+            <span class="tv">{{ m.pct_over }}%</span>
             <span class="to">{{ '%.2f'|format(1 / m.p_over25) }}</span>
             <span class="td">Under</span>
-            <span class="tv">{{ (m.p_under25 * 100)|round|int }}%</span>
+            <span class="tv">{{ m.pct_under }}%</span>
             <span class="to">{{ '%.2f'|format(1 / m.p_under25) }}</span>
           </div>
           {% endif %}
@@ -142,10 +156,13 @@
             <span>sealed {{ m.published_at[:10] }}</span>
           </div>
         </article>
-        {% endfor %}
-      </div>
+          {% endfor %}
+        </div>
+      </section>
       {% endfor %}
+      </section>
     {% endfor %}
+    </div>
   </div>
 </section>
 

@@ -45,6 +45,29 @@ def environment() -> Environment:
 
 
 # --------------------------------------------------------------------------- #
+def percent_split(values) -> list[int]:
+    """
+    Whole percentages that always sum to 100, by largest remainder.
+
+    Rounding three probabilities separately does not: 0.7251, 0.1477 and
+    0.1272 become 73, 15 and 13, which is 101. That was on the front page,
+    two sections above a paragraph insisting our numbers sum to exactly one.
+
+    Giving the leftover to the largest remainder is the same rule the ledger
+    uses when it seals, so the card and the sealed file round the same way.
+    Decimals were the other option and they do not fix it — 33.3 three times
+    is 99.9 — and a tenth of a percent claims a precision a goals model with
+    no lineups does not have. The fair odds beside each figure carry the
+    precision for anyone who wants it.
+    """
+    scaled = [float(v) * 100 for v in values]
+    out = [int(x) for x in scaled]
+    for i in sorted(range(len(scaled)), key=lambda i: scaled[i] - out[i],
+                    reverse=True)[:100 - sum(out)]:
+        out[i] += 1
+    return out
+
+
 def upcoming_view() -> list[dict]:
     """
     Group unplayed, already-published predictions by day for the front page.
@@ -73,7 +96,13 @@ def upcoming_view() -> list[dict]:
                "away": sealed_name(row["away"], league, row.get("away_raw", "")),
                "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])]}
         tbc = bool(row.get("kickoff_tbc"))
+        pct = percent_split([row["p_H"], row["p_D"], row["p_A"]])
+        pct_ou = (percent_split([row["p_over25"], row["p_under25"]])
+                  if row.get("p_over25") is not None else None)
         rows.append({**row,
+                     "pct_H": pct[0], "pct_D": pct[1], "pct_A": pct[2],
+                     "pct_over": pct_ou[0] if pct_ou else None,
+                     "pct_under": pct_ou[1] if pct_ou else None,
                      "kickoff_dt": kickoff,
                      "kickoff_tbc": tbc,
                      "kickoff_label": (kickoff.strftime("%a %d %b") + ", time TBC"
@@ -190,6 +219,9 @@ def build(out_dir=None) -> None:
         page="index", canonical="/",
         fixture_days=days,
         league_list=league_list,
+        shown_codes=shown,
+        league_shorts={c: config.LEAGUES[c]["short"] for c in config.LEAGUES},
+        league_names_by_code={c: config.league_name(c) for c in config.LEAGUES},
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,
         **common))

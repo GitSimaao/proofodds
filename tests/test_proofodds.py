@@ -830,6 +830,40 @@ def test_the_two_hash_implementations_agree(ledger_in, stub_models, tmp_path):
     assert not ok and "content hash mismatch" in problems[0]
 
 
+@pytest.mark.parametrize("probs", [
+    [0.725108, 0.147726, 0.127166],       # 73 + 15 + 13 = 101, live on the site
+    [1 / 3, 1 / 3, 1 / 3],                # 33 + 33 + 33 = 99
+    [0.5, 0.25, 0.25],
+    [0.985, 0.010, 0.005],
+    [0.49, 0.51],
+])
+def test_displayed_percentages_always_sum_to_one_hundred(probs):
+    """
+    Three probabilities rounded separately do not add up. Bayern v Stuttgart
+    went out as 73/15/13 — a hundred and one per cent, two sections above a
+    paragraph insisting our numbers sum to exactly one. It is the first
+    arithmetic a sceptical reader checks, and it was wrong.
+    """
+    from proofodds.render import percent_split
+    out = percent_split(probs)
+    assert sum(out) == 100
+    assert all(abs(o - p * 100) < 1 for o, p in zip(out, probs))
+
+
+def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
+    """
+    Both are progressive enhancement: without JavaScript every match is still
+    in the HTML and visible, which is the right default for a page whose whole
+    argument is that nothing is hidden.
+    """
+    from proofodds import render
+    render.build(tmp_path)
+    html = (tmp_path / "index.html").read_text()
+    assert 'class="theme-toggle"' in html
+    assert "proofodds-theme" in html          # remembered across visits
+    assert 'id="fixtures"' in html            # what the filter narrows
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
 

@@ -206,15 +206,25 @@ h4 {
 .day-head h3 { margin: 0; font-size: 15px; letter-spacing: .01em; }
 .day-head .count { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3); }
 
-/* A division heading inside a day. Quiet on purpose: the day is what a reader
-   looks for first, the league is how they narrow it down once they are there. */
+/* A division inside a day, as a contained block rather than a loose heading.
+   Grouping by league meant most groups hold one or two matches, and a lone
+   card floating in a three-column grid reads as a broken layout rather than as
+   "this division plays once today". The panel makes the emptiness deliberate. */
+.league {
+  background: var(--surface-2); border: 1px solid var(--rule);
+  border-radius: 7px; padding: 12px; margin: 0 0 12px;
+}
 .league-head {
-  display: flex; align-items: center; gap: 9px;
-  margin: 20px 0 10px;
+  display: flex; align-items: center; gap: 9px; margin: 2px 2px 10px;
 }
 .league-head .league-name {
-  font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: .01em;
+  font-size: 13px; font-weight: 700; color: var(--ink-2); letter-spacing: .01em;
 }
+.league-head .league-count {
+  margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  color: var(--ink-3);
+}
+.league .card { box-shadow: var(--shadow-1); }
 .badge {
   display: inline-block; min-width: 34px; text-align: center;
   font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
@@ -224,7 +234,7 @@ h4 {
   border: 1px solid var(--rule);
 }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 
 /* The second market, on one line. Deliberately quieter than the 1X2 block:
    it is a real graded number, not a headline, and a card with two equally
@@ -432,3 +442,99 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 .signup-row button:hover { background: var(--c-model-2); border-color: var(--c-model-2); }
 .signup-fine { margin: 0; font-size: 13px; color: var(--ink-3); line-height: 1.5; }
 .signup-fine a { color: var(--ink-2); }
+
+
+/* ---------------- division filter ---------------- */
+/* Eight divisions over nine days is 146 cards. The panels stop that reading as
+   a broken grid; this is what stops it being a scroll. Narrowing only — every
+   match is present in the HTML, and with JavaScript off they are all visible,
+   which is the right default for a page that argues nothing is hidden. */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; }
+.chip {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 6px 11px; cursor: pointer;
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: 999px;
+}
+.chip:hover { color: var(--ink); border-color: var(--rule-2); }
+.chip:focus-visible { outline: 2px solid var(--c-model); outline-offset: 2px; }
+.chip.is-on { background: var(--c-model); border-color: var(--c-model); color: #fff; }
+
+/* ---------------- theme toggle ---------------- */
+/* The site already answers prefers-color-scheme. This is for the reader whose
+   system setting is not what they want on this page, and the choice is kept in
+   localStorage so it survives the next visit. */
+.theme-toggle {
+  display: inline-grid; place-items: center; width: 34px; height: 34px;
+  flex: none; padding: 0; cursor: pointer;
+  background: transparent; color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: var(--radius);
+}
+.theme-toggle:hover { background: var(--surface-2); color: var(--ink); }
+.theme-toggle:focus-visible { outline: 2px solid var(--c-model); outline-offset: 2px; }
+.theme-toggle svg { grid-area: 1 / 1; }
+
+/* Show the icon for the theme you would switch TO. Light now, so offer the
+   moon; dark now, so offer the sun. Each of the three states the tokens
+   distinguish is answered here in the same order, or the icon and the palette
+   disagree. */
+.theme-toggle .i-sun { display: none; }
+.theme-toggle .i-moon { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .i-sun { display: block; }
+  :root:not([data-theme="light"]) .theme-toggle .i-moon { display: none; }
+}
+:root[data-theme="dark"] .theme-toggle .i-sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
+:root[data-theme="light"] .theme-toggle .i-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .i-moon { display: block; }
+
+/* ---------------- narrow screens ---------------- */
+/* Until now the only breakpoint on this site was for one chart. Most of a
+   phone's visit is the match cards, and they were the part that fitted worst. */
+@media (max-width: 860px) {
+  .head-inner { height: auto; padding-top: 11px; padding-bottom: 11px; }
+  .nav { gap: 2px; }
+  .nav a { padding: 7px 9px; font-size: 14px; }
+}
+
+@media (max-width: 660px) {
+  .shell { padding: 0 15px; }
+
+  /* Brand and toggle on one line, the four sections on their own beneath —
+     scrolling sideways rather than wrapping into a ragged two-row block. */
+  .head-inner { flex-wrap: wrap; gap: 8px 12px; }
+  .brand { order: 1; }
+  .theme-toggle { order: 2; margin-left: auto; }
+  .nav {
+    order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto;
+    scrollbar-width: none; -ms-overflow-style: none;
+    padding-bottom: 2px; margin-bottom: -2px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: none; }
+
+  .hero { padding: 32px 0 22px; }
+  section.band { padding: 32px 0; }
+  .strip { grid-template-columns: repeat(2, 1fr); }
+  .strip .v { font-size: 21px; }
+  .league { padding: 10px; }
+  .card { padding: 14px; }
+  .team { font-size: 15.5px; }
+  .prob .pv { font-size: 16px; }
+  .signup { grid-template-columns: 1fr; }
+  .filters { gap: 5px; }
+  .chip { padding: 6px 9px; font-size: 10.5px; letter-spacing: .05em; }
+  .chart-split { grid-template-columns: 1fr; }
+  .totals { grid-template-columns: auto auto 1fr auto auto auto; font-size: 12px; }
+}
+
+@media (max-width: 400px) {
+  /* Below this the three-way probability row is the first thing to break:
+     three columns of monospace numbers stop fitting before anything else. */
+  .strip { grid-template-columns: 1fr; }
+  .probs { gap: 5px; }
+  .prob .lbl { font-size: 9px; letter-spacing: .06em; }
+  .prob .odds { font-size: 10.5px; }
+}
