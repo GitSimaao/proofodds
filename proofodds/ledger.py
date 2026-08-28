@@ -386,5 +386,6 @@ def all_predictions() -> list[dict]:
             out.append({**row,
                         "published_at": entry["published_at"],
                         "entry_hash": entry["hash"],
+                        "entry_file": path.name,
                         "league": league})
     return out

@@ -13,7 +13,9 @@ import hashlib
 import json
 import logging
 import math
+import re
 import shutil
+import unicodedata
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -69,47 +71,112 @@ def percent_split(values) -> list[int]:
     return out
 
 
-def upcoming_view() -> list[dict]:
+def slugify(value: str) -> str:
+    """A small, dependency-free slug for durable match URLs and crest files."""
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "club"
+
+
+def club_mark(name: str) -> dict:
+    """
+    Resolve an optional self-hosted crest, with a deterministic monogram fallback.
+
+    Official crests are trademarks and remote image URLs are mutable.  The site
+    therefore only uses files deliberately placed in static/clubs/; until one
+    exists the fallback still gives every club a compact visual identity.
+    """
+    slug = slugify(name)
+    source = None
+    for suffix in (".svg", ".png", ".webp"):
+        candidate = config.STATIC_DIR / "clubs" / f"{slug}{suffix}"
+        if candidate.is_file():
+            source = f"/clubs/{candidate.name}"
+            break
+
+    words = [word for word in re.findall(r"[A-Za-z0-9]+", unicodedata.normalize(
+        "NFKD", name).encode("ascii", "ignore").decode())
+        if word.lower() not in {"fc", "afc", "cf", "ac", "sc", "cd"}]
+    if len(words) >= 2:
+        initials = (words[0][0] + words[-1][0]).upper()
+    elif words:
+        initials = words[0][:2].upper()
+    else:
+        initials = "FC"
+    tone = int(hashlib.sha256(name.encode("utf-8")).hexdigest()[:2], 16) % 6
+    return {"src": source, "initials": initials, "tone": tone}
+
+
+def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
+    """Turn one immutable ledger row into the site's richer display model."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    kickoff = dt.datetime.strptime(row["kickoff"], "%Y-%m-%dT%H:%M:%SZ") \
+                         .replace(tzinfo=dt.timezone.utc)
+    league = row.get("league", "E0")
+    meta = config.LEAGUES.get(league, {})
+    home = sealed_name(row["home"], league, row.get("home_raw", ""))
+    away = sealed_name(row["away"], league, row.get("away_raw", ""))
+    pct = percent_split([row["p_H"], row["p_D"], row["p_A"]])
+    pct_ou = (percent_split([row["p_over25"], row["p_under25"]])
+              if row.get("p_over25") is not None else None)
+    favourite = ("H", "D", "A")[max(
+        range(3), key=lambda i: (row["p_H"], row["p_D"], row["p_A"])[i])]
+    match_slug = (f"{league.lower()}-{slugify(row['home'])}-v-"
+                  f"{slugify(row['away'])}")
+    match_url = f"/matches/{row['kickoff'][:10]}/{match_slug}/"
+    tbc = bool(row.get("kickoff_tbc"))
+    entry_file = row.get("entry_file", f"{row['published_at'][:10]}.json")
+
+    return {
+        **row,
+        "league": league,
+        "league_name": meta.get("name", league),
+        "league_short": meta.get("short", league),
+        "league_country": meta.get("country", ""),
+        "league_flag": meta.get("flag"),
+        "home": home,
+        "away": away,
+        "xg_home": row.get("xg_home"),
+        "xg_away": row.get("xg_away"),
+        "p_over25": row.get("p_over25"),
+        "p_under25": row.get("p_under25"),
+        "home_mark": club_mark(home),
+        "away_mark": club_mark(away),
+        "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])],
+        "pct_H": pct[0], "pct_D": pct[1], "pct_A": pct[2],
+        "pct_over": pct_ou[0] if pct_ou else None,
+        "pct_under": pct_ou[1] if pct_ou else None,
+        "favourite": favourite,
+        "kickoff_dt": kickoff,
+        "kickoff_tbc": tbc,
+        "kickoff_label": (kickoff.strftime("%a %d %b") + ", time TBC"
+                          if tbc else kickoff.strftime("%a %d %b, %H:%M UTC")),
+        "kickoff_date_label": kickoff.strftime("%A, %d %B %Y"),
+        "bar": charts.outcome_bar(row["p_H"], row["p_D"], row["p_A"]),
+        "match_url": match_url,
+        "entry_file": entry_file,
+        "entry_url": f"/predictions/{entry_file}",
+        "is_past": kickoff <= now,
+    }
+
+
+def match_views(now: dt.datetime | None = None) -> list[dict]:
+    """Every unique sealed fixture, including past ones, for durable pages."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    rows = [prediction_view(row, now=now) for row in ledger.all_predictions()]
+    order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
+    rows.sort(key=lambda r: (r["kickoff_dt"], order.get(r["league"], 99), r["home"]))
+    return rows
+
+
+def upcoming_view(rows: list[dict] | None = None) -> list[dict]:
     """
     Group unplayed, already-published predictions by day for the front page.
 
     Only the ledger is read — the site can never show a probability that was
     not sealed first. That is the whole point, so it is worth the constraint.
     """
-    now = dt.datetime.now(dt.timezone.utc)
-    rows = []
-    for row in ledger.all_predictions():
-        kickoff = dt.datetime.strptime(row["kickoff"], "%Y-%m-%dT%H:%M:%SZ") \
-                             .replace(tzinfo=dt.timezone.utc)
-        if kickoff <= now:
-            continue
-        # Display the canonical club name, exactly as grading does. The ledger
-        # keeps whatever spelling the feed used the day it was sealed — that
-        # file is the record and it is served raw at /predictions/ — but the
-        # site is a VIEW of the record, and a view that calls the same club
-        # "Hull" on nine cards and "Hull City AFC" on the tenth is just noise.
-        league = row.get("league", "E0")
-        row = {**row,
-               "league": league,
-               "league_name": config.league_name(league),
-               "league_short": config.LEAGUES.get(league, {}).get("short", league),
-               "home": sealed_name(row["home"], league, row.get("home_raw", "")),
-               "away": sealed_name(row["away"], league, row.get("away_raw", "")),
-               "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])]}
-        tbc = bool(row.get("kickoff_tbc"))
-        pct = percent_split([row["p_H"], row["p_D"], row["p_A"]])
-        pct_ou = (percent_split([row["p_over25"], row["p_under25"]])
-                  if row.get("p_over25") is not None else None)
-        rows.append({**row,
-                     "pct_H": pct[0], "pct_D": pct[1], "pct_A": pct[2],
-                     "pct_over": pct_ou[0] if pct_ou else None,
-                     "pct_under": pct_ou[1] if pct_ou else None,
-                     "kickoff_dt": kickoff,
-                     "kickoff_tbc": tbc,
-                     "kickoff_label": (kickoff.strftime("%a %d %b") + ", time TBC"
-                                       if tbc else
-                                       kickoff.strftime("%a %d %b, %H:%M UTC")),
-                     "bar": charts.outcome_bar(row["p_H"], row["p_D"], row["p_A"])})
+    rows = rows if rows is not None else match_views()
+    rows = [row for row in rows if not row["is_past"]]
 
     order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
     rows.sort(key=lambda r: (r["kickoff_dt"], order.get(r["league"], 99), r["home"]))
@@ -128,6 +195,8 @@ def upcoming_view() -> list[dict]:
             current["leagues"].append({"code": row["league"],
                                        "name": row["league_name"],
                                        "short": row["league_short"],
+                                       "country": row["league_country"],
+                                       "flag": row["league_flag"],
                                        "matches": []})
         current["leagues"][-1]["matches"].append(row)
     return days
@@ -179,7 +248,8 @@ def build(out_dir=None) -> None:
     chain = ledger.verify_chain()
     anchors = anchor.report()
     entries = ledger_view(anchors)
-    days = upcoming_view()
+    matches = match_views()
+    days = upcoming_view(matches)
 
     # A version stamp taken from the stylesheet's own contents.
     #
@@ -224,34 +294,27 @@ def build(out_dir=None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
 
-    # Name the divisions that are actually on the page, not the ones in the
-    # config. They differ more often than you would think — a division goes
-    # live mid-window, an international break empties one country's calendar,
-    # Ligue 1 finishes a fortnight before the Premier League — and a site whose
-    # whole argument is that it says what is true should not list seven
-    # competitions above a page showing one.
-    #
-    # It lists them and stops there. Saying WHY one is missing would mean
-    # guessing: this function reads the ledger and nothing else, so it cannot
-    # tell a division with no fixtures from one that simply has nothing sealed
-    # for this window yet. A vague sentence is fine; a confident wrong one is
-    # not.
+    # Filter only on divisions actually present in the sealed upcoming view.
+    # An international break or different season end can empty one without
+    # changing the configured league list.
     shown = [c for c in config.LEAGUE_ORDER
              if any(lg["code"] == c for d in days for lg in d["leagues"])]
-    league_list = [config.league_name(c) for c in
-                   (shown or config.ENABLED_LEAGUES)]
 
     write("index.html", env.get_template("index.html").render(
         page="index", canonical="/",
         fixture_days=days,
-        league_list=league_list,
         shown_codes=shown,
         n_shown=len(shown) or len(config.ENABLED_LEAGUES),
-        league_shorts={c: config.LEAGUES[c]["short"] for c in config.LEAGUES},
-        league_names_by_code={c: config.league_name(c) for c in config.LEAGUES},
+        league_meta={c: config.LEAGUES[c] for c in config.LEAGUES},
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,
         **common))
+
+    for match in matches:
+        write(match["match_url"].lstrip("/") + "index.html",
+              env.get_template("match.html").render(
+                  page="match", canonical=match["match_url"], match=match,
+                  **common))
 
     write("scorecard/index.html", env.get_template("scorecard.html").render(
         page="scorecard", canonical="/scorecard/",
@@ -282,14 +345,21 @@ def build(out_dir=None) -> None:
     write("confirmed/index.html", env.get_template("confirmed.html").render(
         page="confirmed", canonical="/confirmed/", **common))
 
-    # static assets
+    # Static assets may be grouped into directories (country flags today,
+    # deliberately licensed club crests later). Keep their public paths intact.
     for item in config.STATIC_DIR.glob("*"):
-        shutil.copy2(item, out_dir / item.name)
+        target = out_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, target)
+        else:
+            shutil.copy2(item, target)
     (out_dir / "favicon.svg").write_text(FAVICON, encoding="utf-8")
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
+    public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/privacy/"]
+    public_pages.extend(match["match_url"] for match in matches)
     (out_dir / "sitemap.xml").write_text(
-        sitemap(["/", "/scorecard/", "/ledger/", "/method/", "/privacy/"]), encoding="utf-8")
+        sitemap(public_pages), encoding="utf-8")
 
     # the ledger itself, served raw so anyone can recompute the hashes
     raw = out_dir / "predictions"
@@ -311,4 +381,4 @@ def build(out_dir=None) -> None:
         for path in config.TIMESTAMPS_DIR.glob("*.ots"):
             shutil.copy2(path, proofs / path.name)
 
-    log.info("built %d pages into %s", 7, out_dir)
+    log.info("built %d pages into %s", 7 + len(matches), out_dir)

@@ -55,14 +55,14 @@ DATA_CONTROLLER = os.environ.get("PROOFODDS_CONTROLLER", "the operator of ProofO
 # but never scored, and an unscoreable prediction is the one thing this site
 # does not publish.
 LEAGUES = {
-    "E0":  {"name": "Premier League", "short": "PL",   "country": "England",  "fdorg": "PL",  "tier": 1},
-    "E1":  {"name": "Championship",   "short": "EFL",  "country": "England",  "fdorg": "ELC", "tier": 2},
-    "SP1": {"name": "La Liga",        "short": "LIGA", "country": "Spain",    "fdorg": "PD",  "tier": 1},
-    "I1":  {"name": "Serie A",        "short": "SA",   "country": "Italy",    "fdorg": "SA",  "tier": 1},
-    "D1":  {"name": "Bundesliga",     "short": "BUN",  "country": "Germany",  "fdorg": "BL1", "tier": 1},
-    "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "fdorg": "FL1", "tier": 1},
-    "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "fdorg": "PPL", "tier": 1},
-    "N1":  {"name": "Eredivisie",     "short": "ERE",  "country": "Netherlands", "fdorg": "DED", "tier": 1},
+    "E0":  {"name": "Premier League", "short": "PL",   "country": "England",  "flag": "england",     "fdorg": "PL",  "tier": 1},
+    "E1":  {"name": "Championship",   "short": "EFL",  "country": "England",  "flag": "england",     "fdorg": "ELC", "tier": 2},
+    "SP1": {"name": "La Liga",        "short": "LIGA", "country": "Spain",    "flag": "spain",       "fdorg": "PD",  "tier": 1},
+    "I1":  {"name": "Serie A",        "short": "SA",   "country": "Italy",    "flag": "italy",       "fdorg": "SA",  "tier": 1},
+    "D1":  {"name": "Bundesliga",     "short": "BUN",  "country": "Germany",  "flag": "germany",     "fdorg": "BL1", "tier": 1},
+    "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "flag": "france",      "fdorg": "FL1", "tier": 1},
+    "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "flag": "portugal",    "fdorg": "PPL", "tier": 1},
+    "N1":  {"name": "Eredivisie",     "short": "ERE",  "country": "Netherlands", "flag": "netherlands", "fdorg": "DED", "tier": 1},
 }
 
 # Which of them are actually live. The default is deliberately just one: a

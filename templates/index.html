@@ -1,16 +1,23 @@
 {% extends "base.html" %}
+{% from "_components.html" import club_mark, league_flag %}
 {% block title %}{{ site_name }} — football probabilities, published before kickoff{% endblock %}
 {% block description %}Model probabilities for every match in {{ n_leagues }} European division{{ 's' if n_leagues != 1 }}, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
 {% block og_title %}{{ site_name }} — published before kickoff, scored afterwards{% endblock %}
 
 {% block content %}
 
-<div class="shell hero">
-  <p class="eyebrow">{{ n_shown }} division{{ 's' if n_shown != 1 }} · Dixon-Coles · {{ n_upcoming }} match{{ 'es' if n_upcoming != 1 }} priced</p>
-  <h1>Published before kickoff. Scored afterwards.</h1>
-  <p class="lead">Every probability on this site was written down and hashed before the whistle,
-  then graded against Pinnacle's closing line — the sharpest public number in football.
-  The running score is on the front page whether it flatters us or not.</p>
+<div class="shell hero hero-home">
+  <div class="hero-copy">
+    <p class="eyebrow">{{ n_shown }} division{{ 's' if n_shown != 1 }} · Dixon-Coles · {{ n_upcoming }} match{{ 'es' if n_upcoming != 1 }} priced</p>
+    <h1>Published before kickoff. Scored afterwards.</h1>
+    <p class="lead">Every probability is sealed before the whistle, then graded against
+    Pinnacle's closing line. The running score stays public whether it flatters the model or not.</p>
+  </div>
+  <div class="hero-trust" aria-label="How the record works">
+    <div><span class="trust-step">01</span><p><strong>Forecast</strong>Model probabilities are produced from past results only.</p></div>
+    <div><span class="trust-step">02</span><p><strong>Seal</strong>The earliest publication is hashed into the public ledger.</p></div>
+    <div><span class="trust-step">03</span><p><strong>Score</strong>The same forecast is measured against the closing line.</p></div>
+  </div>
 
   <div class="strip">
     {% if score.live %}
@@ -61,11 +68,13 @@
 
 <section class="band">
   <div class="shell">
-    <h2>Next {{ lookahead_days }} days</h2>
-    <p class="section-note">{{ league_list|join(', ') }}. Probabilities from a Dixon-Coles
-    goals model fitted separately for each division, only on matches played before
-    publication. Fair odds are the probability inverted, with no margin added — they are
-    what a bookmaker would price if it took no cut.</p>
+    <div class="section-heading fixtures-heading">
+      <div>
+        <p class="eyebrow">Upcoming forecasts</p>
+        <h2>Next {{ lookahead_days }} days</h2>
+      </div>
+      <p>Fair odds are the probability inverted with no bookmaker margin. Select a competition or open any match for its permanent, auditable page.</p>
+    </div>
 
     {% if not fixture_days %}
       <div class="empty">
@@ -77,10 +86,12 @@
 
     {% if fixture_days %}
     <div class="filters" role="group" aria-label="Filter by division">
-      <button type="button" class="chip is-on" data-filter="all">All</button>
+      <button type="button" class="chip is-on" data-filter="all" aria-pressed="true">All leagues</button>
       {% for code in shown_codes %}
-      <button type="button" class="chip" data-filter="{{ code }}"
-              title="{{ league_names_by_code[code] }}">{{ league_shorts[code] }}</button>
+      <button type="button" class="chip" data-filter="{{ code }}" aria-pressed="false">
+        {{ league_flag(league_meta[code].flag, league_meta[code].country) }}
+        <span>{{ league_meta[code].name }}</span>
+      </button>
       {% endfor %}
     </div>
     {% endif %}
@@ -95,38 +106,50 @@
       {% for lg in day.leagues %}
       <section class="league" data-league="{{ lg.code }}">
         <div class="league-head">
-          <span class="badge">{{ lg.short }}</span>
+          {{ league_flag(lg.flag, lg.country) }}
           <span class="league-name">{{ lg.name }}</span>
-          <span class="league-count">{{ lg.matches|length }}</span>
+          <span class="league-country">{{ lg.country }}</span>
+          <span class="league-count">{{ lg.matches|length }} match{{ 'es' if lg.matches|length != 1 }}</span>
         </div>
         <div class="cards">
         {% for m in lg.matches %}
-        <article class="card">
-          <div class="card-when">
+        <article class="card match-card">
+          <a class="card-link" href="{{ m.match_url }}" aria-label="Open {{ m.home }} vs {{ m.away }} forecast">
+          <div class="card-top">
+            <div class="card-when">
             {% if m.kickoff_tbc %}
             <span title="The fixture list has the date but not the kick-off time yet">{{ m.kickoff_label }}</span>
             {% else %}
             <span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span>
             {% endif %}
+            </div>
+            <span class="card-arrow" aria-hidden="true">↗</span>
           </div>
           <div class="teams">
-            <div class="team home">{{ m.home }}</div>
-            <div class="vs">v</div>
-            <div class="team away">{{ m.away }}</div>
+            <div class="team home">
+              {{ club_mark(m.home_mark, m.home) }}
+              <span>{{ m.home }}</span>
+            </div>
+            <div class="vs">vs</div>
+            <div class="team away">
+              {{ club_mark(m.away_mark, m.away) }}
+              <span>{{ m.away }}</span>
+            </div>
           </div>
           {{ m.bar|safe }}
+          <div class="prob-caption"><span>Outcome</span><span>Probability · fair odds</span></div>
           <div class="probs">
-            <div class="prob h">
+            <div class="prob h{% if m.favourite == 'H' %} is-favourite{% endif %}">
               <span class="lbl">Home</span>
               <span class="pv">{{ m.pct_H }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_H) }}</span>
             </div>
-            <div class="prob d">
+            <div class="prob d{% if m.favourite == 'D' %} is-favourite{% endif %}">
               <span class="lbl">Draw</span>
               <span class="pv">{{ m.pct_D }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_D) }}</span>
             </div>
-            <div class="prob a">
+            <div class="prob a{% if m.favourite == 'A' %} is-favourite{% endif %}">
               <span class="lbl">Away</span>
               <span class="pv">{{ m.pct_A }}%</span>
               <span class="odds">{{ '%.2f'|format(1 / m.p_A) }}</span>
@@ -152,9 +175,14 @@
           file yet, so this match may take a few days to be graded.</p>
           {% endif %}
           <div class="card-foot">
+            {% if m.xg_home is not none and m.xg_away is not none %}
             <span>xG {{ '%.2f'|format(m.xg_home) }} – {{ '%.2f'|format(m.xg_away) }}</span>
+            {% else %}
             <span>sealed {{ m.published_at[:10] }}</span>
+            {% endif %}
+            <span class="card-detail">Full forecast <span aria-hidden="true">→</span></span>
           </div>
+          </a>
         </article>
           {% endfor %}
         </div>

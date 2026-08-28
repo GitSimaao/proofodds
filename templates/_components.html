@@ -1,0 +1,14 @@
+{% macro club_mark(mark, name, size='md') -%}
+<span class="club-mark club-mark--{{ size }} club-mark--tone-{{ mark.tone }}">
+  {% if mark.src %}
+  <img src="{{ mark.src }}" alt="" width="48" height="48" loading="lazy">
+  {% else %}
+  <span aria-hidden="true">{{ mark.initials }}</span>
+  {% endif %}
+</span>
+{%- endmacro %}
+
+{% macro league_flag(flag, country) -%}
+{% if flag %}<img class="flag" src="/flags/{{ flag }}.svg" alt="" width="22" height="16">{% endif %}
+<span class="sr-only">{{ country }}</span>
+{%- endmacro %}

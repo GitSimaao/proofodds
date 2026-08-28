@@ -90,8 +90,8 @@ not remove it.
 pip install -r requirements.txt
 
 # The results CSVs are a download, not part of this repo — they are
-# football-data.co.uk's data, not ours. Twelve tests need them and skip
-# with instructions until you run this. Nothing else does.
+# football-data.co.uk's data, not ours. Tests marked needs_data skip with
+# instructions until you run this; the rest of the suite still runs.
 python -c "from proofodds import data; data.refresh('E0')"
 
 python scripts/daily.py            # refresh results, seal, grade, rebuild
@@ -266,14 +266,28 @@ proofodds/
   render.py        Jinja2 -> static site
   verify.py        `python -m proofodds.verify`
   newsletter.py    the weekly scorecard email and the Kit client
-templates/         base, index, scorecard, ledger, method, privacy, _signup
+templates/         base, index, per-match pages, scorecard, ledger, method, privacy
 static/style.css   one stylesheet, light and dark
+static/flags/      self-hosted country flags used by division filters
 scripts/           daily.py, weekly.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example
 predictions/       the ledger — committed, never rewritten
 timestamps/        detached .ots proofs — pending, attested and mismatched stay distinct
 tests/             the chain, the publication rules, data handling
 ```
+
+### Club crests
+
+Cards and match pages look for a deliberately self-hosted crest at
+`static/clubs/<club-slug>.svg`, then `.png`, then `.webp`. For example, Arsenal
+resolves to `static/clubs/arsenal.svg` and Manchester City to
+`static/clubs/manchester-city.svg`. If no file exists, the build renders a
+deterministic two-letter club mark instead; no remote image is hotlinked.
+
+Only add official crest files from a source whose licence permits this use.
+Club crests are protected marks, and the fact that an API exposes an image URL
+does not grant redistribution rights. Adding a licensed local file needs no
+template or Python change: the next site build picks it up automatically.
 
 ---
 

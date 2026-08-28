@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% from "_components.html" import club_mark, league_flag %}
+{% block title %}{{ match.home }} vs {{ match.away }} — {{ site_name }}{% endblock %}
+{% block description %}Sealed {{ match.league_name }} probabilities for {{ match.home }} vs {{ match.away }}, published before kickoff and preserved in the public ProofOdds ledger.{% endblock %}
+{% block og_title %}{{ match.home }} vs {{ match.away }} — sealed probabilities{% endblock %}
+
+{% block content %}
+<section class="match-hero">
+  <div class="shell">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Matches</a><span aria-hidden="true">/</span><span>{{ match.kickoff[:10] }}</span>
+    </nav>
+
+    <div class="match-kicker">
+      {{ league_flag(match.league_flag, match.league_country) }}
+      <span>{{ match.league_name }}</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span>{{ match.league_country }}</span>
+    </div>
+
+    <div class="match-title-teams">
+      <div class="match-title-team">
+        {{ club_mark(match.home_mark, match.home, 'xl') }}
+        <h1>{{ match.home }}</h1>
+        <span>Home</span>
+      </div>
+      <div class="match-title-centre">
+        <span class="versus">vs</span>
+        {% if match.kickoff_tbc %}
+        <time title="The fixture date is known; the kick-off time is not fixed yet">{{ match.kickoff_label }}</time>
+        {% else %}
+        <time datetime="{{ match.kickoff }}" data-utc="{{ match.kickoff }}">{{ match.kickoff_label }}</time>
+        {% endif %}
+        <span class="match-state {{ 'is-past' if match.is_past else 'is-sealed' }}">
+          {{ 'Kickoff passed' if match.is_past else 'Prediction sealed' }}
+        </span>
+      </div>
+      <div class="match-title-team match-title-team--away">
+        {{ club_mark(match.away_mark, match.away, 'xl') }}
+        <h1>{{ match.away }}</h1>
+        <span>Away</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band match-content">
+  <div class="shell match-layout">
+    <div class="forecast-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Dixon-Coles forecast</p>
+          <h2>Match probabilities</h2>
+        </div>
+        <span class="fair-note">Fair odds · no margin</span>
+      </div>
+
+      {{ match.bar|safe }}
+      <div class="match-probs">
+        <div class="match-prob h{% if match.favourite == 'H' %} is-favourite{% endif %}">
+          <span class="lbl">Home</span>
+          <strong>{{ match.pct_H }}%</strong>
+          <span class="fair">{{ '%.2f'|format(1 / match.p_H) }} fair odds</span>
+        </div>
+        <div class="match-prob d{% if match.favourite == 'D' %} is-favourite{% endif %}">
+          <span class="lbl">Draw</span>
+          <strong>{{ match.pct_D }}%</strong>
+          <span class="fair">{{ '%.2f'|format(1 / match.p_D) }} fair odds</span>
+        </div>
+        <div class="match-prob a{% if match.favourite == 'A' %} is-favourite{% endif %}">
+          <span class="lbl">Away</span>
+          <strong>{{ match.pct_A }}%</strong>
+          <span class="fair">{{ '%.2f'|format(1 / match.p_A) }} fair odds</span>
+        </div>
+      </div>
+
+      {% if (match.xg_home is not none and match.xg_away is not none) or match.p_over25 is not none %}
+      <div class="forecast-secondary">
+        {% if match.xg_home is not none and match.xg_away is not none %}
+        <div>
+          <span class="metric-label">Expected goals</span>
+          <strong>{{ '%.2f'|format(match.xg_home) }} <span>–</span> {{ '%.2f'|format(match.xg_away) }}</strong>
+          <small>{{ match.home }} · {{ match.away }}</small>
+        </div>
+        {% endif %}
+        {% if match.p_over25 is not none %}
+        <div>
+          <span class="metric-label">Total goals {{ totals_line }}</span>
+          <strong>{{ match.pct_over }}% <span>over</span></strong>
+          <small>{{ match.pct_under }}% under · {{ '%.2f'|format(1 / match.p_over25) }} fair odds</small>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if match.cold_start or match.name_provisional %}
+      <div class="forecast-caveats">
+        {% if match.cold_start %}
+        <p><strong>Limited league history.</strong> {{ match.cold_start|join(' and ') }}
+        {{ 'have' if match.cold_start|length > 1 else 'has' }} almost no recent record in this division, so the prior pulls the rating towards league average.</p>
+        {% endif %}
+        {% if match.name_provisional %}
+        <p><strong>Provisional club name.</strong> One club has not appeared in the results file yet, so grading may take a few days.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <aside class="audit-panel">
+      <p class="eyebrow">Public record</p>
+      <h2>What was sealed</h2>
+      <dl class="audit-list">
+        <div><dt>Published</dt><dd>{{ match.published_at }}</dd></div>
+        <div><dt>Ledger entry</dt><dd><a href="{{ match.entry_url }}">{{ match.entry_file }}</a></dd></div>
+        <div><dt>Entry hash</dt><dd><code title="{{ match.entry_hash }}">{{ match.entry_hash[:16] }}…</code></dd></div>
+        <div><dt>Kickoff</dt><dd>{{ 'Date fixed; time TBC' if match.kickoff_tbc else match.kickoff }}</dd></div>
+      </dl>
+      <p class="audit-copy">This page is a view of the earliest sealed forecast for this fixture. The JSON entry is the record; later publications cannot replace it.</p>
+      <a class="button-link" href="{{ match.entry_url }}">Open raw prediction <span aria-hidden="true">↗</span></a>
+      <a class="text-link" href="/method/">Read the methodology</a>
+    </aside>
+  </div>
+</section>
+
+{% include "_signup.html" %}
+{% endblock %}

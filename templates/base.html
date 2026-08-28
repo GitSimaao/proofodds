@@ -28,7 +28,7 @@
 })();
 </script>
 </head>
-<body>
+<body class="page-{{ page|default('generic') }}">
 
 <a class="skip" href="#main">Skip to content</a>
 
@@ -41,7 +41,7 @@
       <span class="brand-word">Proof<span class="brand-word-2">Odds</span></span>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="/"{% if page == 'index' %} aria-current="page"{% endif %}>Matches</a>
+      <a href="/"{% if page in ['index', 'match'] %} aria-current="page"{% endif %}>Matches</a>
       <a href="/scorecard/"{% if page == 'scorecard' %} aria-current="page"{% endif %}>Scorecard</a>
       <a href="/ledger/"{% if page == 'ledger' %} aria-current="page"{% endif %}>Ledger</a>
       <a href="/method/"{% if page == 'method' %} aria-current="page"{% endif %}>Method</a>
@@ -129,8 +129,12 @@
 
   chips.forEach(function (chip) {
     chip.addEventListener("click", function () {
-      chips.forEach(function (c) { c.classList.remove("is-on"); });
+      chips.forEach(function (c) {
+        c.classList.remove("is-on");
+        c.setAttribute("aria-pressed", "false");
+      });
       chip.classList.add("is-on");
+      chip.setAttribute("aria-pressed", "true");
       apply(chip.getAttribute("data-filter"));
     });
   });

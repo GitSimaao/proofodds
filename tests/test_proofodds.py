@@ -1131,6 +1131,79 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     assert 'id="fixtures"' in html            # what the filter narrows
 
 
+def test_the_build_creates_a_permanent_page_for_each_match(
+        tmp_path, monkeypatch):
+    """
+    Match cards are no longer a dead end: their URL is generated from sealed
+    identity fields, included in the sitemap and backed by the raw entry.
+
+    This test deliberately uses no results CSVs. Rendering a sealed forecast
+    and its evidence must not depend on being able to grade it yet.
+    """
+    import pandas as pd
+    from proofodds import ledger, render
+
+    predictions = tmp_path / "predictions"
+    predictions.mkdir()
+    entry = {
+        "version": 4,
+        "leagues": ["E0"],
+        "published_at": "2026-08-28T06:00:00Z",
+        "prev_hash": ledger.GENESIS,
+        "generator": {},
+        "models": {},
+        "predictions": [{
+            "league": "E0", "kickoff": "2030-09-01T15:00:00Z",
+            "home": "Arsenal", "away": "Chelsea",
+            "p_H": 0.5, "p_D": 0.25, "p_A": 0.25,
+            "p_over25": 0.54, "p_under25": 0.46,
+            "xg_home": 1.61, "xg_away": 1.08,
+        }],
+    }
+    entry["hash"] = ledger.compute_hash(entry)
+    (predictions / "2026-08-28.json").write_text(json.dumps(entry))
+
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", predictions)
+    monkeypatch.setattr(config, "TIMESTAMPS_DIR", tmp_path / "timestamps")
+    monkeypatch.setattr(render.grade, "graded_frame", lambda: pd.DataFrame())
+
+    out = tmp_path / "site"
+    render.build(out)
+    route = "/matches/2030-09-01/e0-arsenal-v-chelsea/"
+    page = out / route.lstrip("/") / "index.html"
+
+    assert page.exists()
+    html = page.read_text()
+    assert "Arsenal vs Chelsea" in html
+    assert "/predictions/2026-08-28.json" in html
+    assert entry["hash"][:16] in html
+    assert route in (out / "sitemap.xml").read_text()
+
+    home = (out / "index.html").read_text()
+    assert f'href="{route}"' in home
+    assert ">Premier League<" in home
+    assert "/flags/england.svg" in home
+    assert (out / "flags" / "england.svg").exists()
+
+
+def test_match_urls_use_the_sealed_names_not_later_display_aliases():
+    """A future name-resolution improvement must not move a shared page."""
+    from proofodds import render
+
+    row = {
+        "league": "E0", "kickoff": "2030-09-01T15:00:00Z",
+        "home": "Coventry City FC", "away": "Hull City AFC",
+        "home_raw": "Coventry City FC", "away_raw": "Hull City AFC",
+        "p_H": 0.4, "p_D": 0.3, "p_A": 0.3,
+        "xg_home": 1.4, "xg_away": 1.1,
+        "published_at": "2026-08-28T06:00:00Z",
+        "entry_hash": "a" * 64, "entry_file": "2026-08-28.json",
+    }
+    view = render.prediction_view(row)
+    assert view["match_url"] == (
+        "/matches/2030-09-01/e0-coventry-city-fc-v-hull-city-afc/")
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
 
