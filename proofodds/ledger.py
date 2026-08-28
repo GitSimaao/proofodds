@@ -377,6 +377,8 @@ def all_predictions() -> list[dict]:
         default_league = entry.get("league", "E0")
         for row in entry["predictions"]:
             league = row.get("league", default_league)
+            models = entry.get("models") or {}
+            model = models.get(league) or entry.get("model") or {}
             key = (league, row["kickoff"][:10],
                    sealed_name(row["home"], league, row.get("home_raw", "")),
                    sealed_name(row["away"], league, row.get("away_raw", "")))
@@ -387,5 +389,6 @@ def all_predictions() -> list[dict]:
                         "published_at": entry["published_at"],
                         "entry_hash": entry["hash"],
                         "entry_file": path.name,
-                        "league": league})
+                        "league": league,
+                        "model_rho": model.get("rho")})
     return out

@@ -83,14 +83,46 @@
           <small>{{ match.home }} · {{ match.away }}</small>
         </div>
         {% endif %}
-        {% if match.p_over25 is not none %}
-        <div>
+        {% if match.p_over25 is not none and match.p_under25 is not none %}
+        <div class="totals-market">
           <span class="metric-label">Total goals {{ totals_line }}</span>
-          <strong>{{ match.pct_over }}% <span>over</span></strong>
-          <small>{{ match.pct_under }}% under · {{ '%.2f'|format(1 / match.p_over25) }} fair odds</small>
+          <div class="totals-options">
+            <div>
+              <span>Over</span>
+              <strong>{{ match.pct_over }}%</strong>
+              <small>{{ '%.2f'|format(1 / match.p_over25) }} fair odds</small>
+            </div>
+            <div>
+              <span>Under</span>
+              <strong>{{ match.pct_under }}%</strong>
+              <small>{{ '%.2f'|format(1 / match.p_under25) }} fair odds</small>
+            </div>
+          </div>
         </div>
         {% endif %}
       </div>
+      {% endif %}
+
+      {% if match.top_scorelines %}
+      <section class="scorelines" aria-labelledby="scorelines-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Scoreline projection</p>
+            <h3 id="scorelines-title">Top 3 correct scores</h3>
+          </div>
+          <span>Indicative only · not graded</span>
+        </div>
+        <div class="scoreline-grid">
+          {% for score in match.top_scorelines %}
+          <div class="scoreline">
+            <span class="scoreline-rank">0{{ loop.index }}</span>
+            <strong>{{ score.label }}</strong>
+            <span>{{ '%.1f'|format(score.p * 100) }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="scorelines-note">Reconstructed from the expected goals and league low-score correction stored with the sealed prediction. Shown for curiosity; it is not part of the scorecard.</p>
+      </section>
       {% endif %}
 
       {% if match.cold_start or match.name_provisional %}

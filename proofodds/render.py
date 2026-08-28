@@ -19,7 +19,7 @@ import unicodedata
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import anchor, charts, config, grade, ledger
+from . import anchor, charts, config, dixon_coles, grade, ledger
 from .data import sealed_name
 
 log = logging.getLogger(__name__)
@@ -106,6 +106,37 @@ def club_mark(name: str) -> dict:
     return {"src": source, "initials": initials, "tone": tone}
 
 
+def top_scorelines(xg_home, xg_away, rho=0.0, *, limit: int = 3,
+                   max_goals: int = 10) -> list[dict]:
+    """Reconstruct the most likely scores from the sealed model inputs.
+
+    This is a display-only view, not a third graded market.  The calculation
+    deliberately mirrors the Dixon-Coles score grid used when the prediction
+    was produced: two Poisson distributions plus its four-cell low-score
+    correction.  Entries seal xG and the division's rho, so the view remains
+    deterministic without changing a byte of the public record.
+    """
+    try:
+        lam, mu = float(xg_home), float(xg_away)
+        rho = 0.0 if rho is None else float(rho)
+    except (TypeError, ValueError):
+        return []
+    if not all(math.isfinite(value) for value in (lam, mu, rho)) \
+            or lam < 0 or mu < 0 or limit <= 0 or max_goals < 0:
+        return []
+
+    grid = dixon_coles.score_matrix_from_xg(lam, mu, rho, max_goals)
+    cells = [(float(grid[home_goals, away_goals]), home_goals, away_goals)
+             for home_goals in range(max_goals + 1)
+             for away_goals in range(max_goals + 1)]
+    ranked = sorted(cells, key=lambda cell: (-cell[0], cell[1], cell[2]))[:limit]
+    return [{"home_goals": home_goals,
+             "away_goals": away_goals,
+             "label": f"{home_goals}\u2013{away_goals}",
+             "p": probability}
+            for probability, home_goals, away_goals in ranked]
+
+
 def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
     """Turn one immutable ledger row into the site's richer display model."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -139,6 +170,8 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "xg_away": row.get("xg_away"),
         "p_over25": row.get("p_over25"),
         "p_under25": row.get("p_under25"),
+        "top_scorelines": top_scorelines(
+            row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
         "home_mark": club_mark(home),
         "away_mark": club_mark(away),
         "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])],

@@ -11,9 +11,10 @@ and scored afterwards** against Pinnacle's closing line.
 
 Two markets are published for every match — the result, and whether it goes over 2.5
 goals — both out of one fitted model and both graded against Pinnacle's closing price.
-There is no both-teams-to-score, no over 1.5 and no most-likely-scoreline, for one
-reason: no closing line is published for them, so we could state a number and never be
-shown to be wrong about it.
+Individual match pages also reconstruct the three most likely scorelines from the
+sealed expected goals and league low-score correction. They are labelled as indicative
+and excluded from the scorecard: without a closing-line comparison, they are context,
+not a third benchmarked claim.
 
 One Dixon-Coles model is fitted per division, on that division's matches only. It does
 not beat the closing line — a walk-forward backtest over nine Premier League seasons
@@ -288,6 +289,13 @@ Only add official crest files from a source whose licence permits this use.
 Club crests are protected marks, and the fact that an API exposes an image URL
 does not grant redistribution rights. Adding a licensed local file needs no
 template or Python change: the next site build picks it up automatically.
+
+The practical workflow is: obtain written web-display and caching rights from a
+club or licensed sports-data/media provider; export transparent SVG, PNG or WebP
+files; name each file with the site's canonical slug; copy them into
+`static/clubs/`; then run the normal build. Do not scrape Google Images, Wikipedia
+or club sites. If a provider requires remote URLs instead of local copies, its
+domain and caching rules must first be reviewed and explicitly added to the CSP.
 
 ---
 

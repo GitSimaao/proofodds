@@ -891,7 +891,7 @@ def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
         "version": 1, "league": "E0",
         "published_at": "2026-08-24T06:00:00Z",
         "prev_hash": ledger_in.GENESIS,
-        "model": {"name": "dixon-coles"},
+        "model": {"name": "dixon-coles", "rho": -0.0738},
         "predictions": [{"kickoff": "2026-08-26T19:00:00Z",
                          "home": "Arsenal", "away": "Chelsea",
                          "p_H": 0.5, "p_D": 0.25, "p_A": 0.25}],
@@ -902,6 +902,7 @@ def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
     assert ledger_in.verify_chain()["ok"]
     rows = ledger_in.all_predictions()
     assert len(rows) == 1 and rows[0]["league"] == "E0"
+    assert rows[0]["model_rho"] == -0.0738
 
 
 def test_the_scorecard_splits_by_division(real_names):
@@ -1131,6 +1132,29 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     assert 'id="fixtures"' in html            # what the filter narrows
 
 
+def test_mobile_css_does_not_create_an_offscreen_canvas():
+    """Hidden controls and edge-to-edge filters must not widen Android Chrome."""
+    css = (config.STATIC_DIR / "style.css").read_text()
+    assert "left: -9999px" not in css
+    assert "overflow-x: clip" in css
+    assert "margin-left: -15px" not in css
+
+
+def test_scoreline_view_mirrors_the_low_score_correction():
+    from proofodds import render
+
+    independent = render.top_scorelines(1.0, 1.0, 0.0, limit=121)
+    corrected = render.top_scorelines(1.0, 1.0, -0.1, limit=121)
+    p0 = {row["label"]: row["p"] for row in independent}
+    p1 = {row["label"]: row["p"] for row in corrected}
+
+    assert len(p1) == 121 and abs(sum(p1.values()) - 1.0) < 1e-12
+    assert p1["0\u20130"] > p0["0\u20130"]
+    assert p1["1\u20131"] > p0["1\u20131"]
+    assert p1["1\u20130"] < p0["1\u20130"]
+    assert p1["0\u20131"] < p0["0\u20131"]
+
+
 def test_the_build_creates_a_permanent_page_for_each_match(
         tmp_path, monkeypatch):
     """
@@ -1151,7 +1175,7 @@ def test_the_build_creates_a_permanent_page_for_each_match(
         "published_at": "2026-08-28T06:00:00Z",
         "prev_hash": ledger.GENESIS,
         "generator": {},
-        "models": {},
+        "models": {"E0": {"name": "dixon-coles", "rho": -0.08}},
         "predictions": [{
             "league": "E0", "kickoff": "2030-09-01T15:00:00Z",
             "home": "Arsenal", "away": "Chelsea",
@@ -1177,6 +1201,11 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     assert "Arsenal vs Chelsea" in html
     assert "/predictions/2026-08-28.json" in html
     assert entry["hash"][:16] in html
+    assert "1.85 fair odds" in html
+    assert "2.17 fair odds" in html
+    assert "Top 3 correct scores" in html
+    assert "Indicative only" in html
+    assert "not part of the scorecard" in html
     assert route in (out / "sitemap.xml").read_text()
 
     home = (out / "index.html").read_text()

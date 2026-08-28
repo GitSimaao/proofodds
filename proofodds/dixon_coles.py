@@ -86,6 +86,16 @@ def tau(home_goals, away_goals, lam, mu, rho):
     return np.maximum(out, _TAU_FLOOR)
 
 
+def score_matrix_from_xg(lam: float, mu: float, rho: float,
+                         max_goals: int = MAX_GOALS) -> np.ndarray:
+    """A Dixon-Coles score grid when the two expected-goal values are known."""
+    lam, mu, rho = float(lam), float(mu), float(rho)
+    goals = np.arange(max_goals + 1)
+    grid = np.outer(poisson.pmf(goals, lam), poisson.pmf(goals, mu))
+    grid *= tau(goals[:, None], goals[None, :], lam, mu, rho)
+    return grid / grid.sum()
+
+
 def time_weights(match_dates, ref_date, xi: float) -> np.ndarray:
     """
     Exponential decay: weight = exp(-xi * days_before_ref).
@@ -233,11 +243,7 @@ class DixonColes:
         """
         lam, mu = self.expected_goals(int(home_id), int(away_id))
         lam, mu = float(lam), float(mu)
-        goals = np.arange(max_goals + 1)
-        grid = np.outer(poisson.pmf(goals, lam), poisson.pmf(goals, mu))
-        adj = tau(goals[:, None], goals[None, :], lam, mu, self.rho)
-        grid = grid * adj
-        return grid / grid.sum()          # renormalise for the truncated tail
+        return score_matrix_from_xg(lam, mu, self.rho, max_goals)
 
     def outcome_probs(self, home_id, away_id, max_goals: int = MAX_GOALS) -> np.ndarray:
         """[P(home win), P(draw), P(away win)] for one fixture."""
