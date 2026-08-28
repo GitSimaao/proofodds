@@ -1,10 +1,17 @@
 # Secrets — never commit. scripts/setup-git.sh refuses to run without this line.
 .env
 
-# Generated output
+# Generated output. The deploy swaps site/ by rename, so a release leaves a
+# site-backup-* copy behind (and a site-failed-* one if a live check fails);
+# staging-* is the build target before the swap. daily.py commits explicit
+# paths and would never add them, but `git add -A`, which we use by hand,
+# would sweep a whole copy of the site into the public repository.
 site/
 site-preview/
 _replay/
+site-backup-*/
+site-failed-*/
+staging-*/
 
 # Data cache. Re-downloaded by data.refresh() on every run, and the current
 # season's file changes constantly — committing it would show the tree as
