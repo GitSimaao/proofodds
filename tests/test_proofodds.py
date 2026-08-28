@@ -777,6 +777,59 @@ def test_the_weekly_email_reports_the_second_market_separately():
     assert newsletter.render_html(s)
 
 
+def test_the_verifier_needs_nothing_installed():
+    """
+    `python -m proofodds.verify` is the command the whole claim rests on, and a
+    stranger runs it on a bare clone. It imported .ledger, which imports numpy,
+    which pulls in pandas and requests — so the answer to "check it yourself"
+    was really "install a scientific Python stack first".
+
+    This asserts the file imports nothing outside the standard library.
+    """
+    import ast
+    src = (Path(__file__).resolve().parent.parent
+           / "proofodds" / "verify.py").read_text()
+    imported = set()
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Import):
+            imported |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            # a relative import is a sibling module, which is the thing to avoid
+            assert node.level == 0, "verify.py must not import from the package"
+            imported.add((node.module or "").split(".")[0])
+    assert imported <= {"__future__", "hashlib", "json", "sys", "pathlib"}, \
+        f"verify.py grew a dependency: {imported}"
+
+
+def test_the_two_hash_implementations_agree(ledger_in, stub_models, tmp_path):
+    """
+    verify.py rewrites the hashing instead of calling ledger.compute_hash, so
+    that our code is not the only witness to our code. The cost of a second
+    implementation is that it can drift from the first. This is the guard.
+    """
+    from proofodds import verify as v
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    stub_models.publish([
+        Fixture(now + dt.timedelta(days=2), "Arsenal", "Chelsea", league="E0"),
+        Fixture(now + dt.timedelta(days=2), "Porto", "Benfica", league="P1"),
+    ], now=now)
+
+    entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
+    assert v.entry_hash(entry) == ledger_in.compute_hash(entry) == entry["hash"]
+
+    ok, problems, stats = v.verify(tmp_path)
+    assert ok and not problems and stats["sealed"] == 2
+
+    # and it must notice a tampered entry on its own terms
+    path = sorted(tmp_path.glob("*.json"))[0]
+    bad = json.loads(path.read_text())
+    bad["predictions"][0]["p_H"] = 0.99
+    path.write_text(json.dumps(bad))
+    ok, problems, _ = v.verify(tmp_path)
+    assert not ok and "content hash mismatch" in problems[0]
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
 

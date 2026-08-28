@@ -46,9 +46,16 @@ own hash) is caught by the link check, and there is a test for exactly that.
 repository on every run. Commit timestamps are a witness we do not control.
 
 ```bash
-git clone https://github.com/yourname/proofodds && cd proofodds
+git clone https://github.com/GitSimaao/proofodds && cd proofodds
 python -m proofodds.verify
 ```
+
+That command needs nothing installed — `proofodds/verify.py` imports only the
+standard library, and rewrites the hashing rather than calling the code that
+wrote it. Our code checking our code could agree with itself while both were
+wrong; a separate implementation, short enough to read in one sitting, cannot.
+A test asserts the two agree on every sealed entry, and another asserts the
+file never grows a dependency.
 
 Set that up with `sudo bash scripts/setup-git.sh git@github.com:USER/proofodds.git`.
 It refuses to commit anything if `.env` is not ignored — a token pushed to a
@@ -72,9 +79,9 @@ python scripts/daily.py --no-git   # same, without committing the ledger
 python scripts/daily.py --build-only
 python scripts/weekly.py           # DRY RUN of the Monday email — prints, sends nothing
 python scripts/weekly.py --send    # actually schedules the broadcast
-python -m pytest tests -q          # 209 tests; 12 skip without the CSVs
+python -m pytest tests -q          # 212 tests; 12 skip without the CSVs
 python scripts/check_names.py     # audit club names before adding a division
-python -m proofodds.verify         # recompute the whole chain
+python -m proofodds.verify         # recompute the whole chain (no deps)
 ```
 
 `scripts/replay.py` runs the same pipeline over historical matchdays into a
