@@ -10,7 +10,10 @@
 <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
 <meta property="og:description" content="{% block og_description %}{{ tagline }}{% endblock %}">
 <meta property="og:type" content="website">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0B1628">
+<link rel="icon" href="/favicon.svg?v={{ brand_v }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ brand_v }}">
+<link rel="manifest" href="/site.webmanifest?v={{ brand_v }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
@@ -34,10 +37,8 @@
 
 <header class="site-head">
   <div class="shell head-inner">
-    <a class="brand" href="/">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5 9 18.5 20 6"/></svg>
-      </span>
+    <a class="brand" href="/" aria-label="ProofOdds home">
+      <img class="brand-mark" src="/logo.svg?v={{ brand_v }}" alt="" width="32" height="32">
       <span class="brand-word">Proof<span class="brand-word-2">Odds</span></span>
     </a>
     <nav class="nav" aria-label="Main">
@@ -68,7 +69,10 @@
 <footer class="site-foot">
   <div class="shell foot-inner">
     <div class="foot-brand">
-      <div class="brand-word">Proof<span class="brand-word-2">Odds</span></div>
+      <a class="brand brand--footer" href="/" aria-label="ProofOdds home">
+        <img class="brand-mark" src="/logo.svg?v={{ brand_v }}" alt="" width="32" height="32" loading="lazy">
+        <span class="brand-word">Proof<span class="brand-word-2">Odds</span></span>
+      </a>
       <p>{{ tagline }}</p>
     </div>
     <div class="foot-links">

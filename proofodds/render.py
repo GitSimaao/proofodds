@@ -25,12 +25,6 @@ from .data import sealed_name
 
 log = logging.getLogger(__name__)
 
-FAVICON = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-<rect width="32" height="32" rx="5" fill="#2A78D6"/>
-<path d="M7 17l6 6 12-14" fill="none" stroke="#fff" stroke-width="3.6"
-      stroke-linecap="round" stroke-linejoin="round"/>
-</svg>"""
-
 ROBOTS = """User-agent: *
 Allow: /
 
@@ -71,8 +65,6 @@ def copy_static(out_dir) -> None:
             shutil.copytree(item, target, ignore=ignore_junk)
         else:
             shutil.copy2(item, target)
-
-
 def environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(config.TEMPLATE_DIR)),
@@ -332,10 +324,16 @@ def build(out_dir=None) -> None:
     # the address changes with it, so a browser either has both halves old or
     # both new.
     css = (config.STATIC_DIR / "style.css").read_bytes()
+    logo = (config.STATIC_DIR / "logo.svg").read_bytes()
+    brand_files = (logo
+                   + (config.STATIC_DIR / "apple-touch-icon.png").read_bytes()
+                   + (config.STATIC_DIR / "site.webmanifest").read_bytes())
     asset_v = hashlib.sha256(css).hexdigest()[:10]
+    brand_v = hashlib.sha256(brand_files).hexdigest()[:10]
 
     common = {
         "asset_v": asset_v,
+        "brand_v": brand_v,
         "site_name": config.SITE_NAME,
         "site_url": config.SITE_URL,
         "tagline": config.SITE_TAGLINE,
@@ -415,7 +413,9 @@ def build(out_dir=None) -> None:
         page="confirmed", canonical="/confirmed/", **common))
 
     copy_static(out_dir)
-    (out_dir / "favicon.svg").write_text(FAVICON, encoding="utf-8")
+    # Browsers still request /favicon.svg by convention. Keep it byte-for-byte
+    # identical to the mark used in the header so the identity cannot drift.
+    (out_dir / "favicon.svg").write_bytes(logo)
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
     public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/privacy/"]

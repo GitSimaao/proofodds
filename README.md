@@ -269,6 +269,7 @@ proofodds/
   newsletter.py    the weekly scorecard email and the Kit client
 templates/         base, index, per-match pages, scorecard, ledger, method, privacy
 static/style.css   one stylesheet, light and dark
+static/logo.svg    the PO mark used by the header, footer, favicon and web app
 static/flags/      self-hosted country flags used by division filters
 scripts/           daily.py, weekly.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example

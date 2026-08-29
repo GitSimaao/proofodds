@@ -1140,6 +1140,35 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     assert "margin-left: -15px" not in css
 
 
+def test_the_po_mark_is_used_consistently(tmp_path, monkeypatch):
+    """Header, footer, browser tab and installed app share one source mark."""
+    import pandas as pd
+    import re
+    from proofodds import render
+
+    monkeypatch.setattr(render.grade, "graded_frame", lambda: pd.DataFrame())
+    render.build(tmp_path)
+    html = (tmp_path / "index.html").read_text()
+    manifest = json.loads((tmp_path / "site.webmanifest").read_text())
+    logo = (tmp_path / "logo.svg").read_text()
+
+    assert html.count('class="brand-mark"') == 2
+    versions = set(re.findall(
+        r'/(?:logo\.svg|favicon\.svg|apple-touch-icon\.png|site\.webmanifest)\?v=([a-f0-9]+)',
+        html))
+    assert html.count('/logo.svg?v=') == 2
+    assert len(versions) == 1
+    assert (tmp_path / "favicon.svg").read_bytes() == (
+        config.STATIC_DIR / "logo.svg").read_bytes()
+    assert (tmp_path / "apple-touch-icon.png").read_bytes().startswith(b"\x89PNG")
+    assert "<text" not in logo       # identical letterforms on every platform
+    assert "#0b1628" in logo.lower()
+    assert '<meta name="theme-color" content="#0B1628">' in html
+    assert manifest["name"] == "ProofOdds"
+    assert manifest["theme_color"] == "#0B1628"
+    assert manifest["icons"][0]["src"] == "/logo.svg"
+
+
 def test_scoreline_view_mirrors_the_low_score_correction():
     from proofodds import render
 

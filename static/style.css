@@ -137,9 +137,9 @@ a:focus-visible, button:focus-visible {
 
 .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ink); }
 .brand-mark {
-  display: grid; place-items: center; width: 30px; height: 30px;
-  border-radius: 9px; background: var(--c-model); color: #fff; flex: none;
-  box-shadow: 0 6px 18px -8px rgba(42,120,214,.9);
+  display: block; width: 32px; height: 32px; max-width: none;
+  border-radius: 6px; flex: none;
+  box-shadow: 0 7px 18px -8px rgba(11,22,40,.55);
 }
 .brand-word { font-weight: 900; font-size: 19px; letter-spacing: -.03em; }
 .brand-word-2 { color: var(--ink-3); font-weight: 500; }
@@ -460,6 +460,7 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 .site-foot { border-top: 1px solid var(--rule); background: var(--surface); margin-top: 60px; padding: 40px 0 26px; }
 .foot-inner { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 28px; }
 .foot-brand p { color: var(--ink-3); font-size: 14px; margin: 8px 0 0; max-width: 34ch; }
+.brand--footer { width: fit-content; }
 .foot-links { display: flex; flex-direction: column; gap: 7px; }
 .foot-links a { font-size: 14px; color: var(--ink-2); text-decoration: none; }
 .foot-links a:hover { color: var(--ink); text-decoration: underline; }
