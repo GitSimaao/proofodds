@@ -1318,3 +1318,36 @@ def test_week_bounds_is_the_week_that_just_finished():
     start, end = newsletter.week_bounds(dt.date(2026, 8, 31))   # a Monday
     assert start == dt.date(2026, 8, 24) and end == dt.date(2026, 8, 30)
     assert start.weekday() == 0 and end.weekday() == 6
+
+
+def test_backup_and_editor_leftovers_are_never_published():
+    """static/ is gitignored for these names, so only the build can catch them."""
+    from proofodds import render
+    for name in ("style.css.bak", "style.css.bak2", "style.css.bak.20260826",
+                 ".style.css.swp", "match.html.orig", "patch.rej", "x.tmp",
+                 "notes~", ".DS_Store", "Thumbs.db"):
+        assert render.is_junk(name), name
+    for name in ("style.css", "flags", "logo.svg", "robots.txt",
+                 "backup.css", "template.css"):
+        assert not render.is_junk(name), name
+
+
+def test_leftovers_are_skipped_at_every_level_of_static(tmp_path, monkeypatch):
+    """The real build copier: top level and nested asset directories."""
+    from proofodds import render
+    static = tmp_path / "static"
+    (static / "flags").mkdir(parents=True)
+    (static / "style.css").write_text("body{}", encoding="utf-8")
+    (static / "style.css.bak").write_text("old", encoding="utf-8")
+    (static / "flags" / "england.svg").write_text("<svg/>", encoding="utf-8")
+    (static / "flags" / "england.svg.bak").write_text("old", encoding="utf-8")
+    monkeypatch.setattr(config, "STATIC_DIR", static)
+
+    out = tmp_path / "out"
+    out.mkdir()
+    render.copy_static(out)
+
+    assert (out / "style.css").read_text() == "body{}"
+    assert (out / "flags" / "england.svg").exists()
+    assert not (out / "style.css.bak").exists()
+    assert not (out / "flags" / "england.svg.bak").exists()

@@ -9,6 +9,7 @@ client-side script on the site converts kickoff times to the reader's timezone.
 from __future__ import annotations
 
 import datetime as dt
+import fnmatch
 import hashlib
 import json
 import logging
@@ -35,6 +36,41 @@ Allow: /
 
 Sitemap: {site_url}/sitemap.xml
 """
+
+# static/ is a working directory, so an editor swap file or a hand-made
+# style.css.bak lands there easily — and .gitignore hides exactly those names,
+# so `git status` stays clean while the build copies them out to a public URL.
+# An old stylesheet is not a secret, but nothing here is meant to publish a
+# file nobody is watching. The globs deliberately echo the .gitignore ones.
+JUNK_GLOBS = ("*.bak*", "*.swp", "*.swo", "*.orig", "*.rej", "*.tmp",
+              "*~", ".DS_Store", "Thumbs.db")
+
+
+def is_junk(name: str) -> bool:
+    """True for editor leftovers and hand-made backups that must not ship."""
+    return any(fnmatch.fnmatch(name, pattern) for pattern in JUNK_GLOBS)
+
+
+def ignore_junk(_directory, names):
+    """copytree hook, so a leftover inside static/flags/ is skipped too."""
+    return {name for name in names if is_junk(name)}
+
+
+def copy_static(out_dir) -> None:
+    """Copy static/ into the build, minus the leftovers.
+
+    Static assets may be grouped into directories (country flags today,
+    deliberately licensed club crests later). Keep their public paths intact.
+    """
+    for item in config.STATIC_DIR.glob("*"):
+        if is_junk(item.name):
+            log.info("not publishing %s — editor or backup leftover", item.name)
+            continue
+        target = out_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, target, ignore=ignore_junk)
+        else:
+            shutil.copy2(item, target)
 
 
 def environment() -> Environment:
@@ -378,14 +414,7 @@ def build(out_dir=None) -> None:
     write("confirmed/index.html", env.get_template("confirmed.html").render(
         page="confirmed", canonical="/confirmed/", **common))
 
-    # Static assets may be grouped into directories (country flags today,
-    # deliberately licensed club crests later). Keep their public paths intact.
-    for item in config.STATIC_DIR.glob("*"):
-        target = out_dir / item.name
-        if item.is_dir():
-            shutil.copytree(item, target)
-        else:
-            shutil.copy2(item, target)
+    copy_static(out_dir)
     (out_dir / "favicon.svg").write_text(FAVICON, encoding="utf-8")
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
