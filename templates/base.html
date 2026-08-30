@@ -168,7 +168,6 @@
 
   chips.forEach(function (chip) {
     chip.addEventListener("click", function () {
-      if (chip.disabled) return;
       chooseLeague(chip.getAttribute("data-filter"));
       apply();
     });
@@ -193,7 +192,10 @@
       }));
     chips.forEach(function (chip) {
       var code = chip.getAttribute("data-filter");
-      chip.disabled = code !== "all" && !available.has(code);
+      // A competition is useful as a control only when the selected day has
+      // fixtures in it. Removing absent leagues also keeps the mobile rail
+      // short and avoids presenting buttons that cannot do anything.
+      chip.hidden = code !== "all" && !available.has(code);
     });
     if (selectedLeague !== "all" && !available.has(selectedLeague)) {
       chooseLeague("all");

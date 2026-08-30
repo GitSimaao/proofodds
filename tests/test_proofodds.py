@@ -1280,6 +1280,8 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     assert "URLSearchParams(window.location.search)" in html
     assert 'url.searchParams.set("date", date)' in html
     assert "Boolean(requested && !requestedExists)" in html
+    assert 'chip.hidden = code !== "all" && !available.has(code)' in html
+    assert "chip.disabled" not in html
 
 
 def test_mobile_css_does_not_create_an_offscreen_canvas():
@@ -1292,6 +1294,7 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     assert "overscroll-behavior-x: none" in css
     assert "grid-template-columns: repeat(9, 84px)" in css
     assert "overscroll-behavior-inline: contain" in css
+    assert ".chip[hidden] { display: none; }" in css
     assert "margin-left: -15px" not in css
 
 

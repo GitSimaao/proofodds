@@ -626,7 +626,7 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 .chip:focus-visible { outline: 2px solid var(--c-model); outline-offset: 2px; }
 .chip.is-on { background: var(--c-model); border-color: var(--c-model); color: #fff; }
 .chip.is-on .flag { box-shadow: 0 0 0 1px rgba(255,255,255,.28); }
-.chip:disabled { cursor: default; opacity: .38; }
+.chip[hidden] { display: none; }
 
 /* ---------------- individual match page ---------------- */
 .match-hero {
