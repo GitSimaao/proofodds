@@ -90,12 +90,14 @@
 * { box-sizing: border-box; }
 
 html {
-  max-width: 100%; overflow-x: hidden; overflow-x: clip;
+  width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden;
+  overscroll-behavior-x: none;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  margin: 0; max-width: 100%; min-width: 0; overflow-x: hidden; overflow-x: clip;
+  position: relative; width: 100%; max-width: 100%; min-width: 0;
+  margin: 0; overflow-x: hidden;
   background: var(--ground);
   color: var(--ink);
   font-family: "Chivo", "Helvetica Neue", Arial, sans-serif;
@@ -105,6 +107,7 @@ body {
 }
 
 .shell { width: 100%; max-width: var(--shell); min-width: 0; margin: 0 auto; padding: 0 24px; }
+.shell > *, main, .site-head, .site-foot { min-width: 0; max-width: 100%; }
 
 img, svg { max-width: 100%; }
 
@@ -328,7 +331,11 @@ h4 {
   border: 1px solid rgba(11,22,40,.08);
   font: 700 12px/1 "IBM Plex Mono", monospace; letter-spacing: -.03em;
 }
-.club-mark img { display: block; width: 80%; height: 80%; object-fit: contain; }
+.club-mark > span, .club-mark img { grid-area: 1 / 1; }
+.club-mark img {
+  display: block; z-index: 1; width: 80%; height: 80%; object-fit: contain;
+  color: transparent;
+}
 .club-mark--sm { width: 34px; height: 34px; border-radius: 11px; font-size: 10px; }
 .club-mark--xl { width: 76px; height: 76px; border-radius: 22px; font-size: 20px; }
 .club-mark--tone-0 { background: #E5EEFF; color: #2258B3; }
@@ -410,7 +417,10 @@ h4 {
 }
 
 /* ---------------- tables ---------------- */
-.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+.scroll {
+  width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain;
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface);
+}
 table { border-collapse: collapse; width: 100%; min-width: 560px; }
 th, td { text-align: left; padding: 10px 15px; border-bottom: 1px solid var(--rule); font-size: 14.5px; }
 thead th {
@@ -722,29 +732,39 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 }
 
 @media (max-width: 660px) {
-  .shell { padding: 0 15px; }
+  .shell { padding-left: 17px; padding-right: 17px; }
 
-  /* Brand and toggle on one line, the four sections on their own beneath —
-     scrolling sideways rather than wrapping into a ragged two-row block. */
-  .head-inner { flex-wrap: wrap; gap: 8px 12px; }
-  .brand { order: 1; }
-  .theme-toggle { order: 2; margin-left: auto; }
+  /* Brand and toggle on one line, then four equal navigation cells. Nothing
+     in the header owns a horizontal scroller, so a swipe always moves the
+     page vertically rather than panning the viewport onto empty canvas. */
+  .head-inner {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px 12px; width: 100%;
+  }
+  .brand { min-width: 0; }
+  .brand-word { white-space: nowrap; }
+  .theme-toggle { margin-left: 0; }
   .nav {
-    order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto;
-    scrollbar-width: none; -ms-overflow-style: none;
-    padding-bottom: 2px; margin-bottom: -2px;
+    grid-column: 1 / -1; display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px; width: 100%; min-width: 0; overflow: visible;
   }
-  .nav::-webkit-scrollbar { display: none; }
-  .nav a { flex: none; }
+  .nav a {
+    min-width: 0; padding: 8px 3px; font-size: 12.5px;
+    text-align: center; white-space: nowrap;
+  }
 
-  .hero { padding: 26px 0 22px; }
+  .hero { padding: 30px 0 24px; }
   .hero h1 {
-    max-width: 13ch; margin-bottom: 13px;
-    font-size: clamp(30px, 8.5vw, 38px); line-height: 1.06; letter-spacing: -.04em;
+    max-width: 100%; margin-bottom: 15px;
+    font-size: clamp(30px, 9vw, 35px); line-height: 1.045; letter-spacing: -.038em;
   }
-  .hero p.lead { font-size: 16px; line-height: 1.55; }
-  .hero .eyebrow { margin-bottom: 10px; font-size: 9.5px; letter-spacing: .09em; line-height: 1.55; }
-  .hero-home { gap: 20px; }
+  .hero p.lead { font-size: 16px; line-height: 1.52; }
+  .hero .eyebrow {
+    max-width: 100%; margin-bottom: 11px; font-size: 9px;
+    letter-spacing: .075em; line-height: 1.6; overflow-wrap: anywhere;
+  }
+  .hero-home { gap: 22px; }
   .hero-trust > div { padding: 12px 13px; }
   section.band { padding: 32px 0; }
   .strip { grid-template-columns: repeat(2, 1fr); }
@@ -758,7 +778,8 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   .prob .pv { font-size: 16px; }
   .signup { grid-template-columns: 1fr; }
   .filters {
-    max-width: 100%; flex-wrap: nowrap; overflow-x: auto;
+    width: 100%; max-width: 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto;
+    overscroll-behavior-inline: contain;
     margin-left: 0; margin-right: 0; padding: 2px 0 8px; scrollbar-width: none;
   }
   .filters::-webkit-scrollbar { display: none; }
@@ -784,6 +805,10 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   /* Below this the three-way probability row is the first thing to break:
      three columns of monospace numbers stop fitting before anything else. */
   .strip { grid-template-columns: 1fr; }
+  .shell { padding-left: 15px; padding-right: 15px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .brand-word { font-size: 18px; }
+  .nav a { padding-left: 2px; padding-right: 2px; font-size: 12px; }
   .probs { gap: 5px; }
   .prob { padding: 7px 6px; }
   .prob .lbl { font-size: 9px; letter-spacing: .06em; }

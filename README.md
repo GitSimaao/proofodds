@@ -258,6 +258,7 @@ commercial licence.
 proofodds/
   config.py        settings, league list, tuned hyperparameters, the backtest prior
   data.py          download + cache football-data.co.uk, club-name resolution
+  crests.py        validated, display-only football-data.org crest URL cache
   dixon_coles.py   the model: tau, weighted likelihood with analytic gradient, fitting
   fixtures.py      upcoming fixtures (football-data.org, or a CSV fallback)
   ledger.py        seal predictions, hash chain, publication rules
@@ -271,7 +272,7 @@ templates/         base, index, per-match pages, scorecard, ledger, method, priv
 static/style.css   one stylesheet, light and dark
 static/logo.svg    the PO mark used by the header, footer, favicon and web app
 static/flags/      self-hosted country flags used by division filters
-scripts/           daily.py, weekly.py, replay.py, bootstrap.sh, setup-git.sh
+scripts/           daily.py, weekly.py, sync_crests.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example
 predictions/       the ledger — committed, never rewritten
 timestamps/        detached .ots proofs — pending, attested and mismatched stay distinct
@@ -280,23 +281,28 @@ tests/             the chain, the publication rules, data handling
 
 ### Club crests
 
-Cards and match pages look for a deliberately self-hosted crest at
-`static/clubs/<club-slug>.svg`, then `.png`, then `.webp`. For example, Arsenal
-resolves to `static/clubs/arsenal.svg` and Manchester City to
-`static/clubs/manchester-city.svg`. If no file exists, the build renders a
-deterministic two-letter club mark instead; no remote image is hotlinked.
+Cards and match pages use the crest URL football-data.org returns with each
+team. The URLs are cached in ignored `data/club_crests.json`: they are display
+metadata, never part of a sealed prediction, so a provider image changing
+cannot change the ledger. Populate every enabled division without publishing
+anything:
 
-Only add official crest files from a source whose licence permits this use.
-Club crests are protected marks, and the fact that an API exposes an image URL
-does not grant redistribution rights. Adding a licensed local file needs no
-template or Python change: the next site build picks it up automatically.
+```bash
+python scripts/sync_crests.py
+```
 
-The practical workflow is: obtain written web-display and caching rights from a
-club or licensed sports-data/media provider; export transparent SVG, PNG or WebP
-files; name each file with the site's canonical slug; copy them into
-`static/clubs/`; then run the normal build. Do not scrape Google Images, Wikipedia
-or club sites. If a provider requires remote URLs instead of local copies, its
-domain and caching rules must first be reviewed and explicitly added to the CSP.
+The normal fixture fetch also refreshes the clubs it sees, so promoted teams
+pick up a mark automatically. Only HTTPS URLs on
+`crests.football-data.org` are accepted. A missing or rejected URL falls back
+to the deterministic two-letter mark rather than breaking a card.
+
+A deliberately self-hosted crest at `static/clubs/<canonical-slug>.svg` (then
+`.png` or `.webp`) always takes precedence over the provider URL. This is useful
+when the project later obtains an explicitly licensed asset pack.
+
+Club crests remain protected marks. API access and image availability do not by
+themselves grant redistribution or commercial rights; confirm the chosen
+football-data.org plan and the clubs' mark rules before monetising this display.
 
 ---
 

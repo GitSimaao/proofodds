@@ -37,8 +37,8 @@ proofodds.com, www.proofodds.com {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		# Google Fonts is the only third party the pages touch.
-		Content-Security-Policy "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'"
+		# Google Fonts supplies type; football-data.org supplies display-only crests.
+		Content-Security-Policy "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: https://crests.football-data.org; base-uri 'none'; frame-ancestors 'none'"
 		-Server
 	}
 

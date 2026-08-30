@@ -584,6 +584,106 @@ def test_unknown_statuses_do_not_silently_drop_fixtures():
         assert surprising.upper() not in NOT_UPCOMING_STATUSES
 
 
+def test_fixture_fetch_caches_only_the_providers_safe_crest_url(
+        tmp_path, monkeypatch):
+    """Crests are display metadata: cached beside data, never put on Fixture."""
+    from proofodds import crests, fixtures
+
+    class Response:
+        status_code = 200
+        headers = {}
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"matches": [{
+                "status": "TIMED",
+                "utcDate": "2026-09-01T19:00:00Z",
+                "matchday": 4,
+                "homeTeam": {
+                    "id": 65, "name": "Manchester City FC",
+                    "crest": "https://crests.football-data.org/65.png",
+                },
+                "awayTeam": {
+                    "id": 61, "name": "Chelsea FC",
+                    "crest": "https://images.example/chelsea.png",
+                },
+            }]}
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FDORG_TOKEN", "not-a-real-token")
+    monkeypatch.setitem(data._known_cache, "E0", (
+        data._cache_key("E0"), frozenset({"Man City", "Chelsea"})))
+    monkeypatch.setattr(fixtures.requests, "get", lambda *args, **kwargs: Response())
+
+    got = fixtures.from_football_data_org("E0", 8)
+
+    assert got[0].home == "Man City" and got[0].away == "Chelsea"
+    assert not hasattr(got[0], "home_crest")
+    assert crests.lookup("E0", "Man City") == (
+        "https://crests.football-data.org/65.png")
+    assert crests.lookup("E0", "Chelsea") is None
+    cache = json.loads((tmp_path / "club_crests.json").read_text())
+    assert cache["provider"] == "football-data.org"
+    assert set(cache) == {"version", "provider", "clubs"}
+
+
+def test_full_crest_sync_uses_the_team_resource_without_sealing(
+        tmp_path, monkeypatch):
+    from proofodds import crests, fixtures
+
+    class Response:
+        status_code = 200
+        headers = {}
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"teams": [{
+                "id": 57, "name": "Arsenal FC",
+                "crest": "https://crests.football-data.org/57.png",
+            }]}
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FDORG_TOKEN", "not-a-real-token")
+    monkeypatch.setitem(data._known_cache, "E0", (
+        data._cache_key("E0"), frozenset({"Arsenal"})))
+    monkeypatch.setattr(fixtures.requests, "get", lambda *args, **kwargs: Response())
+
+    assert fixtures.sync_crests("E0") == {"E0": 1}
+    assert crests.lookup("E0", "Arsenal") == (
+        "https://crests.football-data.org/57.png")
+
+
+@pytest.mark.parametrize("url", [
+    "http://crests.football-data.org/57.png",
+    "https://crests.football-data.org.evil.test/57.png",
+    "https://user@crests.football-data.org/57.png",
+    "https://crests.football-data.org:444/57.png",
+    "data:image/svg+xml,<svg/>",
+    None,
+])
+def test_crest_cache_rejects_every_unapproved_origin(url):
+    from proofodds import crests
+    assert crests.safe_url(url) is None
+
+
+def test_a_local_licensed_crest_wins_over_the_provider_cache(tmp_path, monkeypatch):
+    from proofodds import crests, render
+    static = tmp_path / "static"
+    (static / "clubs").mkdir(parents=True)
+    (static / "clubs" / "arsenal.svg").write_text("<svg/>")
+    data_dir = tmp_path / "data"
+    monkeypatch.setattr(config, "STATIC_DIR", static)
+    monkeypatch.setattr(config, "DATA_DIR", data_dir)
+    crests.update("E0", [{
+        "club": "Arsenal", "id": 57, "raw_name": "Arsenal FC",
+        "url": "https://crests.football-data.org/57.png",
+    }])
+
+    assert render.club_mark("Arsenal", "E0")["src"] == "/clubs/arsenal.svg"
+
+
 @pytest.mark.needs_data
 def test_market_probabilities_sum_to_one():
     matches = data.add_market_probabilities(data.load_matches("E0"))
@@ -1136,8 +1236,18 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     """Hidden controls and edge-to-edge filters must not widen Android Chrome."""
     css = (config.STATIC_DIR / "style.css").read_text()
     assert "left: -9999px" not in css
-    assert "overflow-x: clip" in css
+    assert "overflow-x: clip" not in css
+    assert css.count("overflow-x: hidden") >= 2
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in css
+    assert "overscroll-behavior-x: none" in css
     assert "margin-left: -15px" not in css
+
+
+def test_only_the_football_data_crest_host_is_allowed_by_the_deploy_csp():
+    for relative in ("deploy/nginx-security-headers.conf", "deploy/Caddyfile"):
+        content = (config.ROOT / relative).read_text()
+        assert ("img-src 'self' data: https://crests.football-data.org"
+                in content)
 
 
 def test_the_po_mark_is_used_consistently(tmp_path, monkeypatch):

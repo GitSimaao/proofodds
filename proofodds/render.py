@@ -20,7 +20,7 @@ import unicodedata
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import anchor, charts, config, dixon_coles, grade, ledger
+from . import anchor, charts, config, crests, dixon_coles, grade, ledger
 from .data import sealed_name
 
 log = logging.getLogger(__name__)
@@ -105,13 +105,13 @@ def slugify(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "club"
 
 
-def club_mark(name: str) -> dict:
+def club_mark(name: str, league: str = "") -> dict:
     """
-    Resolve an optional self-hosted crest, with a deterministic monogram fallback.
+    Resolve a local or provider crest, with a deterministic monogram fallback.
 
-    Official crests are trademarks and remote image URLs are mutable.  The site
-    therefore only uses files deliberately placed in static/clubs/; until one
-    exists the fallback still gives every club a compact visual identity.
+    A deliberately licensed local file always wins.  Otherwise the ignored,
+    display-only football-data.org cache supplies the URL.  Neither source is
+    written to the immutable prediction ledger.
     """
     slug = slugify(name)
     source = None
@@ -120,6 +120,8 @@ def club_mark(name: str) -> dict:
         if candidate.is_file():
             source = f"/clubs/{candidate.name}"
             break
+    if source is None and league:
+        source = crests.lookup(league, name)
 
     words = [word for word in re.findall(r"[A-Za-z0-9]+", unicodedata.normalize(
         "NFKD", name).encode("ascii", "ignore").decode())
@@ -200,8 +202,8 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "p_under25": row.get("p_under25"),
         "top_scorelines": top_scorelines(
             row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
-        "home_mark": club_mark(home),
-        "away_mark": club_mark(away),
+        "home_mark": club_mark(home, league),
+        "away_mark": club_mark(away, league),
         "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])],
         "pct_H": pct[0], "pct_D": pct[1], "pct_A": pct[2],
         "pct_over": pct_ou[0] if pct_ou else None,

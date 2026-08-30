@@ -3,7 +3,7 @@ Upcoming fixtures, for every division we publish.
 
 Two sources, tried in order:
 
-1. football-data.org. The free tier covers exactly the seven divisions in
+1. football-data.org. The configured plan covers the eight divisions in
    config.LEAGUES. Needs a token in PROOFODDS_FDORG_TOKEN.
 2. data/fixtures.csv — a plain file you can maintain by hand. Columns:
    league,date,time,home,away  (date YYYY-MM-DD, time HH:MM UTC, both optional
@@ -28,12 +28,13 @@ import time
 
 import requests
 
-from . import config
+from . import config, crests
 from .data import display_from_feed, resolve
 
 log = logging.getLogger(__name__)
 
 FDORG_URL = "https://api.football-data.org/v4/competitions/{code}/matches"
+FDORG_TEAMS_URL = "https://api.football-data.org/v4/competitions/{code}/teams"
 
 
 class Fixture:
@@ -97,6 +98,30 @@ def _name(raw: str, league: str, unresolved: list) -> tuple[str, bool]:
     return guess, False
 
 
+def _request(url: str, *, params: dict | None = None):
+    """One authenticated football-data.org request, with one polite retry."""
+    headers = {"X-Auth-Token": config.FDORG_TOKEN}
+    resp = requests.get(url, params=params, headers=headers, timeout=20)
+    if resp.status_code == 429:
+        wait = min(int(resp.headers.get("Retry-After", 15) or 15), 70)
+        log.warning("football-data.org rate limited, waiting %ds", wait)
+        time.sleep(wait)
+        resp = requests.get(url, params=params, headers=headers, timeout=20)
+    if resp.status_code != 200:
+        raise RuntimeError(f"football-data.org returned {resp.status_code}: "
+                           f"{resp.text[:300]}")
+    return resp
+
+
+def _crest_row(team: dict, canonical: str) -> dict:
+    return {
+        "club": canonical,
+        "raw_name": team.get("name"),
+        "id": team.get("id"),
+        "url": team.get("crest"),
+    }
+
+
 def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None:
     """
     Fetch one division's fixtures.
@@ -118,20 +143,7 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
         "dateTo": (today + dt.timedelta(days=days_ahead)).isoformat(),
     }
     url = FDORG_URL.format(code=code)
-    headers = {"X-Auth-Token": token}
-
-    resp = requests.get(url, params=params, headers=headers, timeout=20)
-    if resp.status_code == 429:
-        # The free tier allows ten calls a minute and we make seven. Being
-        # throttled anyway means something else shares the token, so wait
-        # rather than dropping a division from the run.
-        wait = min(int(resp.headers.get("Retry-After", 15) or 15), 70)
-        log.warning("%s: rate limited, waiting %ds", league, wait)
-        time.sleep(wait)
-        resp = requests.get(url, params=params, headers=headers, timeout=20)
-    if resp.status_code != 200:
-        raise RuntimeError(f"football-data.org returned {resp.status_code} for "
-                           f"{code}: {resp.text[:300]}")
+    resp = _request(url, params=params)
 
     payload = resp.json().get("matches", [])
     seen: dict[str, int] = {}
@@ -144,6 +156,7 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
 
     out: list[Fixture] = []
     unresolved: list[str] = []
+    crest_rows: list[dict] = []
     for m in payload:
         if str(m.get("status", "")).upper() in NOT_UPCOMING_STATUSES:
             continue
@@ -152,11 +165,17 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
         away_raw = m["awayTeam"]["name"]
         home, ok_h = _name(home_raw, league, unresolved)
         away, ok_a = _name(away_raw, league, unresolved)
+        crest_rows.extend((_crest_row(m["homeTeam"], home),
+                           _crest_row(m["awayTeam"], away)))
         out.append(Fixture(kickoff=kickoff, league=league, home=home, away=away,
                            home_raw=home_raw, away_raw=away_raw,
                            resolved=ok_h and ok_a,
                            time_confirmed=str(m.get("status", "")).upper() == "TIMED",
                            matchday=m.get("matchday")))
+
+    changed = crests.update(league, crest_rows)
+    if changed:
+        log.info("%s: refreshed %d club crest reference(s)", league, changed)
 
     if unresolved:
         # An error, not a warning. Every one of these is a club whose sealed
@@ -171,6 +190,42 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
         log.info("%s: every match in the window is already played, postponed "
                  "or cancelled", league)
     return out
+
+
+def sync_crests(leagues: list[str] | str | None = None) -> dict[str, int]:
+    """Fetch every club in each competition without publishing predictions."""
+    if not config.FDORG_TOKEN:
+        raise RuntimeError("PROOFODDS_FDORG_TOKEN is not set")
+    if leagues is None:
+        leagues = list(config.ENABLED_LEAGUES)
+    elif isinstance(leagues, str):
+        leagues = [leagues]
+
+    report: dict[str, int] = {}
+    failures: list[str] = []
+    for league in leagues:
+        code = config.LEAGUES[league]["fdorg"]
+        try:
+            payload = _request(FDORG_TEAMS_URL.format(code=code)).json()
+            teams = payload.get("teams", [])
+            unresolved: list[str] = []
+            rows = []
+            for team in teams:
+                raw_name = team.get("name", "")
+                canonical, _ = _name(raw_name, league, unresolved)
+                rows.append(_crest_row(team, canonical))
+            crests.update(league, rows)
+            report[league] = sum(bool(crests.safe_url(row.get("url")))
+                                 for row in rows)
+            if unresolved:
+                log.error("UNRESOLVED CLUB NAME(S) while syncing crests: %s",
+                          "; ".join(sorted(unresolved)))
+        except Exception as exc:
+            failures.append(f"{league}: {exc}")
+            log.warning("%s: could not sync crests: %s", league, exc)
+    if not report:
+        raise RuntimeError("no crest feed succeeded — " + "; ".join(failures))
+    return report
 
 
 def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:
