@@ -1185,6 +1185,46 @@ def test_displayed_percentages_always_sum_to_one_hundred(probs):
     assert all(abs(o - p * 100) < 1 for o, p in zip(out, probs))
 
 
+def test_matchday_calendar_always_runs_from_today_through_today_plus_eight():
+    """Empty dates stay selectable and anything outside the horizon stays out."""
+    from proofodds import render
+
+    today = dt.date(2026, 8, 30)
+
+    def row(offset, home, league="E0", *, past=False):
+        kickoff = dt.datetime.combine(
+            today + dt.timedelta(days=offset), dt.time(15, 0),
+            tzinfo=dt.timezone.utc)
+        return {
+            "kickoff_dt": kickoff, "is_past": past, "league": league,
+            "home": home, "league_name": config.LEAGUES[league]["name"],
+            "league_short": config.LEAGUES[league]["short"],
+            "league_country": config.LEAGUES[league]["country"],
+            "league_flag": config.LEAGUES[league]["flag"],
+        }
+
+    days = render.upcoming_view([
+        row(0, "Today"), row(3, "Three days", "SP1"),
+        row(8, "Last day"), row(9, "Too late"),
+        row(0, "Already started", past=True),
+    ], today=today, days_ahead=8)
+
+    assert len(days) == 9
+    assert days[0]["date"] == "2026-08-30" and days[0]["picker_label"] == "Today"
+    assert days[1]["date"] == "2026-08-31" and days[1]["picker_label"] == "Tomorrow"
+    assert days[-1]["date"] == "2026-09-07"
+    assert [len(day["matches"]) for day in days] == [1, 0, 0, 1, 0, 0, 0, 0, 1]
+    assert days[3]["leagues"][0]["code"] == "SP1"
+    assert all(match["home"] != "Too late"
+               for day in days for match in day["matches"])
+
+
+def test_matchday_calendar_rejects_a_backwards_horizon():
+    from proofodds import render
+    with pytest.raises(ValueError, match="negative"):
+        render.upcoming_view([], today=dt.date(2026, 8, 30), days_ahead=-1)
+
+
 @pytest.mark.needs_data
 def test_the_stylesheet_url_changes_when_the_stylesheet_does(tmp_path, monkeypatch):
     """
@@ -1224,12 +1264,22 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
     in the HTML and visible, which is the right default for a page whose whole
     argument is that nothing is hidden.
     """
+    import re
     from proofodds import render
     render.build(tmp_path)
     html = (tmp_path / "index.html").read_text()
     assert 'class="theme-toggle"' in html
     assert "proofodds-theme" in html          # remembered across visits
     assert 'id="fixtures"' in html            # what the filter narrows
+    dates = re.findall(r'data-date-choice="(\d{4}-\d{2}-\d{2})"', html)
+    assert len(dates) == 9 and len(set(dates)) == 9
+    assert (dt.date.fromisoformat(dates[-1])
+            - dt.date.fromisoformat(dates[0])).days == 8
+    assert 'class="date-step date-step--prev"' in html
+    assert 'class="date-step date-step--next"' in html
+    assert "URLSearchParams(window.location.search)" in html
+    assert 'url.searchParams.set("date", date)' in html
+    assert "Boolean(requested && !requestedExists)" in html
 
 
 def test_mobile_css_does_not_create_an_offscreen_canvas():
@@ -1240,6 +1290,8 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     assert css.count("overflow-x: hidden") >= 2
     assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in css
     assert "overscroll-behavior-x: none" in css
+    assert "grid-template-columns: repeat(9, 84px)" in css
+    assert "overscroll-behavior-inline: contain" in css
     assert "margin-left: -15px" not in css
 
 
@@ -1306,6 +1358,10 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     import pandas as pd
     from proofodds import ledger, render
 
+    kickoff = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)) \
+        .replace(hour=15, minute=0, second=0, microsecond=0)
+    kickoff_s = kickoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     predictions = tmp_path / "predictions"
     predictions.mkdir()
     entry = {
@@ -1316,7 +1372,7 @@ def test_the_build_creates_a_permanent_page_for_each_match(
         "generator": {},
         "models": {"E0": {"name": "dixon-coles", "rho": -0.08}},
         "predictions": [{
-            "league": "E0", "kickoff": "2030-09-01T15:00:00Z",
+            "league": "E0", "kickoff": kickoff_s,
             "home": "Arsenal", "away": "Chelsea",
             "p_H": 0.5, "p_D": 0.25, "p_A": 0.25,
             "p_over25": 0.54, "p_under25": 0.46,
@@ -1332,7 +1388,7 @@ def test_the_build_creates_a_permanent_page_for_each_match(
 
     out = tmp_path / "site"
     render.build(out)
-    route = "/matches/2030-09-01/e0-arsenal-v-chelsea/"
+    route = f"/matches/{kickoff.date()}/e0-arsenal-v-chelsea/"
     page = out / route.lstrip("/") / "index.html"
 
     assert page.exists()

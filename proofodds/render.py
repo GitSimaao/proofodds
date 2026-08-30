@@ -231,37 +231,64 @@ def match_views(now: dt.datetime | None = None) -> list[dict]:
     return rows
 
 
-def upcoming_view(rows: list[dict] | None = None) -> list[dict]:
+def upcoming_view(rows: list[dict] | None = None, *,
+                  today: dt.date | None = None,
+                  days_ahead: int | None = None) -> list[dict]:
     """
-    Group unplayed, already-published predictions by day for the front page.
+    Build the selectable calendar from today through today + days_ahead.
 
     Only the ledger is read — the site can never show a probability that was
     not sealed first. That is the whole point, so it is worth the constraint.
+    Empty dates are kept: a date picker with holes is not a calendar, and an
+    honest zero is more useful than making the reader wonder whether a day is
+    missing because the feed failed.
     """
     rows = rows if rows is not None else match_views()
-    rows = [row for row in rows if not row["is_past"]]
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    days_ahead = config.LOOKAHEAD_DAYS if days_ahead is None else days_ahead
+    if days_ahead < 0:
+        raise ValueError("days_ahead cannot be negative")
+    end = today + dt.timedelta(days=days_ahead)
+    rows = [row for row in rows
+            if not row["is_past"] and today <= row["kickoff_dt"].date() <= end]
 
     order = {code: i for i, code in enumerate(config.LEAGUE_ORDER)}
     rows.sort(key=lambda r: (r["kickoff_dt"], order.get(r["league"], 99), r["home"]))
 
-    # Grouped by day, then by division inside the day. Seven leagues on one
-    # page is a wall unless something separates them, and the day is what a
-    # reader is actually looking for first.
-    days, current = [], None
+    days = []
+    by_date = {}
+    for offset in range(days_ahead + 1):
+        date = today + dt.timedelta(days=offset)
+        day = {
+            "date": date.isoformat(),
+            "label": f"{date.strftime('%A')} {date.day} {date.strftime('%B')}",
+            "picker_label": ("Today" if offset == 0 else
+                             "Tomorrow" if offset == 1 else date.strftime("%a")),
+            "number": str(date.day),
+            "month": date.strftime("%b"),
+            "is_today": offset == 0,
+            "matches": [],
+            "leagues": [],
+        }
+        days.append(day)
+        by_date[date] = day
+
+    # Group by division inside each selected day. Eight leagues shown at once
+    # are a wall; the reader chooses the date first, then optionally narrows it.
     for row in rows:
-        label = row["kickoff_dt"].strftime("%A %d %B")
-        if current is None or current["label"] != label:
-            current = {"label": label, "matches": [], "leagues": []}
-            days.append(current)
+        current = by_date[row["kickoff_dt"].date()]
         current["matches"].append(row)
-        if not current["leagues"] or current["leagues"][-1]["code"] != row["league"]:
-            current["leagues"].append({"code": row["league"],
-                                       "name": row["league_name"],
-                                       "short": row["league_short"],
-                                       "country": row["league_country"],
-                                       "flag": row["league_flag"],
-                                       "matches": []})
-        current["leagues"][-1]["matches"].append(row)
+        league = next((item for item in current["leagues"]
+                       if item["code"] == row["league"]), None)
+        if league is None:
+            league = {"code": row["league"],
+                      "name": row["league_name"],
+                      "short": row["league_short"],
+                      "country": row["league_country"],
+                      "flag": row["league_flag"],
+                      "matches": []}
+            current["leagues"].append(league)
+        league["matches"].append(row)
     return days
 
 
@@ -311,8 +338,10 @@ def build(out_dir=None) -> None:
     chain = ledger.verify_chain()
     anchors = anchor.report()
     entries = ledger_view(anchors)
-    matches = match_views()
-    days = upcoming_view(matches)
+    build_now = dt.datetime.now(dt.timezone.utc)
+    matches = match_views(now=build_now)
+    days = upcoming_view(matches, today=build_now.date(),
+                         days_ahead=config.LOOKAHEAD_DAYS)
 
     # A version stamp taken from the stylesheet's own contents.
     #
@@ -340,7 +369,7 @@ def build(out_dir=None) -> None:
         "site_url": config.SITE_URL,
         "tagline": config.SITE_TAGLINE,
         "repo_url": config.REPO_URL,
-        "built_at": dt.datetime.now(dt.timezone.utc).strftime("%d %b %Y"),
+        "built_at": build_now.strftime("%d %b %Y"),
         "uniform_log_loss": config.UNIFORM_LOG_LOSS,
         "backtest": config.BACKTEST,
         "score": score,
@@ -377,6 +406,7 @@ def build(out_dir=None) -> None:
         league_meta={c: config.LEAGUES[c] for c in config.LEAGUES},
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,
+        picker_end=days[-1]["label"] if days else "",
         **common))
 
     for match in matches:

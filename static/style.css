@@ -542,6 +542,76 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 
 /* ---------------- division filter ---------------- */
 /* Narrowing only — every match remains in the HTML with JavaScript off. */
+.date-picker {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: stretch; gap: 8px; min-width: 0; max-width: 100%;
+  margin: 0 0 12px; padding: 10px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 18px; box-shadow: var(--shadow-1);
+}
+.date-rail {
+  display: grid; grid-template-columns: repeat(9, minmax(88px, 1fr));
+  gap: 7px; min-width: 0; max-width: 100%; overflow-x: auto;
+  overscroll-behavior-inline: contain; scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.date-rail::-webkit-scrollbar { display: none; }
+.date-choice {
+  display: grid; justify-items: center; align-content: center; gap: 3px;
+  min-width: 88px; min-height: 88px; padding: 8px 7px;
+  scroll-snap-align: center; cursor: pointer;
+  color: var(--ink-2); background: transparent;
+  border: 1px solid transparent; border-radius: 12px;
+  transition: color .16s ease, background .16s ease, border-color .16s ease,
+              transform .16s ease;
+}
+.date-choice:hover {
+  color: var(--ink); background: var(--surface-2); border-color: var(--rule);
+  transform: translateY(-1px);
+}
+.date-choice:focus-visible {
+  position: relative; z-index: 1; outline: 2px solid var(--c-model); outline-offset: -1px;
+}
+.date-choice.is-on {
+  color: #fff; background: var(--c-model); border-color: var(--c-model);
+  box-shadow: 0 8px 20px -13px color-mix(in srgb, var(--c-model) 80%, transparent);
+}
+.date-weekday {
+  font: 600 10px/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.date-calendar { display: flex; align-items: baseline; gap: 4px; line-height: 1; }
+.date-calendar strong {
+  color: var(--ink); font: 700 23px/1 "Chivo", sans-serif;
+  font-variant-numeric: tabular-nums; letter-spacing: -.04em;
+}
+.date-calendar span {
+  font: 500 10px/1 "IBM Plex Mono", monospace;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.date-choice.is-on .date-calendar strong { color: #fff; }
+.date-match-count { font-size: 10.5px; line-height: 1.2; color: var(--ink-3); }
+.date-choice.is-on .date-match-count { color: rgba(255,255,255,.78); }
+.date-step {
+  display: grid; place-items: center; min-width: 0; padding: 0; cursor: pointer;
+  color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--rule); border-radius: 12px;
+  font: 500 18px/1 "IBM Plex Mono", monospace;
+}
+.date-step:hover:not(:disabled) { color: var(--ink); border-color: var(--rule-2); }
+.date-step:disabled { cursor: default; opacity: .32; }
+.date-status {
+  min-height: 20px; margin: 0 0 18px; color: var(--ink-3);
+  font-size: 12.5px; text-align: right;
+}
+.date-status strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.day-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 28px 20px; color: var(--ink-3); text-align: center;
+  background: var(--surface); border: 1px dashed var(--rule-2); border-radius: 14px;
+}
+.day-empty strong { color: var(--ink); font-size: 14px; }
+.day-empty span { font-size: 13px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
 .chip {
   display: inline-flex; align-items: center; gap: 8px;
@@ -556,6 +626,7 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 .chip:focus-visible { outline: 2px solid var(--c-model); outline-offset: 2px; }
 .chip.is-on { background: var(--c-model); border-color: var(--c-model); color: #fff; }
 .chip.is-on .flag { box-shadow: 0 0 0 1px rgba(255,255,255,.28); }
+.chip:disabled { cursor: default; opacity: .38; }
 
 /* ---------------- individual match page ---------------- */
 .match-hero {
@@ -777,6 +848,14 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   .team { font-size: 15.5px; }
   .prob .pv { font-size: 16px; }
   .signup { grid-template-columns: 1fr; }
+  .date-picker {
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    gap: 5px; padding: 7px; border-radius: 15px;
+  }
+  .date-rail { grid-template-columns: repeat(9, 84px); gap: 5px; }
+  .date-choice { min-width: 84px; min-height: 82px; padding: 7px 5px; }
+  .date-step { border-radius: 10px; }
+  .date-status { margin-bottom: 15px; text-align: left; }
   .filters {
     width: 100%; max-width: 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto;
     overscroll-behavior-inline: contain;

@@ -110,38 +110,149 @@
 })();
 
 (function () {
-  // Division filter. Progressive enhancement: with no JavaScript every match
-  // is shown, which is the right default for a page whose argument is that
-  // nothing is hidden. The filter only ever narrows what is already there.
-  var chips = document.querySelectorAll(".filters .chip");
+  // Matchday and division filters share one state. Every forecast remains in
+  // the HTML; JavaScript only narrows the public record to the reader's chosen
+  // date and, optionally, division.
+  var dates = Array.prototype.slice.call(
+    document.querySelectorAll("[data-date-choice]"));
+  var chips = Array.prototype.slice.call(
+    document.querySelectorAll(".filters .chip"));
+  var days = Array.prototype.slice.call(document.querySelectorAll(".day[data-date]"));
   var root = document.getElementById("fixtures");
-  if (!chips.length || !root) return;
+  var previous = document.querySelector(".date-step--prev");
+  var next = document.querySelector(".date-step--next");
+  var status = document.querySelector(".date-status");
+  if (!dates.length || !days.length || !root) return;
 
-  function apply(code) {
-    root.querySelectorAll(".day").forEach(function (day) {
+  var selectedDate = dates[0].getAttribute("data-date-choice");
+  var selectedLeague = "all";
+
+  function chooseLeague(code) {
+    selectedLeague = code;
+    chips.forEach(function (chip) {
+      var on = chip.getAttribute("data-filter") === code;
+      chip.classList.toggle("is-on", on);
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function activeDay() {
+    return days.find(function (day) {
+      return day.getAttribute("data-date") === selectedDate;
+    });
+  }
+
+  function apply() {
+    var visible = 0;
+    days.forEach(function (day) {
+      var selected = day.getAttribute("data-date") === selectedDate;
+      day.hidden = !selected;
       var shown = 0;
       day.querySelectorAll(".league").forEach(function (lg) {
-        var on = code === "all" || lg.getAttribute("data-league") === code;
+        var on = selected && (selectedLeague === "all" ||
+                 lg.getAttribute("data-league") === selectedLeague);
         lg.hidden = !on;
         if (on) shown += lg.querySelectorAll(".card").length;
       });
-      day.hidden = shown === 0;
       var count = day.querySelector(".day-head .count");
       if (count) count.textContent = shown + (shown === 1 ? " match" : " matches");
+      if (selected) visible = shown;
     });
+    var day = activeDay();
+    if (status && day) {
+      status.innerHTML = "Showing <strong>" + visible + "</strong> " +
+        (visible === 1 ? "match" : "matches") + " on " +
+        day.getAttribute("data-label");
+    }
   }
 
   chips.forEach(function (chip) {
     chip.addEventListener("click", function () {
-      chips.forEach(function (c) {
-        c.classList.remove("is-on");
-        c.setAttribute("aria-pressed", "false");
-      });
-      chip.classList.add("is-on");
-      chip.setAttribute("aria-pressed", "true");
-      apply(chip.getAttribute("data-filter"));
+      if (chip.disabled) return;
+      chooseLeague(chip.getAttribute("data-filter"));
+      apply();
     });
   });
+
+  function selectDate(date, updateAddress, moveFocus) {
+    var index = dates.findIndex(function (button) {
+      return button.getAttribute("data-date-choice") === date;
+    });
+    if (index < 0) return;
+    selectedDate = date;
+    dates.forEach(function (button, buttonIndex) {
+      var on = buttonIndex === index;
+      button.classList.toggle("is-on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+
+    var day = activeDay();
+    var available = new Set(Array.prototype.map.call(
+      day.querySelectorAll(".league"), function (league) {
+        return league.getAttribute("data-league");
+      }));
+    chips.forEach(function (chip) {
+      var code = chip.getAttribute("data-filter");
+      chip.disabled = code !== "all" && !available.has(code);
+    });
+    if (selectedLeague !== "all" && !available.has(selectedLeague)) {
+      chooseLeague("all");
+    }
+    if (previous) previous.disabled = index === 0;
+    if (next) next.disabled = index === dates.length - 1;
+    apply();
+
+    if (updateAddress) {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set("date", date);
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      } catch (e) {}
+    }
+    if (moveFocus) dates[index].focus({preventScroll: true});
+    if (updateAddress || moveFocus) {
+      dates[index].scrollIntoView({behavior: "smooth", block: "nearest", inline: "center"});
+    }
+  }
+
+  dates.forEach(function (button) {
+    button.addEventListener("click", function () {
+      selectDate(button.getAttribute("data-date-choice"), true, false);
+    });
+    button.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      var index = dates.indexOf(button) + (event.key === "ArrowRight" ? 1 : -1);
+      if (dates[index]) {
+        selectDate(dates[index].getAttribute("data-date-choice"), true, true);
+      }
+    });
+  });
+  if (previous) previous.addEventListener("click", function () {
+    var index = dates.findIndex(function (button) {
+      return button.getAttribute("data-date-choice") === selectedDate;
+    });
+    if (index > 0) selectDate(dates[index - 1].getAttribute("data-date-choice"), true, true);
+  });
+  if (next) next.addEventListener("click", function () {
+    var index = dates.findIndex(function (button) {
+      return button.getAttribute("data-date-choice") === selectedDate;
+    });
+    if (index < dates.length - 1) {
+      selectDate(dates[index + 1].getAttribute("data-date-choice"), true, true);
+    }
+  });
+
+  var requested = "";
+  try { requested = new URLSearchParams(window.location.search).get("date") || ""; }
+  catch (e) {}
+  var requestedExists = dates.some(function (button) {
+    return button.getAttribute("data-date-choice") === requested;
+  });
+  // Keep shared/bookmarked links truthful: if yesterday's date has fallen out
+  // of the rolling window, show Today and replace the stale query parameter.
+  selectDate(requestedExists ? requested : selectedDate,
+             Boolean(requested && !requestedExists), false);
 })();
 
 (function () {

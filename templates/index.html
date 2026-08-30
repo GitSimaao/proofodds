@@ -71,20 +71,35 @@
     <div class="section-heading fixtures-heading">
       <div>
         <p class="eyebrow">Upcoming forecasts</p>
-        <h2>Next {{ lookahead_days }} days</h2>
+        <h2>Choose a matchday</h2>
       </div>
-      <p>Fair odds are the probability inverted with no bookmaker margin. Select a competition or open any match for its permanent, auditable page.</p>
+      <p>From today through {{ picker_end }}. Choose a date, then optionally narrow it by competition.</p>
     </div>
 
-    {% if not fixture_days %}
-      <div class="empty">
-        <h3>No fixtures priced right now</h3>
-        <p>Either the league is between matchdays, or the fixture feed has not been
-        configured yet. Predictions publish automatically once fixtures appear.</p>
+    <div class="date-picker" aria-label="Choose a matchday">
+      <button class="date-step date-step--prev" type="button"
+              aria-label="Previous day" disabled><span aria-hidden="true">←</span></button>
+      <div class="date-rail" role="group" aria-label="Available dates">
+      {% for day in fixture_days %}
+        <button type="button" class="date-choice{% if day.is_today %} is-on{% endif %}"
+                data-date-choice="{{ day.date }}"
+                aria-pressed="{{ 'true' if day.is_today else 'false' }}"
+                aria-label="{{ day.label }}, {{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}">
+          <span class="date-weekday">{{ day.picker_label }}</span>
+          <span class="date-calendar"><strong>{{ day.number }}</strong><span>{{ day.month }}</span></span>
+          <span class="date-match-count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span>
+        </button>
+      {% endfor %}
       </div>
-    {% endif %}
+      <button class="date-step date-step--next" type="button"
+              aria-label="Next day"><span aria-hidden="true">→</span></button>
+    </div>
+    <p class="date-status" aria-live="polite">
+      Showing <strong>{{ fixture_days[0].matches|length }}</strong>
+      match{{ 'es' if fixture_days[0].matches|length != 1 }} on {{ fixture_days[0].label }}
+    </p>
 
-    {% if fixture_days %}
+    {% if n_upcoming %}
     <div class="filters" role="group" aria-label="Filter by division">
       <button type="button" class="chip is-on" data-filter="all" aria-pressed="true">All leagues</button>
       {% for code in shown_codes %}
@@ -98,11 +113,18 @@
 
     <div id="fixtures">
     {% for day in fixture_days %}
-      <section class="day" data-count="{{ day.matches|length }}">
+      <section class="day" data-date="{{ day.date }}" data-label="{{ day.label }}"
+               data-count="{{ day.matches|length }}">
       <div class="day-head">
         <h3>{{ day.label }}</h3>
         <span class="count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span>
       </div>
+      {% if not day.matches %}
+      <div class="day-empty">
+        <strong>No matches priced for this day</strong>
+        <span>Choose another date in the calendar above.</span>
+      </div>
+      {% endif %}
       {% for lg in day.leagues %}
       <section class="league" data-league="{{ lg.code }}">
         <div class="league-head">
