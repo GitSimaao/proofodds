@@ -1298,6 +1298,17 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     assert "margin-left: -15px" not in css
 
 
+def test_club_crest_tiles_use_a_neutral_white_background():
+    """Real crests and monogram fallbacks sit on the same quiet white tile."""
+    import re
+    css = (config.STATIC_DIR / "style.css").read_text()
+    block = re.search(r"\.club-mark \{([^}]+)\}", css, re.DOTALL)
+    assert block and "background: #FFFFFF;" in block.group(1)
+    for old_colour in ("#E5EEFF", "#E6F6EF", "#FFF0E6",
+                       "#F1EAFF", "#FFF5D9", "#E6F4F7"):
+        assert old_colour not in css
+
+
 def test_only_the_football_data_crest_host_is_allowed_by_the_deploy_csp():
     for relative in ("deploy/nginx-security-headers.conf", "deploy/Caddyfile"):
         content = (config.ROOT / relative).read_text()

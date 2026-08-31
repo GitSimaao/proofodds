@@ -328,6 +328,7 @@ h4 {
 .club-mark {
   display: grid; place-items: center; flex: none; overflow: hidden;
   width: 42px; height: 42px; border-radius: 13px;
+  background: #FFFFFF;
   border: 1px solid rgba(11,22,40,.08);
   font: 700 12px/1 "IBM Plex Mono", monospace; letter-spacing: -.03em;
 }
@@ -338,12 +339,12 @@ h4 {
 }
 .club-mark--sm { width: 34px; height: 34px; border-radius: 11px; font-size: 10px; }
 .club-mark--xl { width: 76px; height: 76px; border-radius: 22px; font-size: 20px; }
-.club-mark--tone-0 { background: #E5EEFF; color: #2258B3; }
-.club-mark--tone-1 { background: #E6F6EF; color: #16704C; }
-.club-mark--tone-2 { background: #FFF0E6; color: #A64B21; }
-.club-mark--tone-3 { background: #F1EAFF; color: #6940AD; }
-.club-mark--tone-4 { background: #FFF5D9; color: #896511; }
-.club-mark--tone-5 { background: #E6F4F7; color: #146777; }
+.club-mark--tone-0 { color: #2258B3; }
+.club-mark--tone-1 { color: #16704C; }
+.club-mark--tone-2 { color: #A64B21; }
+.club-mark--tone-3 { color: #6940AD; }
+.club-mark--tone-4 { color: #896511; }
+.club-mark--tone-5 { color: #146777; }
 
 .obar { display: flex; gap: 2px; height: 9px; }
 .obar span { display: block; border-radius: 2px; min-width: 2px; }
