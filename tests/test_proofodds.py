@@ -1278,6 +1278,8 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
             - dt.date.fromisoformat(dates[0])).days == 8
     assert 'class="date-step date-step--prev"' in html
     assert 'class="date-step date-step--next"' in html
+    assert '<span class="tl">Over 2.5</span>' in html
+    assert '<span class="td">Under 2.5</span>' in html
     weekdays = re.findall(r'class="date-weekday">([^<]+)</span>', html)
     assert len(weekdays) == 9 and all(len(day) == 3 for day in weekdays)
     assert "Today" not in weekdays and "Tomorrow" not in weekdays
