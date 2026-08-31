@@ -1210,8 +1210,9 @@ def test_matchday_calendar_always_runs_from_today_through_today_plus_eight():
     ], today=today, days_ahead=8)
 
     assert len(days) == 9
-    assert days[0]["date"] == "2026-08-30" and days[0]["picker_label"] == "Today"
-    assert days[1]["date"] == "2026-08-31" and days[1]["picker_label"] == "Tomorrow"
+    assert days[0]["date"] == "2026-08-30" and days[0]["picker_label"] == "Sun"
+    assert days[1]["date"] == "2026-08-31" and days[1]["picker_label"] == "Mon"
+    assert all(len(day["picker_label"]) == 3 for day in days)
     assert days[-1]["date"] == "2026-09-07"
     assert [len(day["matches"]) for day in days] == [1, 0, 0, 1, 0, 0, 0, 0, 1]
     assert days[3]["leagues"][0]["code"] == "SP1"
@@ -1277,6 +1278,9 @@ def test_the_page_renders_a_filter_and_a_theme_toggle(tmp_path):
             - dt.date.fromisoformat(dates[0])).days == 8
     assert 'class="date-step date-step--prev"' in html
     assert 'class="date-step date-step--next"' in html
+    weekdays = re.findall(r'class="date-weekday">([^<]+)</span>', html)
+    assert len(weekdays) == 9 and all(len(day) == 3 for day in weekdays)
+    assert "Today" not in weekdays and "Tomorrow" not in weekdays
     assert "URLSearchParams(window.location.search)" in html
     assert 'url.searchParams.set("date", date)' in html
     assert "Boolean(requested && !requestedExists)" in html
@@ -1292,7 +1296,8 @@ def test_mobile_css_does_not_create_an_offscreen_canvas():
     assert css.count("overflow-x: hidden") >= 2
     assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in css
     assert "overscroll-behavior-x: none" in css
-    assert "grid-template-columns: repeat(9, 84px)" in css
+    assert "grid-template-columns: repeat(9, 70px)" in css
+    assert "max-width: 980px" in css
     assert "overscroll-behavior-inline: contain" in css
     assert ".chip[hidden] { display: none; }" in css
     assert "margin-left: -15px" not in css

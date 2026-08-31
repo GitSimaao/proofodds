@@ -262,8 +262,7 @@ def upcoming_view(rows: list[dict] | None = None, *,
         day = {
             "date": date.isoformat(),
             "label": f"{date.strftime('%A')} {date.day} {date.strftime('%B')}",
-            "picker_label": ("Today" if offset == 0 else
-                             "Tomorrow" if offset == 1 else date.strftime("%a")),
+            "picker_label": date.strftime("%a"),
             "number": str(date.day),
             "month": date.strftime("%b"),
             "is_today": offset == 0,
