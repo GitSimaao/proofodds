@@ -1869,6 +1869,27 @@ def test_new_competitions_and_corner_source_boundaries():
     assert config.LEAGUES["BRA"]["source"] == "extra"
     assert "SC0" in config.GUEST_COMPETITIONS
     assert config.GUEST_COMPETITIONS["BRA"]["markets"] == ("1X2",)
+    assert data.OVERRIDES["BRA"]["ca mineiro"] == "Atletico-MG"
+    assert data.OVERRIDES["BRA"]["cr flamengo"] == "Flamengo RJ"
+    assert data.OVERRIDES["BRA"]["botafogo fr"] == "Botafogo RJ"
+
+
+def test_legacy_latin1_results_file_is_read(tmp_path):
+    path = tmp_path / "SC0_1819.csv"
+    path.write_bytes(b"HomeTeam,AwayTeam,Price\nA,B,8\xa0\n")
+    frame = data.read_csv(path)
+    assert frame.loc[0, "HomeTeam"] == "A"
+
+
+def test_name_audit_uses_the_configured_fixture_source(monkeypatch):
+    from proofodds import fixtures
+    called = []
+    monkeypatch.setattr(fixtures, "from_football_data_co_uk",
+                        lambda days, leagues: called.append((days, leagues)) or [])
+    monkeypatch.setattr(fixtures, "from_football_data_org",
+                        lambda league, days: (_ for _ in ()).throw(AssertionError("wrong source")))
+    assert fixtures.for_name_audit("SC0", 14) == []
+    assert called == [(14, ["SC0"])]
 
 
 def test_corner_model_produces_normalised_total_distribution():

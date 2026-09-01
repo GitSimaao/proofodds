@@ -303,6 +303,13 @@ def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixtur
     return out
 
 
+def for_name_audit(league: str, days_ahead: int) -> list[Fixture] | None:
+    """Use the same fixture source in the audit that production will use."""
+    if config.LEAGUES[league].get("fixtures") == "fdco":
+        return from_football_data_co_uk(days_ahead, [league])
+    return from_football_data_org(league, days_ahead)
+
+
 def upcoming(leagues: list[str] | str | None = None,
              days_ahead: int | None = None) -> list[Fixture]:
     """

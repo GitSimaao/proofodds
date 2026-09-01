@@ -90,14 +90,14 @@ def main() -> int:
             continue
 
         try:
-            got = fixtures.from_football_data_org(league, args.days)
+            got = fixtures.for_name_audit(league, args.days)
         except Exception as exc:
             print(f"  fixtures  {RED}{exc}{OFF}")
             total_unresolved += 1
             continue
         if got is None:
-            print(f"  fixtures  {YELLOW}no PROOFODDS_FDORG_TOKEN — cannot "
-                  f"check the names that matter most{OFF}")
+            print(f"  fixtures  {YELLOW}configured fixture source is unavailable — "
+                  f"cannot check the names that matter most{OFF}")
             total_unresolved += 1
             continue
         if not got:

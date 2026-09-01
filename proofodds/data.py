@@ -51,6 +51,19 @@ PINNACLE_COLS = ["PSCH", "PSCD", "PSCA", "PC>2.5", "PC<2.5"]
 OUTCOME_INDEX = {"H": 0, "D": 1, "A": 2}
 
 
+def read_csv(path, **kwargs) -> pd.DataFrame:
+    """Read a results CSV, including legacy files containing Latin-1 bytes."""
+    try:
+        return pd.read_csv(path, encoding="utf-8-sig", **kwargs)
+    except UnicodeDecodeError:
+        # A small number of old football-data.co.uk files contain a literal
+        # 0xA0 non-breaking space in an otherwise ASCII row. Re-downloading
+        # reproduces the same byte, so decoding the publisher's legacy format
+        # is the correct recovery rather than treating the cache as corrupt.
+        log.warning("%s is not UTF-8 — reading the source as Latin-1", path.name)
+        return pd.read_csv(path, encoding="latin-1", **kwargs)
+
+
 # --------------------------------------------------------------------------- #
 #  Download
 # --------------------------------------------------------------------------- #
@@ -352,6 +365,14 @@ OVERRIDES: dict[str, dict[str, str]] = {
         # order — and no rule should try.
         "nec": "Nijmegen",
     },
+    "BRA": {
+        # football-data.org's current BSA names versus football-data.co.uk's
+        # rolling Brazil file. These are identities, not fuzzy guesses.
+        "ca mineiro": "Atletico-MG",
+        "ca mineuro": "Atletico-MG",  # observed upstream typo
+        "cr flamengo": "Flamengo RJ",
+        "botafogo fr": "Botafogo RJ",
+    },
 }
 
 # football-data.co.uk's own historical inconsistencies, applied when the
@@ -406,8 +427,8 @@ def known_teams(league: str) -> frozenset[str]:
         if not path.exists():
             continue
         try:
-            raw = pd.read_csv(path, encoding="utf-8-sig",
-                              usecols=lambda c: c in ("HomeTeam", "AwayTeam", "Home", "Away"))
+            raw = read_csv(path,
+                           usecols=lambda c: c in ("HomeTeam", "AwayTeam", "Home", "Away"))
         except Exception as exc:                       # a truncated download
             log.warning("could not read %s: %s", path.name, exc)
             continue
@@ -629,7 +650,7 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
         if not path.exists():
             continue
         try:
-            raw = pd.read_csv(path, encoding="utf-8-sig")
+            raw = read_csv(path)
         except Exception as exc:
             # Loud, and then carry on. Six divisions published with one season
             # missing beats a crash that publishes nothing, and the stale-
