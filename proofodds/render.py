@@ -386,10 +386,18 @@ def build(out_dir=None) -> None:
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
 
+    # Counted at the point of writing, not reconstructed at the end. A
+    # hardcoded tally drifted once already — two log pages arrived and the
+    # message kept saying 194 — and on a site whose whole argument is "the
+    # numbers reconcile", even a log line is not allowed to lie.
+    pages_written = 0
+
     def write(rel: str, html: str):
+        nonlocal pages_written
         path = out_dir / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(html, encoding="utf-8")
+        pages_written += 1
 
     # Filter only on divisions actually present in the sealed upcoming view.
     # An international break or different season end can empty one without
@@ -440,7 +448,12 @@ def build(out_dir=None) -> None:
     log_posts = [{
         "url": "/log/first-post/",
         "title": "Nobody publishes the score",
-        "date": "8 September 2026",
+        # The date a page went live, not the date of a plan. This built and
+        # published on 1 September; announcing it elsewhere a week later does
+        # not move when it was published, and a launch note dated in the
+        # future would be a strange first exhibit for a site about honest
+        # timestamps.
+        "date": "1 September 2026",
         "summary": ("Why this site exists: probabilities sealed before kickoff, "
                     "scored against the market-average close, record public "
                     "either way."),
@@ -517,4 +530,4 @@ def build(out_dir=None) -> None:
         for path in config.TIMESTAMPS_DIR.glob("*.ots"):
             shutil.copy2(path, proofs / path.name)
 
-    log.info("built %d pages into %s", 7 + len(matches), out_dir)
+    log.info("built %d pages into %s", pages_written, out_dir)
