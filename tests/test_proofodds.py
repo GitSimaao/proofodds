@@ -1619,8 +1619,9 @@ def test_leftovers_are_skipped_at_every_level_of_static(tmp_path, monkeypatch):
 #  Guest ledger
 # --------------------------------------------------------------------------- #
 def _seal_guest(tmp_path, monkeypatch, **overrides):
-    from proofodds import guest
+    from proofodds import guest, guest_data
     monkeypatch.setattr(config, "GUESTS_DIR", tmp_path / "guests")
+    monkeypatch.setattr(guest_data, "resolve", lambda name, code: (name, "exact"))
     kwargs = dict(guest_name="Test Guest", league="E0", home="Arsenal",
                   away="Chelsea", kickoff="2099-01-01T15:00Z", market="1X2",
                   selection="H", odds=2.05, stamp=False)
@@ -1664,6 +1665,148 @@ def test_guest_seal_refuses_what_would_need_fixing_later(tmp_path, monkeypatch):
         _seal_guest(tmp_path, monkeypatch, market="OU2.5", selection="H")
     with _pytest.raises(ValueError):   # unknown division
         _seal_guest(tmp_path, monkeypatch, league="XX")
+
+
+def test_creator_coverage_is_complete_and_source_limited():
+    """All published feeds are accepted, but only with markets they carry."""
+    europe = {code for code, meta in config.GUEST_COMPETITIONS.items()
+              if meta["source"] == "season"}
+    extra = {code for code, meta in config.GUEST_COMPETITIONS.items()
+             if meta["source"] == "extra"}
+
+    assert len(config.GUEST_COMPETITIONS) == 38
+    assert {"E0", "E2", "EC", "SC3", "D2", "I2", "SP2", "F2",
+            "B1", "T1", "G1"} <= europe
+    assert extra == {"ARG", "AUT", "BRA", "CHN", "DNK", "FIN", "IRL",
+                     "JPN", "MEX", "NOR", "POL", "ROU", "RUS", "SWE",
+                     "SWZ", "USA"}
+    assert all(config.GUEST_COMPETITIONS[code]["markets"]
+               == ("1X2", "OU2.5", "AH") for code in europe)
+    assert all(config.GUEST_COMPETITIONS[code]["markets"] == ("1X2",)
+               for code in extra)
+    assert not any("BTTS" in meta["markets"]
+                   for meta in config.GUEST_COMPETITIONS.values())
+
+
+def test_extra_creator_csv_is_normalised(tmp_path, monkeypatch):
+    import pandas as pd
+    from proofodds import guest_data
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    (tmp_path / "guest_BRA.csv").write_text(
+        "Country,League,Season,Date,Time,Home,Away,HG,AG,Res,AvgCH,AvgCD,AvgCA\n"
+        "Brazil,Serie A,2026,31/08/2026,21:00,Flamengo,Palmeiras,2,1,H,2.1,3.4,3.5\n"
+        "Brazil,Serie A,2026,08/09/2026,20:00,Gremio,Santos,,,,2.0,3.3,3.8\n",
+        encoding="utf-8")
+    guest_data._extra_cache.clear()
+
+    frame = guest_data.load_matches("BRA")
+
+    assert list(frame[["HomeTeam", "AwayTeam", "FTR"]].iloc[0]) == [
+        "Flamengo", "Palmeiras", "H"]
+    assert len(frame) == 1                         # future/unplayed row excluded
+    assert pd.api.types.is_datetime64_any_dtype(frame["Date"])
+    assert frame.iloc[0]["AvgCH"] == 2.1
+
+
+def test_guest_market_and_handicap_line_validation(tmp_path, monkeypatch):
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError, match="no published closing benchmark"):
+        _seal_guest(tmp_path, monkeypatch, league="BRA", market="OU2.5",
+                    selection="over")
+    with _pytest.raises(ValueError, match="requires --line"):
+        _seal_guest(tmp_path, monkeypatch, market="AH", selection="H")
+    with _pytest.raises(ValueError, match="quarter-goal"):
+        _seal_guest(tmp_path, monkeypatch, market="AH", selection="H",
+                    line=-0.3)
+    with _pytest.raises(ValueError, match="only valid for the AH"):
+        _seal_guest(tmp_path, monkeypatch, line=0.0)
+
+    path = _seal_guest(tmp_path, monkeypatch, market="AH", selection="A",
+                       line=0.25)
+    assert json.loads(path.read_text())["line"] == 0.25
+
+
+@pytest.mark.parametrize("difference,line,odds,result,pnl", [
+    (1, -1.0, 2.0, "push", 0.0),
+    (1, -0.75, 2.0, "half won", 0.5),
+    (0, 0.25, 2.0, "half won", 0.5),
+    (0, -0.25, 2.0, "half lost", -0.5),
+    (-1, 1.0, 2.0, "push", 0.0),
+    (-2, 1.5, 2.0, "lost", -1.0),
+])
+def test_asian_handicap_quarter_line_settlement(
+        difference, line, odds, result, pnl):
+    from proofodds import guest
+
+    assert guest._asian_settlement(difference, line, odds) == (result, pnl)
+
+
+def _write_guest_entry(tmp_path, monkeypatch, entry):
+    from proofodds import guest
+    from proofodds.ledger import compute_hash
+    monkeypatch.setattr(config, "GUESTS_DIR", tmp_path / "guests")
+    directory = config.GUESTS_DIR / "test-guest"
+    directory.mkdir(parents=True)
+    entry = dict(entry, schema="guest-2", guest="test-guest",
+                 guest_name="Test Guest", sealed_at="2026-08-31T10:00:00Z",
+                 book="", note="", prev_hash="0" * 64)
+    entry["hash"] = compute_hash(entry)
+    (directory / "test-guest--2026-08-31T100000Z.json").write_text(
+        json.dumps(entry), encoding="utf-8")
+
+
+def test_asian_clv_requires_the_same_closing_line(tmp_path, monkeypatch):
+    import pandas as pd
+    from proofodds import guest, guest_data
+
+    matches = pd.DataFrame([{
+        "Date": pd.Timestamp("2026-09-01"), "HomeTeam": "Arsenal",
+        "AwayTeam": "Chelsea", "FTHG": 2, "FTAG": 1, "FTR": "H",
+        "AHCh": -0.5, "AvgCAHH": 1.90, "AvgCAHA": 2.00,
+    }])
+    monkeypatch.setattr(guest_data, "load_matches", lambda code: matches)
+    _write_guest_entry(tmp_path, monkeypatch, {
+        "kickoff": "2026-09-01T15:00:00Z", "league": "E0",
+        "home": "Arsenal", "away": "Chelsea", "home_raw": "Arsenal",
+        "away_raw": "Chelsea", "market": "AH", "selection": "H",
+        "line": -0.5, "odds_taken": 2.0,
+    })
+
+    row = guest.grade_guest("test-guest")["entries"][0]
+    assert row["status"] == "graded"
+    assert row["result"] == "won" and row["pnl"] == 1.0
+    assert row["close_line"] == -0.5
+    assert row["clv"] == pytest.approx(2.0 / 1.9 - 1)
+
+
+def test_asian_different_line_is_settled_but_not_fake_clv(
+        tmp_path, monkeypatch):
+    import pandas as pd
+    from proofodds import guest, guest_data
+
+    matches = pd.DataFrame([{
+        # One-day difference proves the UTC/local-date join tolerance too.
+        "Date": pd.Timestamp("2026-08-31"), "HomeTeam": "Flamengo",
+        "AwayTeam": "Palmeiras", "FTHG": 1, "FTAG": 1, "FTR": "D",
+        "AHCh": -0.5, "AvgCAHH": 1.95, "AvgCAHA": 1.95,
+    }])
+    monkeypatch.setattr(guest_data, "load_matches", lambda code: matches)
+    _write_guest_entry(tmp_path, monkeypatch, {
+        "kickoff": "2026-09-01T00:30:00Z", "league": "E0",
+        "home": "Flamengo", "away": "Palmeiras", "home_raw": "Flamengo",
+        "away_raw": "Palmeiras", "market": "AH", "selection": "H",
+        "line": 0.0, "odds_taken": 1.91,
+    })
+
+    record = guest.grade_guest("test-guest")
+    row = record["entries"][0]
+    assert row["status"] == "line_changed"
+    assert row["result"] == "push" and row["pnl"] == 0.0
+    assert row["close_line"] == -0.5 and row["line_advantage"] == 0.5
+    assert row["clv"] is None and row["beat_close"] is None
+    assert record["n_graded"] == 0 and record["n_settled"] == 1
 
 
 @pytest.mark.needs_data

@@ -87,6 +87,78 @@ def league_name(code: str) -> str:
     return LEAGUES.get(code, {}).get("name", code)
 
 
+# --- creator ledger coverage -----------------------------------------------
+# The Dixon-Coles model above deliberately remains an eight-division product:
+# adding a competition there means fitting, validating and publishing another
+# model.  The creator ledger has a different job.  It only needs a result and
+# a market-average closing price for the exact selection that was sealed, so
+# it can cover every competition football-data.co.uk currently publishes.
+#
+# The two source families do not carry the same markets.  The season-by-season
+# European files publish a closing 1X2, O/U 2.5 and one main Asian-handicap
+# line.  The "new leagues" files publish a closing 1X2 only.  This registry is
+# therefore also the permission boundary: a market is never accepted merely
+# because we know how to settle it; it must have a closing benchmark here.
+_GUEST_EUROPE = {
+    "E0":  ("Premier League", "England"),
+    "E1":  ("Championship", "England"),
+    "E2":  ("League One", "England"),
+    "E3":  ("League Two", "England"),
+    "EC":  ("National League", "England"),
+    "SC0": ("Scottish Premiership", "Scotland"),
+    "SC1": ("Scottish Championship", "Scotland"),
+    "SC2": ("Scottish League One", "Scotland"),
+    "SC3": ("Scottish League Two", "Scotland"),
+    "D1":  ("Bundesliga", "Germany"),
+    "D2":  ("2. Bundesliga", "Germany"),
+    "I1":  ("Serie A", "Italy"),
+    "I2":  ("Serie B", "Italy"),
+    "SP1": ("La Liga", "Spain"),
+    "SP2": ("Segunda Division", "Spain"),
+    "F1":  ("Ligue 1", "France"),
+    "F2":  ("Ligue 2", "France"),
+    "N1":  ("Eredivisie", "Netherlands"),
+    "B1":  ("Belgian Pro League", "Belgium"),
+    "P1":  ("Primeira Liga", "Portugal"),
+    "T1":  ("Super Lig", "Turkey"),
+    "G1":  ("Super League Greece", "Greece"),
+}
+
+_GUEST_EXTRA = {
+    "ARG": ("Liga Profesional / Copa de la Liga", "Argentina"),
+    "AUT": ("Austrian Bundesliga", "Austria"),
+    "BRA": ("Brasileirao Serie A", "Brazil"),
+    "CHN": ("Chinese Super League", "China"),
+    "DNK": ("Danish Superliga", "Denmark"),
+    "FIN": ("Veikkausliiga", "Finland"),
+    "IRL": ("League of Ireland Premier Division", "Ireland"),
+    "JPN": ("J1 League", "Japan"),
+    "MEX": ("Liga MX", "Mexico"),
+    "NOR": ("Eliteserien", "Norway"),
+    "POL": ("Ekstraklasa", "Poland"),
+    "ROU": ("Romanian SuperLiga", "Romania"),
+    "RUS": ("Russian Premier League", "Russia"),
+    "SWE": ("Allsvenskan", "Sweden"),
+    "SWZ": ("Swiss Super League", "Switzerland"),
+    "USA": ("Major League Soccer", "USA"),
+}
+
+GUEST_COMPETITIONS = {
+    code: {"name": name, "country": country, "source": "season",
+           "markets": ("1X2", "OU2.5", "AH")}
+    for code, (name, country) in _GUEST_EUROPE.items()
+}
+GUEST_COMPETITIONS.update({
+    code: {"name": name, "country": country, "source": "extra",
+           "markets": ("1X2",)}
+    for code, (name, country) in _GUEST_EXTRA.items()
+})
+
+
+def guest_competition_name(code: str) -> str:
+    return GUEST_COMPETITIONS.get(code, {}).get("name", code)
+
+
 # Seasons to download, oldest first. "2526" means 2025/26.
 SEASONS = ["1516", "1617", "1718", "1819", "1920", "2021",
            "2122", "2223", "2324", "2425", "2526", "2627"]

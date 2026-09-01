@@ -40,6 +40,10 @@ CORE_COLS = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
 # be graded, and the method page says so rather than quietly averaging them.
 ODDS_COLS = ["AvgCH", "AvgCD", "AvgCA"]
 OU_COLS = ["AvgC>2.5", "AvgC<2.5"]
+# The creator ledger can benchmark the main closing Asian-handicap line.  The
+# model does not use these columns; carrying them through this loader keeps one
+# canonical result frame without turning Asian handicap into a model claim.
+AH_COLS = ["AHCh", "AvgCAHH", "AvgCAHA"]
 # Pinnacle's closing prices, kept where the files still carry them purely as a
 # cross-check against the average. Never graded against.
 PINNACLE_COLS = ["PSCH", "PSCD", "PSCA", "PC>2.5", "PC<2.5"]
@@ -595,16 +599,18 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
             log.error("%s is unreadable (%s) — delete it and re-run to "
                       "re-download", path.name, exc)
             continue
-        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS + PINNACLE_COLS
+        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS + AH_COLS
+                + PINNACLE_COLS
                 if c in raw.columns]
         missing = [c for c in CORE_COLS if c not in raw.columns]
         if missing:
             log.warning("%s is missing %s — skipping it", path.name, missing)
             continue
         df = raw[keep].copy()
-        for col in ODDS_COLS + OU_COLS + PINNACLE_COLS:
+        for col in ODDS_COLS + OU_COLS + AH_COLS + PINNACLE_COLS:
             if col not in df.columns:
                 df[col] = np.nan
+            df[col] = pd.to_numeric(df[col], errors="coerce")
         df["Season"] = f"20{season[:2]}/{season[2:]}"
         frames.append(df)
 

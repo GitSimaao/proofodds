@@ -34,23 +34,26 @@ import re
 import sys
 from pathlib import Path
 
-from . import anchor, config
-from .data import add_market_probabilities, load_matches, resolve
+from . import anchor, config, guest_data
 
 log = logging.getLogger(__name__)
 
-SCHEMA = "guest-1"
+SCHEMA = "guest-2"
 GENESIS = "0" * 64
 
 MARKETS = {
     "1X2": {"H", "D", "A"},
     "OU2.5": {"over", "under"},
+    "AH": {"H", "A"},
 }
-# The closing column for each selection — the same benchmark, the same
-# de-vig-free raw price a bettor actually compares a taken price against.
+# The closing column for each selection — the same benchmark and the same raw
+# market-average price a bettor compares the taken price against.  It is not
+# de-vigged: price CLV compares like with like; model log loss is where the
+# multi-selection closing market is de-vigged into probabilities.
 CLOSE_COLS = {
     ("1X2", "H"): "AvgCH", ("1X2", "D"): "AvgCD", ("1X2", "A"): "AvgCA",
     ("OU2.5", "over"): "AvgC>2.5", ("OU2.5", "under"): "AvgC<2.5",
+    ("AH", "H"): "AvgCAHH", ("AH", "A"): "AvgCAHA",
 }
 
 
@@ -80,6 +83,12 @@ def read_entries(slug: str) -> list[dict]:
     return [json.loads(p.read_text(encoding="utf-8")) for p in entry_files(slug)]
 
 
+def used_competitions() -> list[str]:
+    """Only feeds that can affect an existing public creator record."""
+    return sorted({entry["league"] for slug in guest_slugs()
+                   for entry in read_entries(slug)})
+
+
 # --------------------------------------------------------------------------- #
 #  Sealing
 # --------------------------------------------------------------------------- #
@@ -98,7 +107,8 @@ def _parse_kickoff(value: str) -> dt.datetime:
 
 def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
          market: str, selection: str, odds: float, book: str = "",
-         note: str = "", now: dt.datetime | None = None,
+         line: float | None = None, note: str = "",
+         now: dt.datetime | None = None,
          stamp: bool = True) -> Path:
     """
     Seal one guest entry. Refuses anything that could later need "fixing":
@@ -108,18 +118,36 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     """
     now = now or dt.datetime.now(dt.timezone.utc)
     slug = slugify(guest_name)
+    league = league.upper()
 
-    if league not in config.LEAGUES:
-        raise ValueError(f"unknown league {league!r} — one of "
-                         f"{sorted(config.LEAGUES)}")
+    if league not in config.GUEST_COMPETITIONS:
+        raise ValueError(f"unknown creator competition {league!r} — use "
+                         "`python -m proofodds.guest coverage`")
     if market not in MARKETS:
         raise ValueError(f"unknown market {market!r} — one of {sorted(MARKETS)}")
+    available = guest_data.markets(league)
+    if market not in available:
+        raise ValueError(
+            f"{market} has no published closing benchmark for {league}; "
+            f"measurable here: {', '.join(available)}")
     if selection not in MARKETS[market]:
         raise ValueError(f"selection {selection!r} is not valid for {market} — "
                          f"one of {sorted(MARKETS[market])}")
     odds = float(odds)
     if not odds > 1.0:
         raise ValueError(f"odds must be a real decimal price > 1, got {odds}")
+
+    if market == "AH":
+        if line is None:
+            raise ValueError("Asian handicap requires --line, expressed for "
+                             "the selected team (for example -0.5 or +0.25)")
+        line = float(line)
+        if abs(line) > 5 or abs(line * 4 - round(line * 4)) > 1e-8:
+            raise ValueError("Asian-handicap line must be between -5 and +5 "
+                             "in quarter-goal increments")
+        line = round(line * 4) / 4
+    elif line is not None:
+        raise ValueError("--line is only valid for the AH market")
 
     ko = _parse_kickoff(kickoff)
     if ko <= now:
@@ -128,7 +156,7 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
 
     resolved = {}
     for side, raw in (("home", home), ("away", away)):
-        hit, how = resolve(raw, league)
+        hit, how = guest_data.resolve(raw, league)
         if not hit:
             raise ValueError(f"cannot resolve {side} club {raw!r} in {league} "
                              f"({how}) — fix the spelling; guessing here is "
@@ -167,6 +195,8 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
         "note": note,
         "prev_hash": prev,
     }
+    if market == "AH":
+        entry["line"] = line
     # Import here, not at the top: ledger pulls in the model stack, and the
     # hash rule is the only thing needed from it.
     from .ledger import compute_hash
@@ -188,12 +218,94 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
 
 
 # --------------------------------------------------------------------------- #
-#  Grading — closing line value
+#  Grading — closing line value and settlement
 # --------------------------------------------------------------------------- #
-def _result_won(row, market: str, selection: str) -> bool:
+def _match_for_entry(frame, entry: dict):
+    """Join on the two clubs and tolerate a one-day source timezone shift."""
+    hit = frame[(frame["HomeTeam"] == entry["home"])
+                & (frame["AwayTeam"] == entry["away"])]
+    if hit.empty:
+        return None
+    target = dt.date.fromisoformat(entry["kickoff"][:10])
+    hit = hit.copy()
+    hit["_date_gap"] = hit["Date"].dt.date.map(
+        lambda value: abs((value - target).days))
+    hit = hit[hit["_date_gap"] <= 1]
+    if hit.empty:
+        return None
+    nearest = hit[hit["_date_gap"] == hit["_date_gap"].min()]
+    return nearest.iloc[0] if len(nearest) == 1 else None
+
+
+def _asian_legs(line: float) -> list[float]:
+    """A quarter line is two half-stakes on the adjacent half-goal lines."""
+    quarters = round(float(line) * 4)
+    if quarters % 2 == 0:  # integer or half goal: one ordinary bet
+        return [quarters / 4]
+    lower = (quarters // 2) / 2
+    return [lower, lower + 0.5]
+
+
+def _asian_settlement(goal_difference: int, line: float,
+                      odds: float) -> tuple[str, float]:
+    """Settle an Asian handicap from the selected team's perspective."""
+    legs = []
+    for leg in _asian_legs(line):
+        adjusted = goal_difference + leg
+        if adjusted > 1e-9:
+            legs.append(("won", odds - 1.0))
+        elif adjusted < -1e-9:
+            legs.append(("lost", -1.0))
+        else:
+            legs.append(("push", 0.0))
+
+    pnl = sum(value for _, value in legs) / len(legs)
+    outcomes = [name for name, _ in legs]
+    if outcomes == ["won", "push"] or outcomes == ["push", "won"]:
+        result = "half won"
+    elif outcomes == ["lost", "push"] or outcomes == ["push", "lost"]:
+        result = "half lost"
+    elif all(name == "won" for name in outcomes):
+        result = "won"
+    elif all(name == "lost" for name in outcomes):
+        result = "lost"
+    else:
+        result = "push"
+    return result, pnl
+
+
+def _settle(match, entry: dict) -> tuple[str, float]:
+    market, selection = entry["market"], entry["selection"]
+    odds = float(entry["odds_taken"])
     if market == "1X2":
-        return row["FTR"] == selection
-    return bool(row["over25"]) == (selection == "over")
+        won = match["FTR"] == selection
+        return ("won" if won else "lost", odds - 1.0 if won else -1.0)
+    if market == "OU2.5":
+        over = int(match["FTHG"]) + int(match["FTAG"]) > 2
+        won = over == (selection == "over")
+        return ("won" if won else "lost", odds - 1.0 if won else -1.0)
+    goal_difference = (int(match["FTHG"]) - int(match["FTAG"])
+                       if selection == "H"
+                       else int(match["FTAG"]) - int(match["FTHG"]))
+    return _asian_settlement(goal_difference, float(entry["line"]), odds)
+
+
+def _closing_quote(match, entry: dict) -> tuple[float | None,
+                                                 float | None]:
+    close = match.get(CLOSE_COLS[(entry["market"], entry["selection"])])
+    if close is None or close != close or float(close) <= 1:
+        return None, None
+    close_line = None
+    if entry["market"] == "AH":
+        raw_line = match.get("AHCh")
+        if raw_line is None or raw_line != raw_line:
+            return None, None
+        # AHCh is always written for the home side.  Entries store the line
+        # from the selected team's perspective, so invert it for an away pick.
+        close_line = float(raw_line)
+        if entry["selection"] == "A":
+            close_line = -close_line
+    return float(close), close_line
 
 
 def grade_guest(slug: str) -> dict:
@@ -210,8 +322,7 @@ def grade_guest(slug: str) -> dict:
         league = entry["league"]
         if league not in results_cache:
             try:
-                results_cache[league] = add_market_probabilities(
-                    load_matches(league))
+                results_cache[league] = guest_data.load_matches(league)
             except FileNotFoundError:
                 results_cache[league] = None
         frame = results_cache[league]
@@ -220,39 +331,46 @@ def grade_guest(slug: str) -> dict:
             "sealed_at": entry["sealed_at"],
             "kickoff": entry["kickoff"],
             "league": league,
+            "competition": config.guest_competition_name(league),
             "home": entry["home"],
             "away": entry["away"],
             "market": entry["market"],
             "selection": entry["selection"],
+            "line": entry.get("line"),
             "odds_taken": entry["odds_taken"],
             "book": entry.get("book", ""),
             "status": "pending",
             "close": None, "clv": None, "beat_close": None,
-            "won": None, "pnl": None,
+            "close_line": None, "line_advantage": None,
+            "result": None, "won": None, "pnl": None,
         }
         if frame is not None:
-            date = entry["kickoff"][:10]
-            hit = frame[(frame["Date"].dt.strftime("%Y-%m-%d") == date)
-                        & (frame["HomeTeam"] == entry["home"])
-                        & (frame["AwayTeam"] == entry["away"])]
-            if len(hit) == 1:
-                match = hit.iloc[0]
-                close_col = CLOSE_COLS[(entry["market"], entry["selection"])]
-                close = match.get(close_col)
-                if close is not None and close == close and close > 1:
-                    row["status"] = "graded"
-                    row["close"] = float(close)
-                    row["clv"] = entry["odds_taken"] / float(close) - 1.0
-                    row["beat_close"] = entry["odds_taken"] > float(close)
-                    won = _result_won(match, entry["market"],
-                                      entry["selection"])
-                    row["won"] = bool(won)
-                    row["pnl"] = (entry["odds_taken"] - 1.0) if won else -1.0
-                elif match["FTR"] == match["FTR"]:
+            match = _match_for_entry(frame, entry)
+            if match is not None:
+                result, pnl = _settle(match, entry)
+                row["result"], row["pnl"] = result, pnl
+                if result in ("won", "lost"):
+                    row["won"] = result == "won"  # guest-1 compatibility
+                close, close_line = _closing_quote(match, entry)
+                row["close"], row["close_line"] = close, close_line
+                if close is None:
                     row["status"] = "no_close"
+                elif entry["market"] == "AH" and abs(
+                        float(entry["line"]) - float(close_line)) > 1e-8:
+                    # Prices at different handicaps are different bets.  Show
+                    # both lines and settle the entry, but never calculate a
+                    # fake price CLV by dividing unlike selections.
+                    row["status"] = "line_changed"
+                    row["line_advantage"] = (float(entry["line"])
+                                             - float(close_line))
+                else:
+                    row["status"] = "graded"
+                    row["clv"] = entry["odds_taken"] / close - 1.0
+                    row["beat_close"] = entry["odds_taken"] > close
         rows.append(row)
 
     graded = [r for r in rows if r["status"] == "graded"]
+    settled = [r for r in rows if r["result"] is not None]
     name = entries[-1]["guest_name"] if entries else slug
     return {
         "slug": slug,
@@ -261,12 +379,14 @@ def grade_guest(slug: str) -> dict:
         "n_graded": len(graded),
         "n_pending": sum(r["status"] == "pending" for r in rows),
         "n_no_close": sum(r["status"] == "no_close" for r in rows),
+        "n_line_changed": sum(r["status"] == "line_changed" for r in rows),
+        "n_settled": len(settled),
         "beat_close": sum(r["beat_close"] for r in graded),
         "beat_close_pct": (sum(r["beat_close"] for r in graded) / len(graded)
                            if graded else None),
         "avg_clv": (sum(r["clv"] for r in graded) / len(graded)
                     if graded else None),
-        "pnl": sum(r["pnl"] for r in graded) if graded else None,
+        "pnl": sum(r["pnl"] for r in settled) if settled else None,
         "first_sealed": rows[0]["sealed_at"][:10] if rows else None,
         "entries": rows,
     }
@@ -294,20 +414,44 @@ def main(argv=None) -> int:
     s.add_argument("--kickoff", required=True, help="UTC, e.g. 2026-09-12T18:30Z")
     s.add_argument("--market", required=True, choices=sorted(MARKETS))
     s.add_argument("--selection", required=True,
-                   help="H/D/A for 1X2, over/under for OU2.5")
+                   help="H/D/A for 1X2, over/under for OU2.5, H/A for AH")
     s.add_argument("--odds", required=True, type=float,
                    help="decimal odds actually taken")
+    s.add_argument("--line", type=float, default=None,
+                   help="selected-team Asian handicap, e.g. -0.5 or +0.25")
     s.add_argument("--book", default="", help="where the price was taken")
     s.add_argument("--note", default="")
 
     sub.add_parser("show", help="grade and print every guest record")
+    sync = sub.add_parser("sync", help="download creator-ledger result feeds")
+    sync.add_argument("--leagues", default="",
+                      help="comma-separated codes; default: every supported feed")
+    sub.add_parser("coverage", help="list every measurable competition/market")
 
     args = ap.parse_args(argv)
+    if args.cmd == "coverage":
+        for code, meta in config.GUEST_COMPETITIONS.items():
+            print(f"{code:>3}  {meta['country']:<12}  {meta['name']:<38}  "
+                  f"{', '.join(meta['markets'])}")
+        print(f"\n{len(config.GUEST_COMPETITIONS)} feeds. BTTS is absent because "
+              "football-data.co.uk publishes no market-average BTTS close.")
+        return 0
+
+    if args.cmd == "sync":
+        codes = ([part.strip().upper() for part in args.leagues.split(",")
+                  if part.strip()] or list(config.GUEST_COMPETITIONS))
+        unknown = sorted(set(codes) - set(config.GUEST_COMPETITIONS))
+        if unknown:
+            ap.error(f"unknown competition code(s): {', '.join(unknown)}")
+        guest_data.refresh_many(codes)
+        print(f"synced {len(codes)} creator competition feed(s)")
+        return 0
+
     if args.cmd == "seal":
         path = seal(guest_name=args.guest, league=args.league, home=args.home,
                     away=args.away, kickoff=args.kickoff, market=args.market,
-                    selection=args.selection, odds=args.odds, book=args.book,
-                    note=args.note)
+                    selection=args.selection, odds=args.odds, line=args.line,
+                    book=args.book, note=args.note)
         print(f"sealed: {path}")
         print(f"verify: python proofodds/verify.py {path.parent}")
         return 0
@@ -325,11 +469,15 @@ def main(argv=None) -> int:
             line = (f"  {r['kickoff'][:16]}Z {r['league']} "
                     f"{r['home']} v {r['away']} — {r['market']} "
                     f"{r['selection']} @ {r['odds_taken']}")
+            if r["line"] is not None:
+                line += f" line {r['line']:+g}"
             if r["status"] == "graded":
                 line += (f" | close {r['close']:.3f} clv {r['clv']:+.2%} "
-                         f"{'won' if r['won'] else 'lost'}")
+                         f"{r['result']}")
             else:
                 line += f" | {r['status']}"
+                if r["result"]:
+                    line += f" {r['result']}"
             print(line)
     return 0
 

@@ -90,6 +90,56 @@ not remove it.
 
 ---
 
+## Creator records: every measurable competition
+
+The creator/guest ledger is wider than the ProofOdds model on purpose. Adding a
+competition here does **not** publish a ProofOdds forecast for it; it lets a creator
+seal their own entry and have it settled against a closing benchmark.
+
+The complete current football-data.co.uk coverage is registered — 38 feeds:
+
+| Source | Competition codes | Measurable markets |
+|---|---|---|
+| European season files (22) | `E0 E1 E2 E3 EC`, `SC0 SC1 SC2 SC3`, `D1 D2`, `I1 I2`, `SP1 SP2`, `F1 F2`, `N1 B1 P1 T1 G1` | 1X2, Over/Under 2.5, main Asian Handicap |
+| Extra country files (16) | `ARG AUT BRA CHN DNK FIN IRL JPN MEX NOR POL ROU RUS SWE SWZ USA` | 1X2 |
+
+`BRA` is Brasileirão Série A. The source does not publish Brazil Série B, and its
+extra-country files do not publish O/U, handicap or BTTS closes. BTTS is therefore
+not accepted anywhere: ProofOdds can settle whether both teams scored, but cannot
+measure edge without a closing price for the same selection. “Can settle” and “can
+benchmark” are kept separate throughout this feature.
+
+Download all 38 feeds, inspect the exact matrix, or sync only the competition about
+to be used:
+
+```bash
+python -m proofodds.guest coverage
+python -m proofodds.guest sync
+python -m proofodds.guest sync --leagues BRA,I2,E2
+```
+
+Seal a Brasileirão 1X2 entry or a selected-team Asian-handicap line:
+
+```bash
+python -m proofodds.guest seal --guest "Example Creator" --league BRA \
+  --home Flamengo --away Palmeiras --kickoff 2026-09-12T22:30Z \
+  --market 1X2 --selection H --odds 2.10 --book "Example book"
+
+python -m proofodds.guest seal --guest "Example Creator" --league E0 \
+  --home Arsenal --away Chelsea --kickoff 2026-09-12T15:00Z \
+  --market AH --selection H --line -0.5 --odds 1.95 --book "Example book"
+```
+
+Asian quarter lines are settled correctly as two half-stakes (including pushes,
+half wins and half losses). The source publishes only the main closing handicap. If
+the creator's sealed line is different at the close, the page shows both lines and
+the flat-stakes result, but deliberately omits numeric price CLV: dividing prices at
+two different handicaps would compare different bets. The daily job refreshes only
+the creator feeds already present in a public chain, so enabling all 38 does not turn
+every normal run into 38 downloads.
+
+---
+
 ## Running it
 
 ```bash
@@ -263,6 +313,8 @@ commercial licence.
 proofodds/
   config.py        settings, league list, tuned hyperparameters, the backtest prior
   data.py          download + cache football-data.co.uk, club-name resolution
+  guest_data.py    all creator-ledger competitions, both source schemas
+  guest.py         seal, timestamp, settle and benchmark creator entries
   crests.py        validated, display-only football-data.org crest URL cache
   dixon_coles.py   the model: tau, weighted likelihood with analytic gradient, fitting
   fixtures.py      upcoming fixtures (football-data.org, or a CSV fallback)

@@ -31,7 +31,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proofodds import anchor, config, data, fixtures, ledger, render  # noqa: E402
+from proofodds import (anchor, config, data, fixtures, guest, guest_data,
+                       ledger, render)  # noqa: E402
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -92,6 +93,23 @@ def main() -> int:
     if not args.build_only:
         log.info("refreshing results for %s", ", ".join(leagues))
         data.refresh(leagues)
+
+        # Model leagues on this run were refreshed one line above.  Do not
+        # download their last two files twice merely because a creator also
+        # has an entry there.
+        creator_leagues = [code for code in guest.used_competitions()
+                           if code not in leagues]
+        if creator_leagues:
+            log.info("refreshing creator-ledger results for %s",
+                     ", ".join(creator_leagues))
+            try:
+                guest_data.refresh_many(creator_leagues)
+            except Exception:
+                # A stale creator table is explicit (pending/no close).  It
+                # must not stop the main prediction ledger being sealed and
+                # published on time.
+                log.exception("creator result refresh incomplete — continuing "
+                              "with the last good cache")
 
         log.info("fetching fixtures")
         upcoming = fixtures.upcoming(leagues)

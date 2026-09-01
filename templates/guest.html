@@ -10,7 +10,9 @@
   <p class="lead">Every entry below was sealed into a hash chain <strong>before
   kickoff</strong> — pick and odds taken, first publication wins, nothing ever
   rewritten — and is measured against the market-average closing price. The rules
-  are ours; the predictions are not.</p>
+  are ours; the predictions are not. Asian-handicap price CLV is calculated only
+  when the sealed line and closing line are identical; unlike lines are shown, not
+  divided as if they were the same bet.</p>
 </div>
 
 <section class="band">
@@ -21,7 +23,7 @@
       <div>
         <div class="k">Sealed</div>
         <div class="v">{{ guest.n_sealed }}</div>
-        <div class="n">{{ guest.n_pending }} awaiting results</div>
+        <div class="n">{{ guest.n_settled }} settled · {{ guest.n_pending }} awaiting</div>
       </div>
       <div>
         <div class="k">Beat the close</div>
@@ -54,7 +56,9 @@
         for a long time: over a handful of entries, beating or trailing the close
         says almost nothing. This page exists so that the answer arrives honestly,
         not so that it arrives quickly. Profit at flat stakes is shown because
-        people ask for it — it is the least informative number here.
+        people ask for it — it is the least informative number here. An Asian
+        handicap whose line moved is settled for P/L but excluded from CLV unless
+        both lines are the same.
       </div>
     </div>
 
@@ -74,12 +78,12 @@
           {% for r in guest.entries %}
           <tr>
             <td>{{ r.sealed_at[:16].replace('T', ' ') }}</td>
-            <td>{{ r.league }} · {{ r.home }} v {{ r.away }}</td>
-            <td>{{ r.market }} {{ r.selection }}</td>
+            <td>{{ r.league }} · {{ r.competition }}<br>{{ r.home }} v {{ r.away }}</td>
+            <td>{{ r.market }} {{ r.selection }}{% if r.line is not none %} {{ '%+g'|format(r.line) }}{% endif %}</td>
             <td>{{ '%.3f'|format(r.odds_taken) }}</td>
-            <td>{% if r.close %}{{ '%.3f'|format(r.close) }}{% else %}—{% endif %}</td>
-            <td>{% if r.clv is not none %}<span class="{{ 'ahead' if r.clv > 0 else 'behind' }}">{{ '%+.2f'|format(r.clv * 100) }}%</span>{% else %}{{ r.status }}{% endif %}</td>
-            <td>{% if r.won is not none %}{{ 'won' if r.won else 'lost' }}{% else %}—{% endif %}</td>
+            <td>{% if r.close %}{% if r.close_line is not none %}{{ '%+g'|format(r.close_line) }} @ {% endif %}{{ '%.3f'|format(r.close) }}{% else %}—{% endif %}</td>
+            <td>{% if r.clv is not none %}<span class="{{ 'ahead' if r.clv > 0 else 'behind' }}">{{ '%+.2f'|format(r.clv * 100) }}%</span>{% elif r.status == 'line_changed' %}different closing line{% else %}{{ r.status }}{% endif %}</td>
+            <td>{% if r.result %}{{ r.result }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
