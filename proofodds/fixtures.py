@@ -284,7 +284,15 @@ def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixtur
         raise RuntimeError(f"football-data.co.uk fixtures returned {resp.status_code}")
     today = dt.date.today(); horizon = today + dt.timedelta(days=days_ahead)
     out, unresolved = [], []
-    for row in csv.DictReader(StringIO(resp.text.lstrip("\ufeff"))):
+    try:
+        body = resp.content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        # Defensive fallback for a legacy feed. `requests.Response.text` is
+        # deliberately not used: the endpoint omits a charset, so requests
+        # may turn a UTF-8 BOM into the literal Latin-1 characters `ï»¿` and
+        # silently rename the first column from `Div` to `ï»¿Div`.
+        body = resp.content.decode("latin-1").lstrip("ï»¿")
+    for row in csv.DictReader(StringIO(body)):
         league = (row.get("Div") or "").strip().upper()
         if league not in leagues:
             continue

@@ -1892,6 +1892,22 @@ def test_name_audit_uses_the_configured_fixture_source(monkeypatch):
     assert called == [(14, ["SC0"])]
 
 
+def test_fdco_fixture_reader_strips_utf8_bom(monkeypatch):
+    from proofodds import fixtures
+    from types import SimpleNamespace
+    tomorrow = dt.date.today() + dt.timedelta(days=1)
+    payload = ("Div,Date,Time,HomeTeam,AwayTeam\n"
+               f"SC0,{tomorrow:%d/%m/%Y},15:00,Dundee,St Mirren\n")
+    response = SimpleNamespace(status_code=200,
+                               content=b"\xef\xbb\xbf" + payload.encode("utf-8"))
+    monkeypatch.setattr(fixtures.requests, "get", lambda *a, **k: response)
+    monkeypatch.setattr(fixtures, "_name", lambda raw, league, unresolved: (raw, True))
+    got = fixtures.from_football_data_co_uk(14, ["SC0"])
+    assert len(got) == 1
+    assert got[0].league == "SC0"
+    assert got[0].home_raw == "Dundee"
+
+
 def test_corner_model_produces_normalised_total_distribution():
     from proofodds import corners
     import numpy as np, pandas as pd
