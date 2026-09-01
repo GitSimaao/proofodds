@@ -706,6 +706,52 @@ def test_log_loss_reference_points():
     assert abs(data.log_loss(uniform, ["H"] * 50) - config.UNIFORM_LOG_LOSS) < 1e-12
 
 
+def _odds_frame(**overrides):
+    """One-row frame with everything add_market_probabilities needs."""
+    import pandas as pd
+    row = {"FTHG": 1, "FTAG": 0, "FTR": "H",
+           "AvgCH": 2.10, "AvgCD": 3.40, "AvgCA": 3.60,
+           "AvgC>2.5": 1.90, "AvgC<2.5": 1.95}
+    row.update(overrides)
+    return pd.DataFrame([row])
+
+
+def test_zero_odds_are_a_placeholder_not_a_price():
+    """
+    football-data files occasionally carry 0.0 in an odds column. notna() does
+    not catch it, and 1/0 turns that row into probabilities of [0, 0, nan] and
+    a log loss of ~34 for one match — enough to poison a whole week's number.
+    Both market paths must refuse any odds <= 1.
+    """
+    out = data.add_market_probabilities(_odds_frame(AvgCA=0.0))
+    assert not out["has_odds"].iloc[0]
+    assert out[["mkt_H", "mkt_D", "mkt_A"]].isna().all(axis=None)
+
+    out = data.add_market_probabilities(_odds_frame(**{"AvgC<2.5": 0.0}))
+    assert not out["has_ou_odds"].iloc[0]
+
+    # and a real price on every column still grades
+    out = data.add_market_probabilities(_odds_frame())
+    assert out["has_odds"].iloc[0] and out["has_ou_odds"].iloc[0]
+
+
+def test_benchmark_is_the_market_average_not_pinnacle():
+    """
+    The site grades against AvgC* (football-data dropped Pinnacle's closing
+    columns in January 2026). A row with Pinnacle prices and no average must
+    NOT be gradeable — silently mixing benchmarks is the failure mode this
+    pins down.
+    """
+    assert data.ODDS_COLS == ["AvgCH", "AvgCD", "AvgCA"]
+    assert data.OU_COLS == ["AvgC>2.5", "AvgC<2.5"]
+
+    import numpy as np
+    only_pinnacle = _odds_frame(AvgCH=np.nan, AvgCD=np.nan, AvgCA=np.nan,
+                                PSCH=2.05, PSCD=3.45, PSCA=3.70)
+    out = data.add_market_probabilities(only_pinnacle)
+    assert not out["has_odds"].iloc[0]
+
+
 # --------------------------------------------------------------------------- #
 #  Rendering
 # --------------------------------------------------------------------------- #
@@ -1070,8 +1116,8 @@ def test_both_markets_are_sealed_and_each_sums_to_exactly_one(
 
 def test_the_two_markets_are_graded_on_their_own_matches():
     """
-    A match can be scoreable on the result and not on the total: Pinnacle's
-    closing total only exists from 2019/20, and entries sealed before this
+    A match can be scoreable on the result and not on the total: a closing
+    total is not published for every match, and entries sealed before this
     market was published carry no probability for it at all. Neither gap may
     borrow matches from the other.
     """

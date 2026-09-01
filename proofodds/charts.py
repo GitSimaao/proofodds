@@ -70,7 +70,7 @@ def cumulative_gap(points: list[dict], width: int = 720, height: int = 220) -> s
   <text x="{pad_l}" y="{height - 8}" class="tick">{_esc(first)}</text>
   <text x="{width - pad_r}" y="{height - 8}" class="tick" text-anchor="end">{_esc(last)}</text>
 </svg>
-<figcaption>Cumulative log loss against Pinnacle's closing line.
+<figcaption>Cumulative log loss against the market-average closing line.
 Above the rule the model is behind; below it, ahead.</figcaption>
 </figure>'''
 

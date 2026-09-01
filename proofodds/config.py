@@ -48,7 +48,7 @@ DATA_CONTROLLER = os.environ.get("PROOFODDS_CONTROLLER", "the operator of ProofO
 # --- leagues ---------------------------------------------------------------
 # Keys are football-data.co.uk division codes; `fdorg` is the competition code
 # football-data.org uses for the same division on its free tier. Both sides
-# matter: the first is where results and Pinnacle closing prices come from, the
+# matter: the first is where results and closing prices come from, the
 # second is where next weekend's fixtures come from, and a division is only
 # usable when BOTH cover it. That is why the Champions League is absent — the
 # fixtures are available, the closing prices are not, so it could be predicted
@@ -124,19 +124,25 @@ UNIFORM_LOG_LOSS_BINARY = 0.6931471805599453  # -log(1/2), two-way
 TOTALS_LINE = 2.5
 
 # --- the prior --------------------------------------------------------------
-# Walk-forward backtest of this exact model, 2017/18-2025/26, reproducible from
+# Walk-forward backtest of this exact model, reproducible from
 # the research repository. This is a BACKTEST and the site must always label it
 # as one: it is not the live record, and it never appears on the scorecard page.
 BACKTEST = {
-    "period": "2017/18 – 2025/26",
-    "n": 3250,
-    "model_log_loss": 0.9654,
-    "market_log_loss": 0.9484,
-    "gap": 0.0170,
-    "model_accuracy": 0.543,
-    "market_accuracy": 0.554,
-    "test_n": 1730,
-    "test_model": 0.9693,
-    "test_market": 0.9468,
+    # Graded against the market-average close (AvgC*), which football-data
+    # publishes from 2019/20. The walk-forward itself starts in 2017/18 (after
+    # two seasons of burn-in); the first two of its seasons carry no average
+    # close and so train the model without being scored. On the same
+    # predictions the old Pinnacle benchmark (n=3250, 2017/18–2025/26, incl.
+    # only 210 of the 380 matches of 2025/26) read 0.9654 vs 0.9484.
+    "period": "2019/20 – 2025/26",
+    "n": 2660,
+    "model_log_loss": 0.9827,
+    "market_log_loss": 0.9639,
+    "gap": 0.0189,
+    "model_accuracy": 0.527,
+    "market_accuracy": 0.550,
+    "test_n": 1900,
+    "test_model": 0.9783,
+    "test_market": 0.9556,
     "repo": "https://github.com/GitSimaao/pl-dixon-coles",
 }

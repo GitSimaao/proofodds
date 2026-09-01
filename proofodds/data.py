@@ -4,8 +4,16 @@ Match history: download, cache, clean.
 Source is football-data.co.uk, which publishes results plus closing odds for
 the major European leagues, updated a few times a week during the season. It is
 free, it has been reliable for two decades, and — importantly for us — it
-carries Pinnacle's closing prices, which is the benchmark the whole site is
-built around.
+carries the market-average closing price (AvgC*), which is the benchmark the
+whole site is built around.
+
+Why the market average and not one book: the site graded against Pinnacle's
+close (PSC*) until mid-January 2026, when football-data.co.uk stopped carrying
+those columns. Before switching we measured the two benchmarks against each
+other on every division we publish — the difference in de-vigged log loss is
+within ±0.002 everywhere (E0: 0.0001) — and published the measurement on the
+method page. Where Pinnacle's columns still exist in cached files they are
+kept, unused, as a cross-check.
 
 The current season's file changes as matches are played, so it is re-downloaded
 on every run. Finished seasons are cached forever.
@@ -27,11 +35,14 @@ from . import config
 log = logging.getLogger(__name__)
 
 CORE_COLS = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
-ODDS_COLS = ["PSCH", "PSCD", "PSCA"]
-# Pinnacle's CLOSING over/under 2.5 line. Published from 2019/20 onwards only,
-# which is why the totals record has four seasons less history behind it than
-# the 1X2 one — the method page says so rather than quietly averaging them.
-OU_COLS = ["PC>2.5", "PC<2.5"]
+# The market-average CLOSING prices — the benchmark. Published from 2019/20
+# onwards; earlier seasons are still loaded (they train the model) but cannot
+# be graded, and the method page says so rather than quietly averaging them.
+ODDS_COLS = ["AvgCH", "AvgCD", "AvgCA"]
+OU_COLS = ["AvgC>2.5", "AvgC<2.5"]
+# Pinnacle's closing prices, kept where the files still carry them purely as a
+# cross-check against the average. Never graded against.
+PINNACLE_COLS = ["PSCH", "PSCD", "PSCA", "PC>2.5", "PC<2.5"]
 OUTCOME_INDEX = {"H": 0, "D": 1, "A": 2}
 
 
@@ -584,13 +595,14 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
             log.error("%s is unreadable (%s) — delete it and re-run to "
                       "re-download", path.name, exc)
             continue
-        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS if c in raw.columns]
+        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS + PINNACLE_COLS
+                if c in raw.columns]
         missing = [c for c in CORE_COLS if c not in raw.columns]
         if missing:
             log.warning("%s is missing %s — skipping it", path.name, missing)
             continue
         df = raw[keep].copy()
-        for col in ODDS_COLS + OU_COLS:
+        for col in ODDS_COLS + OU_COLS + PINNACLE_COLS:
             if col not in df.columns:
                 df[col] = np.nan
         df["Season"] = f"20{season[:2]}/{season[2:]}"
@@ -643,7 +655,12 @@ def add_market_probabilities(matches: pd.DataFrame) -> pd.DataFrame:
     Dividing through by the total removes it proportionally.
     """
     out = matches.copy()
-    has = out[ODDS_COLS].notna().all(axis=1)
+    # `> 1` because a 0.0 in an odds column is a placeholder, not a price —
+    # notna() lets it through, and 1/0 turns one bad row into probabilities of
+    # [0, 0, nan] and a log loss of 34 for that match. It has happened: three
+    # such rows exist in the cached files. No real decimal price is ≤ 1.
+    has = (out[ODDS_COLS].notna().all(axis=1)
+           & (out[ODDS_COLS] > 1).all(axis=1))
     inv = 1.0 / out.loc[has, ODDS_COLS].to_numpy(dtype=float)
     total = inv.sum(axis=1, keepdims=True)
 

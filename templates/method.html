@@ -8,8 +8,8 @@
   <p class="eyebrow">Method</p>
   <h1>How this is built and how it is measured</h1>
   <p class="lead">Short version: a Dixon-Coles goals model, refitted every day on matches played
-  before that day, published before kickoff, and scored with log loss against Pinnacle's
-  closing line. The code is public.</p>
+  before that day, published before kickoff, and scored with log loss against the
+  market-average closing line. The code is public.</p>
 </div>
 
 <section class="band">
@@ -20,14 +20,13 @@
       <p>Two markets are published: the result, and whether the match goes over
       2.5 goals. Both come out of the same fitted model — the scoreline grid contains
       the whole distribution, so the total is a different sum of the same numbers, not
-      a second set of assumptions. Both are graded against Pinnacle's closing price.</p>
+      a second set of assumptions. Both are graded against the market-average
+      closing price.</p>
 
       <p>There is no both-teams-to-score, no over 1.5, no most-likely-scoreline, and
       the reason is the same in each case: no closing line is published for them, so
       we could state a number and never be shown to be wrong about it. A page where
-      every figure is scored is worth more than a page with more figures on it. Note
-      also that the closing total is only published from 2019/20, so that market's
-      history is four seasons shorter than the result market's.</p>
+      every figure is scored is worth more than a page with more figures on it.</p>
 
       <p>One model is fitted per division, on that division's matches only. Ratings are
       not comparable across countries — a Championship attack rating of 1.1 says nothing
@@ -78,10 +77,44 @@
       <strong>{{ '%.4f'|format(backtest.market_log_loss) }}</strong>. The whole of football
       knowledge is the gap between those two.</p>
 
+      <h2>The benchmark — and why it changed once</h2>
+      <p>The line we grade against is the <strong>market-average closing price</strong> as
+      published by football-data.co.uk (the <code>AvgC</code> columns): the mean across the
+      books they survey, taken at kickoff, de-vigged proportionally like everything else
+      here.</p>
+      <p>Until January 2026 the site graded against Pinnacle's closing price, the usual
+      sharp-book benchmark. football-data.co.uk stopped carrying Pinnacle's columns
+      mid-January 2026, in every division at once, which left a choice: blend benchmarks
+      match by match, or switch to one line that exists for every match. Blending is how
+      numbers stop meaning anything, so we switched — everywhere, including the backtest
+      below, which was recomputed against the average from scratch.</p>
+      <p>Before switching, we measured what the change does. On every match since 2019/20
+      that carries both prices, in all eight divisions we publish, the two de-vigged
+      benchmarks were scored against each other:</p>
+      <ul>
+        <li><strong>Premier League</strong> (2,490 matches): Pinnacle 0.9584 vs average
+        0.9582 on the result market — a difference of 0.0001 in log loss. On the totals
+        market, 0.6729 vs 0.6732. The two probability series correlate at 0.996.</li>
+        <li><strong>All eight divisions</strong>: the largest difference anywhere is the
+        Portuguese Primeira Liga at +0.0020 (the average is a slightly softer benchmark
+        there); the Eredivisie reads +0.0013 and every other division ±0.0007 or less.
+        On totals, no division differs by more than 0.0004. No single season in any
+        division differs by more than 0.005.</li>
+      </ul>
+      <p>So the switch moves the goalposts by at most two thousandths of a nat, in a
+      game where the model's distance to the market is about twenty. Where the bias
+      exists it makes the benchmark slightly easier, and this paragraph is the
+      disclosure. The measurement is reproducible:
+      <code>scripts/check_benchmark.py</code> in the site repository reruns it from the
+      raw CSVs. Pinnacle's prices are still recorded in the data where they exist, as a
+      cross-check, and are never graded against.</p>
+
       <h2>The backtest — and why it is on this page, not the scorecard</h2>
-      <p>Before a single live prediction existed, this exact model was run walk-forward over nine
-      seasons. That result is a useful prior and it is not a track record, so it lives here and
-      never appears next to the live numbers.</p>
+      <p>Before a single live prediction existed, this exact model was run walk-forward over
+      nine seasons of the Premier League. The average closing price is published from
+      2019/20, so the scored window is the last seven of them — the first two train the
+      model without being graded. That result is a useful prior and it is not a track
+      record, so it lives here and never appears next to the live numbers.</p>
     </div>
 
     <div class="strip" style="margin-top:26px">

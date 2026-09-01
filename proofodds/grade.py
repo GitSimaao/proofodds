@@ -2,8 +2,8 @@
 Grading: match published predictions to results and closing prices, then score.
 
 The scorecard answers one question and refuses to dress it up: over the matches
-we published in advance, is our log loss below Pinnacle's closing line or above
-it? Two reference points frame every number on the page —
+we published in advance, is our log loss below the market-average closing
+line or above it? Two reference points frame every number on the page —
 
     1.0986   predicting 1/3-1/3-1/3 every week
     ~0.95    the closing line
@@ -83,7 +83,7 @@ def graded_frame(leagues=None) -> pd.DataFrame:
     results["date"] = results["Date"].dt.normalize()
 
     cols = (["league", "date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
-             "PSCH", "PSCD", "PSCA", "has_odds", "has_ou_odds", "over25"]
+             "AvgCH", "AvgCD", "AvgCA", "has_odds", "has_ou_odds", "over25"]
             + MKT_COLS + OU_MKT_COLS)
     merged = preds.merge(results[cols], on=["league", "date", "home", "away"],
                          how="left")
@@ -105,8 +105,8 @@ def graded_frame(leagues=None) -> pd.DataFrame:
         merged.loc[g, "hit"] = (sub[PROB_COLS].to_numpy(float).argmax(axis=1) == idx)
 
     # The totals market is graded separately, on its own subset. A match can
-    # be gradeable on 1X2 and not on over/under — Pinnacle's closing total is
-    # only published from 2019/20, and an entry sealed before this market
+    # be gradeable on 1X2 and not on over/under — a closing total is not
+    # published for every match, and an entry sealed before this market
     # existed carries no probability for it at all. Neither gap is allowed to
     # borrow matches from the other.
     for col in OU_PROB_COLS:
@@ -191,7 +191,7 @@ def totals_scorecard(graded: pd.DataFrame) -> dict:
 
     The gaps are not comparable either, and that is the trap this function
     exists to defuse. Everything anyone knows about a football result is worth
-    about 0.150 nats on 1X2; on total goals it is worth about 0.020. There is
+    about 0.135 nats on 1X2; on total goals it is worth about 0.020. There is
     roughly seven times less to know, so a model will sit closer to the closing
     line on totals almost regardless of how good it is — and reading that as
     "we are better at goals" would be exactly backwards. `share_of_available`

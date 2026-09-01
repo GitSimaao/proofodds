@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Scorecard — {{ site_name }}{% endblock %}
-{% block description %}The live record: our log loss against Pinnacle's closing line, over every match we published in advance.{% endblock %}
+{% block description %}The live record: our log loss against the market-average closing line, over every match we published in advance.{% endblock %}
 
 {% block content %}
 
@@ -104,7 +104,7 @@
       <div>
         <div class="k">Closing line</div>
         <div class="v muted">{{ '%.4f'|format(totals.market_log_loss) }}</div>
-        <div class="n">Pinnacle's closing total</div>
+        <div class="n">market-average closing total</div>
       </div>
       <div>
         <div class="k">Gap per match</div>
@@ -120,7 +120,7 @@
 
     <div class="callout">
       <strong>Do not compare these two gaps directly</strong>
-      Everything anyone knows about a football result is worth about 0.150 nats on
+      Everything anyone knows about a football result is worth about 0.135 nats on
       the 1X2 market. On total goals it is worth about 0.020 — there is roughly
       seven times less to know, because a closing total barely beats a coin flip.
       A model therefore sits closer to the market on goals almost regardless of how

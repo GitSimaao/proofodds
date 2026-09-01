@@ -45,7 +45,7 @@ def check_data(league: str) -> tuple[bool, str]:
     priced = data.add_market_probabilities(matches)
     have_odds = int(priced["has_odds"].sum())
     if have_odds == 0:
-        return False, ("no Pinnacle closing odds in any season — this division "
+        return False, ("no closing odds in any season — this division "
                        "cannot be graded and must not be published")
 
     latest = matches["Date"].max().date()

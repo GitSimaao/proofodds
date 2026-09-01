@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_components.html" import club_mark, league_flag %}
 {% block title %}{{ site_name }} — football probabilities, published before kickoff{% endblock %}
-{% block description %}Model probabilities for every match in {{ n_leagues }} European division{{ 's' if n_leagues != 1 }}, published before kickoff and scored against Pinnacle's closing line. The record is public, including when it is bad.{% endblock %}
+{% block description %}Model probabilities for every match in {{ n_leagues }} European division{{ 's' if n_leagues != 1 }}, published before kickoff and scored against the market-average closing line. The record is public, including when it is bad.{% endblock %}
 {% block og_title %}{{ site_name }} — published before kickoff, scored afterwards{% endblock %}
 
 {% block content %}
@@ -11,7 +11,7 @@
     <p class="eyebrow">{{ n_shown }} division{{ 's' if n_shown != 1 }} · Dixon-Coles · {{ n_upcoming }} match{{ 'es' if n_upcoming != 1 }} priced</p>
     <h1>Published before kickoff. Scored afterwards.</h1>
     <p class="lead">Every probability is sealed before the whistle, then graded against
-    Pinnacle's closing line. The running score stays public whether it flatters the model or not.</p>
+    the market-average closing line. The running score stays public whether it flatters the model or not.</p>
   </div>
   <div class="hero-trust" aria-label="How the record works">
     <div><span class="trust-step">01</span><p><strong>Forecast</strong>Model probabilities are produced from past results only.</p></div>
@@ -247,7 +247,7 @@
       <div class="box yes">
         <h4>Graded against the close</h4>
         <p>Not against our own opinion of a good result.
-        Against Pinnacle's closing price, the number that has absorbed all the informed money.</p>
+        Against the market's average closing price, the number left after all the informed money has moved it.</p>
       </div>
     </div>
   </div>

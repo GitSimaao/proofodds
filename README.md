@@ -1,7 +1,7 @@
 # ProofOdds
 
 Football match probabilities for eight European divisions, **published before kickoff
-and scored afterwards** against Pinnacle's closing line.
+and scored afterwards** against the market-average closing line.
 
 | | | |
 |---|---|---|
@@ -10,15 +10,20 @@ and scored afterwards** against Pinnacle's closing line.
 | `N1` Eredivisie | | `P1` Primeira Liga |
 
 Two markets are published for every match — the result, and whether it goes over 2.5
-goals — both out of one fitted model and both graded against Pinnacle's closing price.
+goals — both out of one fitted model and both graded against the market-average
+closing price (football-data.co.uk's `AvgC` columns; the site graded against
+Pinnacle until football-data stopped carrying those columns in January 2026 —
+the method page publishes the measured difference between the two benchmarks,
+at most 0.002 nats in any division, and `scripts/check_benchmark.py` reproduces it).
 Individual match pages also reconstruct the three most likely scorelines from the
 sealed expected goals and league low-score correction. They are labelled as indicative
 and excluded from the scorecard: without a closing-line comparison, they are context,
 not a third benchmarked claim.
 
 One Dixon-Coles model is fitted per division, on that division's matches only. It does
-not beat the closing line — a walk-forward backtest over nine Premier League seasons
-puts it about 0.017 nats per match behind — and the site says so on the front page.
+not beat the closing line — a walk-forward backtest over the seven Premier League
+seasons with a published average close puts it about 0.019 nats per match behind —
+and the site says so on the front page.
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
@@ -327,11 +332,11 @@ see `config.BACKTEST["repo"]`.
 ## Limitations
 
 The two markets are not comparable by their gaps. A 1X2 closing line holds about
-0.150 nats of knowledge over guessing; a closing total holds about 0.020. There is
+0.135 nats of knowledge over guessing; a closing total holds about 0.020. There is
 roughly seven times less to know about goals, so any model sits closer to the market
 there — the scorecard reports the share of what was available in each, which is the
-only honest comparison. The closing total is also published only from 2019/20, four
-seasons less history than the result market.
+only honest comparison. Average closing prices — for both markets — are published
+only from 2019/20, which bounds how far back anything can be graded.
 
 Goals only — no shots, no expected goals, no lineups. The model has never heard of a
 suspension, which is most of why the closing line beats it. Promoted teams start at
