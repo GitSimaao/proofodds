@@ -82,18 +82,41 @@ def verify(directory: Path) -> tuple[bool, list[str], dict]:
 
 
 def main(argv: list[str]) -> int:
-    directory = Path(argv[1]) if len(argv) > 1 else \
-        Path(__file__).resolve().parent.parent / "predictions"
+    root = Path(__file__).resolve().parent.parent
+    directory = Path(argv[1]) if len(argv) > 1 else root / "predictions"
 
     if not directory.is_dir():
         print(f"No ledger directory at {directory}")
         return 2
 
+    # With no argument, sweep the guest chains too. Each guest directory is a
+    # chain under exactly the same rule, so the same code verifies it; a guest
+    # record that could not be checked this way would not deserve the page it
+    # is printed on.
+    exit_code = 0
+    if len(argv) <= 1 and (root / "guests").is_dir():
+        for guest_dir in sorted(p for p in (root / "guests").iterdir()
+                                if p.is_dir()):
+            g_ok, g_problems, g_stats = verify(guest_dir)
+            label = f"guests/{guest_dir.name}"
+            if g_stats["entries"] == 0:
+                continue
+            if g_ok:
+                print(f"{label}: CHAIN OK — {g_stats['entries']} entr"
+                      f"{'y' if g_stats['entries'] == 1 else 'ies'}, "
+                      f"head {g_stats['head'][:16]}…")
+            else:
+                exit_code = 1
+                print(f"{label}: CHAIN BROKEN — {len(g_problems)} problem(s):")
+                for item in g_problems:
+                    print(f"  {item}")
+        print()
+
     ok, problems, stats = verify(directory)
 
     if stats["entries"] == 0:
         print(f"{directory} is empty — nothing to verify.")
-        return 0
+        return exit_code
 
     print(f"Ledger  : {directory}")
     print(f"Entries : {stats['entries']}")
@@ -105,7 +128,7 @@ def main(argv: list[str]) -> int:
 
     if ok:
         print("CHAIN OK — every hash recomputes and every link matches.")
-        return 0
+        return exit_code
 
     print(f"CHAIN BROKEN — {len(problems)} problem(s):")
     for item in problems:

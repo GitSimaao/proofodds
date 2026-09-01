@@ -104,8 +104,16 @@ def main() -> int:
     leagues = (args.leagues.split(",") if args.leagues
                else list(config.ENABLED_LEAGUES))
 
+    # Say what was covered, loudly. ENABLED_LEAGUES reads PROOFODDS_LEAGUES
+    # from the environment and defaults to E0 alone, so a bare shell run
+    # prints a confident PASS that covers one division out of eight. A PASS
+    # is only as strong as the list on this line.
+    print(f"divisions covered: {', '.join(lg.strip() for lg in leagues)} "
+          f"({len(leagues)} of {len(config.LEAGUES)} configured)\n")
+
     all_ok = all([check_league(lg.strip(), args.tolerance) for lg in leagues])
-    print("\nresult:", "PASS — benchmarks equivalent within tolerance" if all_ok
+    print(f"\nresult over {len(leagues)} division(s):",
+          "PASS — benchmarks equivalent within tolerance" if all_ok
           else "FAIL — see lines above")
     return 0 if all_ok else 1
 

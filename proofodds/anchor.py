@@ -91,6 +91,10 @@ def inspect(proof: Path, entry_path: Path | None = None) -> dict:
 def _earliest_kickoff(entry_path: Path) -> dt.datetime | None:
     entry = ledger.read(entry_path)
     values = [row.get("kickoff", "") for row in entry.get("predictions", [])]
+    if not values and entry.get("kickoff"):
+        # A guest entry seals a single match, so its kickoff sits at the top
+        # level rather than inside a predictions list. Same eligibility rule.
+        values = [entry["kickoff"]]
     parsed = []
     for value in values:
         try:

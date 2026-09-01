@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ guest.name }} — guest record — {{ site_name }}{% endblock %}
+{% block description %}{{ guest.name }}'s predictions, sealed before kickoff in the {{ site_name }} ledger and measured by closing line value. {{ guest.n_sealed }} sealed, {{ guest.n_graded }} graded.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Guest record · since {{ guest.first_sealed }}</p>
+  <h1>{{ guest.name }}</h1>
+  <p class="lead">Every entry below was sealed into a hash chain <strong>before
+  kickoff</strong> — pick and odds taken, first publication wins, nothing ever
+  rewritten — and is measured against the market-average closing price. The rules
+  are ours; the predictions are not.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+
+    {% if guest.n_graded %}
+    <div class="strip">
+      <div>
+        <div class="k">Sealed</div>
+        <div class="v">{{ guest.n_sealed }}</div>
+        <div class="n">{{ guest.n_pending }} awaiting results</div>
+      </div>
+      <div>
+        <div class="k">Beat the close</div>
+        <div class="v">{{ guest.beat_close }}/{{ guest.n_graded }}</div>
+        <div class="n">{{ '%.0f'|format(guest.beat_close_pct * 100) }}% of graded entries</div>
+      </div>
+      <div>
+        <div class="k">Average CLV</div>
+        <div class="v {{ 'ahead' if guest.avg_clv > 0 else 'behind' }}">{{ '%+.2f'|format(guest.avg_clv * 100) }}%</div>
+        <div class="n">odds taken vs the close</div>
+      </div>
+      <div>
+        <div class="k">Flat P/L</div>
+        <div class="v muted">{{ '%+.2f'|format(guest.pnl) }}u</div>
+        <div class="n">1 unit per entry — the noisier number</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="prose">
+      <p><strong>{{ guest.n_sealed }} entr{{ 'y' if guest.n_sealed == 1 else 'ies' }}
+      sealed, none graded yet.</strong> Grading happens when results and closing
+      prices arrive, automatically.</p>
+    </div>
+    {% endif %}
+
+    <div class="prose" style="margin-top:26px">
+      <div class="callout">
+        <strong>Read the sample size before reading anything else</strong>
+        Closing line value converges far faster than profit, and it is still noise
+        for a long time: over a handful of entries, beating or trailing the close
+        says almost nothing. This page exists so that the answer arrives honestly,
+        not so that it arrives quickly. Profit at flat stakes is shown because
+        people ask for it — it is the least informative number here.
+      </div>
+    </div>
+
+    {% if guest.entries %}
+    <div class="prose" style="margin-top:8px">
+      <h2>Every entry, oldest first</h2>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Sealed (UTC)</th><th>Match</th><th>Pick</th>
+            <th>Odds taken</th><th>Close</th><th>CLV</th><th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in guest.entries %}
+          <tr>
+            <td>{{ r.sealed_at[:16].replace('T', ' ') }}</td>
+            <td>{{ r.league }} · {{ r.home }} v {{ r.away }}</td>
+            <td>{{ r.market }} {{ r.selection }}</td>
+            <td>{{ '%.3f'|format(r.odds_taken) }}</td>
+            <td>{% if r.close %}{{ '%.3f'|format(r.close) }}{% else %}—{% endif %}</td>
+            <td>{% if r.clv is not none %}<span class="{{ 'ahead' if r.clv > 0 else 'behind' }}">{{ '%+.2f'|format(r.clv * 100) }}%</span>{% else %}{{ r.status }}{% endif %}</td>
+            <td>{% if r.won is not none %}{{ 'won' if r.won else 'lost' }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <div class="prose" style="margin-top:30px">
+      <h2>Check it yourself</h2>
+      <p>The sealed files are served raw under
+      <a href="/guests/{{ guest.slug }}/entries/index.json">/guests/{{ guest.slug }}/entries/</a>,
+      chained by SHA-256 exactly like the <a href="/ledger/">main ledger</a>, and
+      anchored with OpenTimestamps where the proof exists. From a clone of
+      <a href="{{ repo_url }}" rel="noopener">the repository</a>:</p>
+      <pre><code>python proofodds/verify.py guests/{{ guest.slug }}</code></pre>
+      <p>Standard library only, and the verifier reimplements the hash rule rather
+      than calling the code that wrote it.</p>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

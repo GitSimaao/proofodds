@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Nobody publishes the score — {{ site_name }}{% endblock %}
+{% block description %}Why this site exists: football probabilities sealed before kickoff, scored against the market-average closing line, with the record public either way.{% endblock %}
+{% block og_title %}Nobody publishes the score{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Log · {{ post_date }}</p>
+  <h1>Nobody publishes the score</h1>
+  <p class="lead">There is no shortage of football probabilities on the internet. There is an
+  almost complete absence of people keeping score of them. This site is an attempt at the
+  second thing.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="prose">
+
+      <p>Every probability we publish is written into a JSON file before kickoff and
+      hashed. Each file carries the SHA-256 of the file before it, so the whole
+      directory is a chain: alter one past prediction without rebuilding every later
+      hash and verification fails — publicly, on our own <a href="/ledger/">ledger
+      page</a>, which runs the check on every build. The chain is pushed to a public
+      git repository on every run, so hiding a change would mean rewriting every later
+      file and force-pushing, in public, where anyone who cloned it earlier can see.</p>
+
+      <p>A git history alone does not prove <em>when</em> — a commit date is a setting.
+      So each day's entry is also anchored with
+      <a href="https://opentimestamps.org/" rel="noopener">OpenTimestamps</a>, which
+      commits its hash into the Bitcoin blockchain: proving a file existed before a
+      block is not a claim about our honesty, it is a property of the chain with the
+      most expensive clock in the world. Anchoring has run since 28 August 2026; the
+      first two days of the ledger predate it and are marked, on the ledger page, as
+      chain-only. We would rather say that ourselves than have somebody else say it
+      for us.</p>
+
+      <p>You can recompute all of it in under a minute:</p>
+
+      <pre><code>git clone {{ repo_url }} &amp;&amp; cd proofodds
+python -m proofodds.verify</code></pre>
+
+      <p>That needs nothing installed. The verifier imports only the standard library,
+      and rewrites the hash rule rather than calling the code that wrote it — our code
+      checking our code could agree with itself while both were wrong.</p>
+
+      <h2>The part most sites leave out</h2>
+
+      <p><strong>Our model loses to the closing line.</strong> A walk-forward backtest
+      over seven Premier League seasons puts it roughly
+      {{ '%.3f'|format(backtest.gap) }} nats per match behind the market-average
+      close, and the live record since 26 August 2026 currently reads:</p>
+
+      {% if score.live %}
+      <div class="strip">
+        <div>
+          <div class="k">Matches graded</div>
+          <div class="v">{{ score.n }}</div>
+          <div class="n">result market, all divisions</div>
+        </div>
+        <div>
+          <div class="k">ProofOdds</div>
+          <div class="v">{{ '%.4f'|format(score.model_log_loss) }}</div>
+          <div class="n">log loss</div>
+        </div>
+        <div>
+          <div class="k">Closing line</div>
+          <div class="v muted">{{ '%.4f'|format(score.market_log_loss) }}</div>
+          <div class="n">same matches</div>
+        </div>
+        <div>
+          <div class="k">Gap per match</div>
+          <div class="v {{ 'ahead' if score.beats_market else 'behind' }}">{{ '%+.4f'|format(score.gap) }}</div>
+          <div class="n">{{ 'ahead of' if score.beats_market else 'behind' }} the market</div>
+        </div>
+      </div>
+      {% else %}
+      <p><em>The first matches are being graded now — the live number is on the
+      <a href="/scorecard/">scorecard</a>.</em></p>
+      {% endif %}
+
+      <p>That number is on the front page and it stays there whichever way it points.
+      We are not selling a model that beats the market. We are publishing a
+      measurement, and the measurement includes us.</p>
+
+      <p><strong>Why the closing line.</strong> Not our own opinion of a good result,
+      not units won, not return on investment. The market-average closing price is the
+      number left after every informed opinion has moved it, right up to kickoff, and
+      log loss cannot be cherry-picked the way ROI over three hundred bets can. Two
+      reference points frame every figure: predicting 1/3-1/3-1/3 every week scores
+      {{ '%.4f'|format(uniform_log_loss) }}, and the closing line scores about
+      {{ '%.4f'|format(backtest.market_log_loss) }}. Everything anyone knows about a
+      football result is worth the gap in between. Our job is to say how much of that
+      we capture, and to be exact about it.</p>
+
+      <p><strong>What is covered.</strong> Eight divisions — Premier League,
+      Championship, La Liga, Serie A, Bundesliga, Ligue 1, Primeira Liga, Eredivisie —
+      with one Dixon-Coles goals model fitted per division on that division's matches
+      only. Two markets per match: the result, and whether it goes over 2.5 goals,
+      both out of the same fitted model and both graded against the market-average
+      close. The model itself, the backtest behind it, and the reason the benchmark is
+      the average rather than a single book are on the <a href="/method/">method
+      page</a>, measurement included.</p>
+
+      <p><strong>What is not covered, and why.</strong> No both-teams-to-score, no
+      over 1.5, no most-likely-scoreline as a graded market, no Champions League. Not
+      because they are hard — most fall out of the same scoreline grid for free — but
+      because no closing line is published for any of them. We would be stating
+      numbers we could never be shown to be wrong about, and a page where every figure
+      is scored is worth more than a page with more figures on it.</p>
+
+      <p><strong>A warning about comparing the two markets.</strong> A 1X2 closing
+      line holds about 0.135 nats of knowledge over guessing. A closing total holds
+      about 0.020 — there is roughly seven times less to know about goals, and a
+      closing total barely beats a coin flip. Any model therefore sits closer to the
+      market on goals almost regardless of how good it is. Reading a smaller gap there
+      as "better at goals" is exactly backwards, so the scorecard reports the share of
+      what was available in each market rather than inviting the comparison.</p>
+
+      <p><strong>No affiliate links. No ROI headline. No "since we improved the
+      model" start date.</strong> Every graded match since the first publication is in
+      the numbers, and the ledger is there to prove it.</p>
+
+      <p class="muted"><em>Statistical forecasts, published for information. Not
+      betting advice. 18+.</em></p>
+
+    </div>
+  </div>
+</section>
+
+{% endblock %}

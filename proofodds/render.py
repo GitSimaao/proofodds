@@ -20,7 +20,7 @@ import unicodedata
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import anchor, charts, config, crests, dixon_coles, grade, ledger
+from . import anchor, charts, config, crests, dixon_coles, grade, guest, ledger
 from .data import sealed_name
 
 log = logging.getLogger(__name__)
@@ -432,6 +432,47 @@ def build(out_dir=None) -> None:
         half_life=int(round(math.log(2) / config.XI)),
         **common))
 
+    # The log: dated notes with a stable home on our own domain, so links from
+    # elsewhere (HN, Reddit) point at a page we control rather than a post a
+    # moderator can delete. The launch note fills its numbers from the live
+    # scorecard at build time — a page whose argument is verifiability must
+    # never show a stale figure.
+    log_posts = [{
+        "url": "/log/first-post/",
+        "title": "Nobody publishes the score",
+        "date": "8 September 2026",
+        "summary": ("Why this site exists: probabilities sealed before kickoff, "
+                    "scored against the market-average close, record public "
+                    "either way."),
+    }]
+    write("log/index.html", env.get_template("log.html").render(
+        page="log", canonical="/log/", posts=log_posts, **common))
+    write("log/first-post/index.html",
+          env.get_template("log_first_post.html").render(
+              page="log", canonical="/log/first-post/",
+              post_date=log_posts[0]["date"], **common))
+
+    # Guest records — other people's predictions sealed under our rules,
+    # measured by closing line value. Pages exist only once a guest does; the
+    # raw chain files are served beside each page so the record is auditable
+    # without trusting the table that summarises it.
+    guest_records = guest.all_guests()
+    for record in guest_records:
+        write(f"guests/{record['slug']}/index.html",
+              env.get_template("guest.html").render(
+                  page="guest", canonical=f"/guests/{record['slug']}/",
+                  guest=record, **common))
+        raw_dir = out_dir / "guests" / record["slug"] / "entries"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        for path in guest.entry_files(record["slug"]):
+            shutil.copy2(path, raw_dir / path.name)
+        # Directory listings are off on the server; a JSON index makes the raw
+        # chain reachable by URL alone.
+        (raw_dir / "index.json").write_text(json.dumps(
+            {"guest": record["slug"],
+             "files": [p.name for p in guest.entry_files(record["slug"])]},
+            indent=2), encoding="utf-8")
+
     write("privacy/index.html", env.get_template("privacy.html").render(
         page="privacy", canonical="/privacy/", **common))
 
@@ -449,7 +490,9 @@ def build(out_dir=None) -> None:
     (out_dir / "favicon.svg").write_bytes(logo)
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
-    public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/privacy/"]
+    public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/privacy/",
+                    "/log/", "/log/first-post/"]
+    public_pages.extend(f"/guests/{r['slug']}/" for r in guest_records)
     public_pages.extend(match["match_url"] for match in matches)
     (out_dir / "sitemap.xml").write_text(
         sitemap(public_pages), encoding="utf-8")

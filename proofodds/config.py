@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = ROOT / "data"
 PREDICTIONS_DIR = ROOT / "predictions"
+# Guest chains — other people's predictions sealed under the same hash rule,
+# one directory per guest. Empty (or absent) until the first guest exists.
+GUESTS_DIR = ROOT / "guests"
 TIMESTAMPS_DIR = ROOT / "timestamps"
 SITE_DIR = ROOT / "site"
 OUTPUT_DIR = ROOT / "outputs"

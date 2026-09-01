@@ -1613,3 +1613,95 @@ def test_leftovers_are_skipped_at_every_level_of_static(tmp_path, monkeypatch):
     assert (out / "flags" / "england.svg").exists()
     assert not (out / "style.css.bak").exists()
     assert not (out / "flags" / "england.svg.bak").exists()
+
+
+# --------------------------------------------------------------------------- #
+#  Guest ledger
+# --------------------------------------------------------------------------- #
+def _seal_guest(tmp_path, monkeypatch, **overrides):
+    from proofodds import guest
+    monkeypatch.setattr(config, "GUESTS_DIR", tmp_path / "guests")
+    kwargs = dict(guest_name="Test Guest", league="E0", home="Arsenal",
+                  away="Chelsea", kickoff="2099-01-01T15:00Z", market="1X2",
+                  selection="H", odds=2.05, stamp=False)
+    kwargs.update(overrides)
+    return guest.seal(**kwargs)
+
+
+def test_guest_entry_is_sealed_chained_and_verifiable(tmp_path, monkeypatch):
+    """
+    A guest chain must be checkable by the SAME standalone verifier as the
+    main ledger — a guest record that needed special tooling to audit would
+    not deserve the page it is printed on.
+    """
+    from proofodds import guest, verify
+    from proofodds.ledger import compute_hash
+
+    first = _seal_guest(tmp_path, monkeypatch)
+    entry = json.loads(first.read_text(encoding="utf-8"))
+    assert entry["prev_hash"] == "0" * 64
+    assert entry["hash"] == compute_hash(entry)
+    assert verify.entry_hash(entry) == entry["hash"]
+
+    second = _seal_guest(tmp_path, monkeypatch, selection="D", odds=3.4,
+                         now=dt.datetime(2098, 1, 1, tzinfo=dt.timezone.utc))
+    linked = json.loads(second.read_text(encoding="utf-8"))
+    assert linked["prev_hash"] == entry["hash"]
+    assert verify.entry_hash(linked) == linked["hash"]
+
+
+def test_guest_seal_refuses_what_would_need_fixing_later(tmp_path, monkeypatch):
+    import pytest as _pytest
+    from proofodds import guest
+
+    with _pytest.raises(ValueError):   # started match
+        _seal_guest(tmp_path, monkeypatch, kickoff="2020-01-01T15:00Z")
+    with _pytest.raises(ValueError):   # placeholder price
+        _seal_guest(tmp_path, monkeypatch, odds=1.0)
+    with _pytest.raises(ValueError):   # unknown market
+        _seal_guest(tmp_path, monkeypatch, market="BTTS")
+    with _pytest.raises(ValueError):   # selection/market mismatch
+        _seal_guest(tmp_path, monkeypatch, market="OU2.5", selection="H")
+    with _pytest.raises(ValueError):   # unknown division
+        _seal_guest(tmp_path, monkeypatch, league="XX")
+
+
+@pytest.mark.needs_data
+def test_guest_clv_grades_against_the_average_close(tmp_path, monkeypatch):
+    """
+    CLV is odds-taken over the closing price for the same selection. A draw
+    taken at 3.6 against a close of 3.47 must read +3.7%, won, +2.6 units —
+    and an unplayed match must stay pending, not vanish.
+    """
+    from proofodds import data, guest
+    from proofodds.ledger import compute_hash
+    monkeypatch.setattr(config, "GUESTS_DIR", tmp_path / "guests")
+
+    matches = data.add_market_probabilities(data.load_matches("E0"))
+    played = matches[matches["graded"] if "graded" in matches else
+                     matches["has_odds"] & matches["FTR"].notna()].iloc[0]
+
+    gdir = tmp_path / "guests" / "test-guest"
+    gdir.mkdir(parents=True)
+    entry = {
+        "schema": "guest-1", "guest": "test-guest", "guest_name": "Test Guest",
+        "sealed_at": "2020-01-01T10:00:00Z",
+        "kickoff": played["Date"].strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "league": "E0", "home": played["HomeTeam"], "away": played["AwayTeam"],
+        "home_raw": played["HomeTeam"], "away_raw": played["AwayTeam"],
+        "market": "1X2", "selection": str(played["FTR"]),
+        "odds_taken": float(played[{"H": "AvgCH", "D": "AvgCD",
+                                    "A": "AvgCA"}[played["FTR"]]]) * 1.05,
+        "book": "", "note": "", "prev_hash": "0" * 64,
+    }
+    entry["hash"] = compute_hash(entry)
+    (gdir / "test-guest--2020-01-01T100000Z.json").write_text(
+        json.dumps(entry), encoding="utf-8")
+
+    record = guest.grade_guest("test-guest")
+    assert record["n_graded"] == 1
+    row = record["entries"][0]
+    assert row["status"] == "graded"
+    assert row["won"] is True
+    assert abs(row["clv"] - 0.05) < 1e-9      # priced 5% over the close
+    assert row["beat_close"] is True
