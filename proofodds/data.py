@@ -44,6 +44,7 @@ OU_COLS = ["AvgC>2.5", "AvgC<2.5"]
 # model does not use these columns; carrying them through this loader keeps one
 # canonical result frame without turning Asian handicap into a model claim.
 AH_COLS = ["AHCh", "AvgCAHH", "AvgCAHA"]
+CORNER_COLS = ["HC", "AC"]
 # Pinnacle's closing prices, kept where the files still carry them purely as a
 # cross-check against the average. Never graded against.
 PINNACLE_COLS = ["PSCH", "PSCD", "PSCA", "PC>2.5", "PC<2.5"]
@@ -55,6 +56,15 @@ OUTCOME_INDEX = {"H": 0, "D": 1, "A": 2}
 # --------------------------------------------------------------------------- #
 def season_path(league: str, season: str):
     return config.DATA_DIR / f"{league}_{season}.csv"
+
+
+def extra_path(league: str):
+    return config.DATA_DIR / f"guest_{league}.csv"
+
+
+def download_extra(league: str, force: bool = False) -> bool:
+    from . import guest_data
+    return guest_data.download_extra(league, force=force)
 
 
 def looks_like_results(raw: bytes) -> bool:
@@ -139,6 +149,12 @@ def refresh(leagues=None) -> None:
         leagues = [leagues]
 
     for league in leagues:
+        if config.LEAGUES.get(league, {}).get("source") == "extra":
+            try:
+                download_extra(league, force=True)
+            except Exception as exc:
+                log.warning("could not fetch %s: %s", league, exc)
+            continue
         for season in config.SEASONS[:-2]:
             try:
                 download_season(league, season, force=False)
@@ -359,6 +375,9 @@ _warned_pending: set[tuple[str, str]] = set()
 
 def _cache_key(league: str) -> tuple:
     """Mtimes of the division's CSVs — the set changes when the data does."""
+    if config.LEAGUES.get(league, {}).get("source") == "extra":
+        path = extra_path(league)
+        return (("extra", path.stat().st_mtime_ns if path.exists() else 0),)
     out = []
     for season in config.SEASONS:
         path = season_path(league, season)
@@ -381,17 +400,21 @@ def known_teams(league: str) -> frozenset[str]:
 
     names: set[str] = set()
     self_aliases = SELF_ALIASES.get(league, {})
-    for season in config.SEASONS:
-        path = season_path(league, season)
+    paths = ([extra_path(league)] if config.LEAGUES.get(league, {}).get("source") == "extra"
+             else [season_path(league, season) for season in config.SEASONS])
+    for path in paths:
         if not path.exists():
             continue
         try:
             raw = pd.read_csv(path, encoding="utf-8-sig",
-                              usecols=lambda c: c in ("HomeTeam", "AwayTeam"))
+                              usecols=lambda c: c in ("HomeTeam", "AwayTeam", "Home", "Away"))
         except Exception as exc:                       # a truncated download
             log.warning("could not read %s: %s", path.name, exc)
             continue
         for col in ("HomeTeam", "AwayTeam"):
+            if col in raw.columns:
+                names.update(str(v).strip() for v in raw[col].dropna())
+        for col in ("Home", "Away"):
             if col in raw.columns:
                 names.update(str(v).strip() for v in raw[col].dropna())
 
@@ -584,10 +607,25 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
     if cached and cached[0] == key:
         return cached[1].copy()
 
+    if config.LEAGUES.get(league, {}).get("source") == "extra":
+        from . import guest_data
+        matches = guest_data.load_matches(league)
+        for col in ODDS_COLS + OU_COLS + AH_COLS + CORNER_COLS + PINNACLE_COLS:
+            if col not in matches: matches[col] = np.nan
+        if "Season" not in matches: matches["Season"] = "rolling"
+        teams = sorted(set(matches["HomeTeam"]) | set(matches["AwayTeam"]))
+        lookup = {t: i for i, t in enumerate(teams)}
+        matches["home_id"] = matches["HomeTeam"].map(lookup)
+        matches["away_id"] = matches["AwayTeam"].map(lookup)
+        matches.attrs["teams"] = teams
+        _matches_cache[league] = (key, matches)
+        return matches.copy()
+
     self_aliases = SELF_ALIASES.get(league, {})
     frames = []
-    for season in config.SEASONS:
-        path = season_path(league, season)
+    paths = ([extra_path(league)] if config.LEAGUES.get(league, {}).get("source") == "extra"
+             else [season_path(league, season) for season in config.SEASONS])
+    for path in paths:
         if not path.exists():
             continue
         try:
@@ -599,7 +637,7 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
             log.error("%s is unreadable (%s) — delete it and re-run to "
                       "re-download", path.name, exc)
             continue
-        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS + AH_COLS
+        keep = [c for c in CORE_COLS + ODDS_COLS + OU_COLS + AH_COLS + CORNER_COLS
                 + PINNACLE_COLS
                 if c in raw.columns]
         missing = [c for c in CORE_COLS if c not in raw.columns]
@@ -607,11 +645,13 @@ def load_matches(league: str = "E0") -> pd.DataFrame:
             log.warning("%s is missing %s — skipping it", path.name, missing)
             continue
         df = raw[keep].copy()
-        for col in ODDS_COLS + OU_COLS + AH_COLS + PINNACLE_COLS:
+        for col in ODDS_COLS + OU_COLS + AH_COLS + CORNER_COLS + PINNACLE_COLS:
             if col not in df.columns:
                 df[col] = np.nan
             df[col] = pd.to_numeric(df[col], errors="coerce")
-        df["Season"] = f"20{season[:2]}/{season[2:]}"
+        season = (path.stem.rsplit("_", 1)[-1]
+                  if config.LEAGUES.get(league, {}).get("source") != "extra" else "extra")
+        df["Season"] = (f"20{season[:2]}/{season[2:]}" if season != "extra" else "rolling")
         frames.append(df)
 
     if not frames:
@@ -688,6 +728,15 @@ def add_market_probabilities(matches: pd.DataFrame) -> pd.DataFrame:
         out.loc[has_ou, ["mkt_over25", "mkt_under25"]] = (
             inv_ou / inv_ou.sum(axis=1, keepdims=True))
     out["has_ou_odds"] = has_ou
+    for col in AH_COLS:
+        if col not in out: out[col] = np.nan
+    has_ah = (out[AH_COLS].notna().all(axis=1)
+              & (out[["AvgCAHH", "AvgCAHA"]] > 1).all(axis=1))
+    out["mkt_ah_home"] = np.nan; out["mkt_ah_away"] = np.nan
+    if has_ah.any():
+        inv_ah = 1.0 / out.loc[has_ah, ["AvgCAHH", "AvgCAHA"]].to_numpy(float)
+        out.loc[has_ah, ["mkt_ah_home", "mkt_ah_away"]] = inv_ah / inv_ah.sum(axis=1, keepdims=True)
+    out["has_ah_odds"] = has_ah
     out["total_goals"] = out["FTHG"] + out["FTAG"]
     out["over25"] = out["total_goals"] > 2
     return out

@@ -66,6 +66,8 @@ LEAGUES = {
     "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "flag": "france",      "fdorg": "FL1", "tier": 1},
     "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "flag": "portugal",    "fdorg": "PPL", "tier": 1},
     "N1":  {"name": "Eredivisie",     "short": "ERE",  "country": "Netherlands", "flag": "netherlands", "fdorg": "DED", "tier": 1},
+    "SC0": {"name": "Scottish Premiership", "short": "SPL", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
+    "BRA": {"name": "Brasileirao Serie A", "short": "BRA", "country": "Brazil", "flag": "brazil", "fdorg": "BSA", "tier": 1, "source": "extra", "fixtures": "fdorg"},
 }
 
 # Which of them are actually live. The default is deliberately just one: a
@@ -74,7 +76,7 @@ LEAGUES = {
 # one line; a league whose names do not join seals predictions that can never
 # be graded, and the ledger is never rewritten.
 #
-#   PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1
+#   PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,SC0,BRA
 ENABLED_LEAGUES = [c.strip().upper() for c in os.environ.get(
     "PROOFODDS_LEAGUES", "E0").split(",") if c.strip()]
 ENABLED_LEAGUES = [c for c in ENABLED_LEAGUES if c in LEAGUES] or ["E0"]
@@ -197,6 +199,11 @@ UNIFORM_LOG_LOSS_BINARY = 0.6931471805599453  # -log(1/2), two-way
 
 # The goals line we publish. A half-goal, so no match can push.
 TOTALS_LINE = 2.5
+GOAL_TOTAL_LINES = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5)
+ASIAN_HANDICAP_LINES = tuple(x / 4 for x in range(-12, 13))
+CORNER_TOTAL_LINES = (6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5)
+CORNER_MIN_MATCHES = 100
+CORNER_MAX = 30
 
 # --- the prior --------------------------------------------------------------
 # Walk-forward backtest of this exact model, reproducible from

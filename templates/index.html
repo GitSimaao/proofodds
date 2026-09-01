@@ -187,6 +187,12 @@
             <span class="to">{{ '%.2f'|format(1 / m.p_under25) }}</span>
           </div>
           {% endif %}
+          {% if m.p_btts_yes is not none %}
+          <div class="market-strip"><span>BTTS</span><strong>Yes {{ m.pct_btts_yes }}%</strong><span>No {{ m.pct_btts_no }}%</span></div>
+          {% endif %}
+          {% if m.main_ah %}
+          <div class="market-strip"><span>Asian handicap</span><strong>{{ m.home }} {{ '%+.2f'|format(m.main_ah.line) }}</strong><span>{{ '%.2f'|format(m.main_ah.fair_home) }} fair</span></div>
+          {% endif %}
           {% if m.cold_start %}
           <p class="cold">{{ m.cold_start|join(' and ') }}
           {{ 'have' if m.cold_start|length > 1 else 'has' }} almost no record in this

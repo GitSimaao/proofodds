@@ -25,6 +25,8 @@ import csv
 import datetime as dt
 import logging
 import time
+from io import StringIO
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -35,6 +37,7 @@ log = logging.getLogger(__name__)
 
 FDORG_URL = "https://api.football-data.org/v4/competitions/{code}/matches"
 FDORG_TEAMS_URL = "https://api.football-data.org/v4/competitions/{code}/teams"
+FDCO_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 
 
 class Fixture:
@@ -137,6 +140,8 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
         return None
 
     code = config.LEAGUES[league]["fdorg"]
+    if not code:
+        return None
     today = dt.date.today()
     params = {
         "dateFrom": today.isoformat(),
@@ -272,6 +277,32 @@ def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:
     return out
 
 
+def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixture]:
+    """Public fixture list; times are published in British local time."""
+    resp = requests.get(FDCO_FIXTURES_URL, timeout=20)
+    if resp.status_code != 200:
+        raise RuntimeError(f"football-data.co.uk fixtures returned {resp.status_code}")
+    today = dt.date.today(); horizon = today + dt.timedelta(days=days_ahead)
+    out, unresolved = [], []
+    for row in csv.DictReader(StringIO(resp.text.lstrip("\ufeff"))):
+        league = (row.get("Div") or "").strip().upper()
+        if league not in leagues:
+            continue
+        date = dt.datetime.strptime(row["Date"].strip(), "%d/%m/%Y").date()
+        if not today <= date <= horizon:
+            continue
+        raw_time = (row.get("Time") or "").strip()
+        hh, mm = map(int, (raw_time or "12:00").split(":"))
+        local = dt.datetime.combine(date, dt.time(hh, mm), ZoneInfo("Europe/London"))
+        home_raw, away_raw = row["HomeTeam"].strip(), row["AwayTeam"].strip()
+        home, ok_h = _name(home_raw, league, unresolved); away, ok_a = _name(away_raw, league, unresolved)
+        out.append(Fixture(local.astimezone(dt.timezone.utc), home, away, league,
+                           home_raw, away_raw, ok_h and ok_a, bool(raw_time)))
+    if unresolved:
+        log.error("UNRESOLVED CLUB NAME(S) in football-data.co.uk fixtures: %s", "; ".join(unresolved))
+    return out
+
+
 def upcoming(leagues: list[str] | str | None = None,
              days_ahead: int | None = None) -> list[Fixture]:
     """
@@ -294,6 +325,8 @@ def upcoming(leagues: list[str] | str | None = None,
 
     if provider in ("auto", "fdorg"):
         for league in leagues:
+            if config.LEAGUES[league].get("fixtures") == "fdco":
+                continue
             try:
                 got = from_football_data_org(league, days_ahead)
             except Exception as exc:              # never let the job die here
@@ -307,6 +340,15 @@ def upcoming(leagues: list[str] | str | None = None,
             if not got:
                 reasons.append(f"{league}: no unplayed match in the window")
             fixtures.extend(got)
+
+    if provider == "auto":
+        fdco_leagues = [lg for lg in leagues if config.LEAGUES[lg].get("fixtures") == "fdco"]
+        if fdco_leagues:
+            try:
+                fixtures.extend(from_football_data_co_uk(days_ahead, fdco_leagues))
+                consulted = True
+            except Exception as exc:
+                reasons.append(f"football-data.co.uk fixtures: {exc}")
 
     if not fixtures and provider in ("auto", "csv"):
         from_file = from_csv(days_ahead, leagues)

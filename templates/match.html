@@ -103,6 +103,22 @@
       </div>
       {% endif %}
 
+      {% if match.p_btts_yes is not none %}
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Both teams to score</p><h3>BTTS</h3></div><span>Dixon–Coles</span></div>
+        <div class="match-probs"><div class="match-prob"><span class="lbl">Yes</span><strong>{{ match.pct_btts_yes }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_yes) }} fair odds</span></div><div class="match-prob"><span class="lbl">No</span><strong>{{ match.pct_btts_no }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_no) }} fair odds</span></div></div>
+      </section>
+      {% endif %}
+      {% if match.asian_handicap %}
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Quarter-line grid</p><h3>Asian handicap</h3></div><span>Fair odds · pushes excluded</span></div>
+        <div class="market-table"><table><thead><tr><th>Home line</th><th>{{ match.home }}</th><th>{{ match.away }}</th></tr></thead><tbody>{% for ah in match.asian_handicap %}<tr><td>{{ '%+.2f'|format(ah.line) }}</td><td>{{ '%.2f'|format(ah.fair_home) }}</td><td>{{ '%.2f'|format(ah.fair_away) }}</td></tr>{% endfor %}</tbody></table></div>
+      </section>
+      {% endif %}
+      {% if match.corners %}
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Experimental · HC/AC only</p><h3>Corners Lab</h3></div><a href="/corners/">Open lab</a></div>
+        <div class="forecast-secondary"><div><span class="metric-label">Expected corners</span><strong>{{ '%.1f'|format(match.corners.x_home) }} <span>–</span> {{ '%.1f'|format(match.corners.x_away) }}</strong><small>{{ '%.1f'|format(match.corners.x_total) }} total</small></div></div>
+      </section>
+      {% endif %}
+
       {% if match.top_scorelines %}
       <section class="scorelines" aria-labelledby="scorelines-title">
         <div class="scorelines-heading">

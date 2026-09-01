@@ -274,6 +274,33 @@ class DixonColes:
         under = float(grid[total < line].sum())
         return np.array([1.0 - under, under])
 
+    def btts_probs(self, home_id, away_id, max_goals: int = MAX_GOALS) -> np.ndarray:
+        """[P(yes), P(no)] read directly from the sealed score grid."""
+        grid = self.score_matrix(home_id, away_id, max_goals)
+        yes = float(grid[1:, 1:].sum())
+        return np.array([yes, 1.0 - yes])
+
+    def asian_handicap(self, home_id, away_id, line: float,
+                       max_goals: int = MAX_GOALS) -> dict:
+        """Fair two-way home/away price for any whole/half/quarter line."""
+        grid = self.score_matrix(home_id, away_id, max_goals)
+        legs = [float(line)]
+        if int(round(line * 4)) % 2:
+            legs = [np.floor(line * 2) / 2, np.ceil(line * 2) / 2]
+        win = loss = push = 0.0
+        for hg in range(grid.shape[0]):
+            for ag in range(grid.shape[1]):
+                prob = float(grid[hg, ag]) / len(legs)
+                for leg in legs:
+                    margin = hg - ag + leg
+                    if margin > 1e-9: win += prob
+                    elif margin < -1e-9: loss += prob
+                    else: push += prob
+        active = win + loss
+        p_home = win / active if active else .5
+        return {"line": float(line), "p_home": p_home, "p_away": 1-p_home,
+                "fair_home": 1/p_home, "fair_away": 1/(1-p_home), "push": push}
+
     def predict(self, home_ids, away_ids, max_goals: int = MAX_GOALS) -> np.ndarray:
         """
         1X2 probabilities for many fixtures at once, shape (n, 3).

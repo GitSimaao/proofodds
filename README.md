@@ -1,6 +1,6 @@
 # ProofOdds
 
-Football match probabilities for eight European divisions, **published before kickoff
+Football match probabilities for ten competitions, **published before kickoff
 and scored afterwards** against the market-average closing line.
 
 | | | |
@@ -20,7 +20,7 @@ sealed expected goals and league low-score correction. They are labelled as indi
 and excluded from the scorecard: without a closing-line comparison, they are context,
 not a third benchmarked claim.
 
-One Dixon-Coles model is fitted per division, on that division's matches only. It does
+One Dixon-Coles model is fitted per competition, on that competition's matches only. It does
 not beat the closing line — a walk-forward backtest over the seven Premier League
 seasons with a published average close puts it about 0.019 nats per match behind —
 and the site says so on the front page.
@@ -245,7 +245,7 @@ results file uses, and which rule connected them — then exits non-zero if anyt
 unresolved. Add the division to `PROOFODDS_LEAGUES` once it is clean.
 
 ```bash
-PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1
+PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,SC0,BRA
 ```
 
 The 157 club names of the 2025/26 season are checked in `tests/league_names.py` and

@@ -3,6 +3,7 @@
 {% block description %}How the model works, how it is measured, and what it is not allowed to do. Including the backtest, labelled as a backtest.{% endblock %}
 
 {% block content %}
+<section class="band"><div class="shell"><p class="eyebrow">ProofOdds 1.2</p><h2>What the new markets actually are</h2><div class="pair"><div class="box"><h4>BTTS, totals and Asian handicap</h4><p>They are different sums of the same Dixon–Coles scoreline distribution—not separate fitted models. The site seals goal totals from 0.5 to 5.5 and a quarter-line Asian-handicap grid from −3 to +3. Only markets present in the free closing data are compared with a closing line.</p></div><div class="box"><h4>Corners Lab</h4><p>A separate team attack/defence count model is fitted only to <code>HC</code> and <code>AC</code>. Its predictive distribution allows overdispersion. It does not use corner odds and is labelled experimental; competitions without those two fields, including the Brasileirão source, are omitted.</p></div></div></div></section>
 
 <div class="shell hero">
   <p class="eyebrow">Method</p>

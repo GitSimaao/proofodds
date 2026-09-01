@@ -83,7 +83,8 @@ def graded_frame(leagues=None) -> pd.DataFrame:
     results["date"] = results["Date"].dt.normalize()
 
     cols = (["league", "date", "home", "away", "FTHG", "FTAG", "FTR", "Season",
-             "AvgCH", "AvgCD", "AvgCA", "has_odds", "has_ou_odds", "over25"]
+             "AvgCH", "AvgCD", "AvgCA", "AHCh", "HC", "AC", "has_odds", "has_ou_odds",
+             "has_ah_odds", "mkt_ah_home", "mkt_ah_away", "over25"]
             + MKT_COLS + OU_MKT_COLS)
     merged = preds.merge(results[cols], on=["league", "date", "home", "away"],
                          how="left")
@@ -126,6 +127,34 @@ def graded_frame(leagues=None) -> pd.DataFrame:
         pk = sub[OU_MKT_COLS].to_numpy(float)[rows, idx]
         merged.loc[o, "ou_model_loss"] = -np.log(np.clip(pm, 1e-15, 1))
         merged.loc[o, "ou_market_loss"] = -np.log(np.clip(pk, 1e-15, 1))
+
+    merged["btts_graded"] = merged["played"] & merged.get("p_btts_yes", pd.Series(np.nan, index=merged.index)).notna()
+    merged["btts_model_loss"] = np.nan
+    b = merged["btts_graded"].to_numpy()
+    if b.any():
+        yes = ((merged.loc[b, "FTHG"] > 0) & (merged.loc[b, "FTAG"] > 0)).to_numpy()
+        p = merged.loc[b, "p_btts_yes"].to_numpy(float)
+        merged.loc[b, "btts_model_loss"] = -np.log(np.clip(np.where(yes, p, 1-p), 1e-15, 1))
+
+    def ah_model(row):
+        ladder = row.get("asian_handicap")
+        if not isinstance(ladder, list) or pd.isna(row.get("AHCh")):
+            return np.nan
+        hit = min(ladder, key=lambda x: abs(float(x["line"])-float(row["AHCh"])))
+        return float(hit["p_home"]) if abs(float(hit["line"])-float(row["AHCh"])) < 1e-6 else np.nan
+    merged["ah_model_home"] = merged.apply(ah_model, axis=1)
+    merged["ah_graded"] = merged["played"] & merged["has_ah_odds"].fillna(False) & merged["ah_model_home"].notna()
+    merged["ah_model_loss"] = np.nan; merged["ah_market_loss"] = np.nan; merged["ah_weight"] = 0.0
+    for idx, row in merged[merged["ah_graded"]].iterrows():
+        line = float(row["AHCh"]); legs = [line] if int(round(line*4)) % 2 == 0 else [np.floor(line*2)/2, np.ceil(line*2)/2]
+        lm = lk = weight = 0.0
+        for leg in legs:
+            margin = float(row["FTHG"]-row["FTAG"]+leg)
+            if abs(margin) < 1e-9: continue
+            weight += 1/len(legs); home_win = margin > 0
+            lm += -np.log(np.clip(row["ah_model_home"] if home_win else 1-row["ah_model_home"], 1e-15, 1))/len(legs)
+            lk += -np.log(np.clip(row["mkt_ah_home"] if home_win else 1-row["mkt_ah_home"], 1e-15, 1))/len(legs)
+        merged.at[idx,"ah_model_loss"] = lm; merged.at[idx,"ah_market_loss"] = lk; merged.at[idx,"ah_weight"] = weight
 
     # A prediction whose match kicked off days ago and still has no result is
     # almost always a name that failed to join, not a fixture that vanished.
@@ -220,6 +249,24 @@ def totals_scorecard(graded: pd.DataFrame) -> dict:
         "share_of_available": ((uniform - model) / (uniform - market)
                                if market < uniform else None),
     }
+
+
+def btts_scorecard(graded: pd.DataFrame) -> dict:
+    if graded.empty or "btts_graded" not in graded: return {"live": False, "n": 0}
+    done = graded[graded["btts_graded"]]
+    if done.empty: return {"live": False, "n": 0}
+    return {"live": True, "n": len(done), "model_log_loss": float(done.btts_model_loss.mean()),
+            "uniform_log_loss": config.UNIFORM_LOG_LOSS_BINARY,
+            "note": "No closing BTTS benchmark in the free source."}
+
+
+def ah_scorecard(graded: pd.DataFrame) -> dict:
+    if graded.empty or "ah_graded" not in graded: return {"live": False, "n": 0}
+    done = graded[graded["ah_graded"]]; active = done.ah_weight.sum()
+    if not active: return {"live": False, "n": 0}
+    model = float(done.ah_model_loss.sum()/active); market = float(done.ah_market_loss.sum()/active)
+    return {"live": True, "n": len(done), "stake_equiv": float(active), "model_log_loss": model,
+            "market_log_loss": market, "gap": model-market, "beats_market": model < market}
 
 
 def by_week(graded: pd.DataFrame) -> list[dict]:

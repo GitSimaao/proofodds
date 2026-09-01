@@ -1848,3 +1848,37 @@ def test_guest_clv_grades_against_the_average_close(tmp_path, monkeypatch):
     assert row["won"] is True
     assert abs(row["clv"] - 0.05) < 1e-9      # priced 5% over the close
     assert row["beat_close"] is True
+# --------------------------------------------------------------------------- #
+# ProofOdds 1.2 markets and Corners Lab
+def test_btts_and_asian_handicap_are_coherent():
+    from proofodds.dixon_coles import DixonColes
+    import numpy as np
+    model = DixonColes(["H", "A"], np.zeros(2), np.zeros(2), .2, .1, -.05,
+                       .002, .6)
+    assert np.isclose(model.btts_probs(0, 1).sum(), 1)
+    for line in (-.75, -.25, 0, .25, .75):
+        row = model.asian_handicap(0, 1, line)
+        assert np.isclose(row["p_home"] + row["p_away"], 1)
+        assert row["fair_home"] > 1 and row["fair_away"] > 1
+
+
+def test_new_competitions_and_corner_source_boundaries():
+    from proofodds import config
+    assert config.LEAGUES["SC0"]["source"] == "season"
+    assert config.LEAGUES["SC0"]["fixtures"] == "fdco"
+    assert config.LEAGUES["BRA"]["source"] == "extra"
+    assert "SC0" in config.GUEST_COMPETITIONS
+    assert config.GUEST_COMPETITIONS["BRA"]["markets"] == ("1X2",)
+
+
+def test_corner_model_produces_normalised_total_distribution():
+    from proofodds import corners
+    import numpy as np, pandas as pd
+    rng = np.random.default_rng(4); n = 120
+    frame = pd.DataFrame({"HomeTeam": np.where(np.arange(n)%2, "A", "B"),
+                          "AwayTeam": np.where(np.arange(n)%2, "B", "A"),
+                          "HC": rng.poisson(5.5, n), "AC": rng.poisson(4.5, n)})
+    model = corners.fit_from_frame(frame, ["A", "B"])
+    pmf = model.total_pmf(0, 1)
+    assert np.isclose(pmf.sum(), 1) and (pmf >= 0).all()
+    assert model.expected(0, 1)[0] > 0

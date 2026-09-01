@@ -179,6 +179,10 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
     pct = percent_split([row["p_H"], row["p_D"], row["p_A"]])
     pct_ou = (percent_split([row["p_over25"], row["p_under25"]])
               if row.get("p_over25") is not None else None)
+    pct_btts = (percent_split([row["p_btts_yes"], row["p_btts_no"]])
+                if row.get("p_btts_yes") is not None else None)
+    handicaps = row.get("asian_handicap") or []
+    main_ah = min(handicaps, key=lambda x: abs(float(x["p_home"]) - .5)) if handicaps else None
     favourite = ("H", "D", "A")[max(
         range(3), key=lambda i: (row["p_H"], row["p_D"], row["p_A"])[i])]
     match_slug = (f"{league.lower()}-{slugify(row['home'])}-v-"
@@ -200,6 +204,14 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "xg_away": row.get("xg_away"),
         "p_over25": row.get("p_over25"),
         "p_under25": row.get("p_under25"),
+        "goal_totals": row.get("goal_totals", []),
+        "asian_handicap": handicaps,
+        "main_ah": main_ah,
+        "p_btts_yes": row.get("p_btts_yes"),
+        "p_btts_no": row.get("p_btts_no"),
+        "pct_btts_yes": pct_btts[0] if pct_btts else None,
+        "pct_btts_no": pct_btts[1] if pct_btts else None,
+        "corners": row.get("corners"),
         "top_scorelines": top_scorelines(
             row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
         "home_mark": club_mark(home, league),
@@ -331,6 +343,8 @@ def build(out_dir=None) -> None:
     graded = grade.graded_frame()
     score = grade.scorecard(graded)
     totals = grade.totals_scorecard(graded)
+    btts = grade.btts_scorecard(graded)
+    asian = grade.ah_scorecard(graded)
     weeks = grade.by_week(graded)
     leagues = grade.by_league(graded)
     calib = grade.calibration(graded)
@@ -373,6 +387,8 @@ def build(out_dir=None) -> None:
         "backtest": config.BACKTEST,
         "score": score,
         "totals": totals,
+        "btts": btts,
+        "asian": asian,
         "totals_line": config.TOTALS_LINE,
         "genesis": ledger.GENESIS,
         "leagues": leagues,
@@ -414,6 +430,11 @@ def build(out_dir=None) -> None:
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,
         picker_end=days[-1]["label"] if days else "",
+        **common))
+
+    corner_matches = [m for m in matches if m.get("corners") and not m["is_past"]]
+    write("corners/index.html", env.get_template("corners.html").render(
+        page="corners", canonical="/corners/", matches=corner_matches,
         **common))
 
     for match in matches:
@@ -503,7 +524,7 @@ def build(out_dir=None) -> None:
     (out_dir / "favicon.svg").write_bytes(logo)
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
-    public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/privacy/",
+    public_pages = ["/", "/corners/", "/scorecard/", "/ledger/", "/method/", "/privacy/",
                     "/log/", "/log/first-post/"]
     public_pages.extend(f"/guests/{r['slug']}/" for r in guest_records)
     public_pages.extend(match["match_url"] for match in matches)

@@ -34,6 +34,13 @@
   --shadow-2:    0 2px 5px rgba(11,22,40,.06), 0 18px 46px -24px rgba(11,22,40,.32);
 }
 
+.market-strip { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:9px 0; border-top:1px solid var(--rule); font-size:12px; }
+.market-strip strong { font-family:var(--mono); }
+.market-table { overflow-x:auto; max-height:430px; }
+.market-table table { width:100%; border-collapse:collapse; }
+.market-table th,.market-table td { padding:9px 12px; border-bottom:1px solid var(--rule); text-align:right; font-family:var(--mono); }
+.market-table th:first-child,.market-table td:first-child { text-align:left; }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;

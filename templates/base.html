@@ -43,6 +43,7 @@
     </a>
     <nav class="nav" aria-label="Main">
       <a href="/"{% if page in ['index', 'match'] %} aria-current="page"{% endif %}>Matches</a>
+      <a href="/corners/"{% if page == 'corners' %} aria-current="page"{% endif %}>Corners Lab</a>
       <a href="/scorecard/"{% if page == 'scorecard' %} aria-current="page"{% endif %}>Scorecard</a>
       <a href="/ledger/"{% if page == 'ledger' %} aria-current="page"{% endif %}>Ledger</a>
       <a href="/method/"{% if page == 'method' %} aria-current="page"{% endif %}>Method</a>

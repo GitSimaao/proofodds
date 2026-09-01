@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import config, dixon_coles as dc
+from . import config, corners, dixon_coles as dc
 from .data import load_matches, sealed_name
 from .fixtures import Fixture
 
@@ -49,6 +49,7 @@ GENESIS = "0" * 64
 # digest still identifies the bytes that actually ran.
 GENERATOR_FILES = (
     "proofodds/config.py",
+    "proofodds/corners.py",
     "proofodds/data.py",
     "proofodds/dixon_coles.py",
     "proofodds/fixtures.py",
@@ -228,6 +229,16 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
             continue
 
         index = {t: i for i, t in enumerate(teams)}
+        corner_model = None
+        corner_reason = None
+        corner_rows = past.dropna(subset=["HC", "AC"]) if {"HC", "AC"}.issubset(past.columns) else past.iloc[0:0]
+        if len(corner_rows) >= config.CORNER_MIN_MATCHES:
+            try:
+                corner_model = corners.fit_from_frame(corner_rows, teams, config.PRIOR_SD)
+            except Exception as exc:
+                corner_reason = str(exc)[:160]
+        else:
+            corner_reason = f"HC/AC unavailable or fewer than {config.CORNER_MIN_MATCHES} matches"
 
         # How much each club actually contributes to the fit — the TIME-WEIGHTED
         # count, not the raw one. A club that played 76 matches ten years ago has
@@ -262,6 +273,28 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
             totals = model.totals_probs(h, a, config.TOTALS_LINE)
             p_over = round(float(totals[0]), 6)
             p_under = round(1.0 - p_over, 6)
+            grid = dc.score_matrix_from_xg(float(lam), float(mu), float(model.rho))
+            btts = (model.btts_probs(h, a) if hasattr(model, "btts_probs") else
+                    np.array([grid[1:, 1:].sum(), 1-grid[1:, 1:].sum()]))
+            def ah_price(line):
+                if hasattr(model, "asian_handicap"):
+                    return model.asian_handicap(h, a, line)
+                legs = [line] if int(round(line*4)) % 2 == 0 else [np.floor(line*2)/2, np.ceil(line*2)/2]
+                win = loss = push = 0.0
+                for hg in range(grid.shape[0]):
+                    for ag in range(grid.shape[1]):
+                        for leg in legs:
+                            mass = float(grid[hg, ag]) / len(legs); margin = hg-ag+leg
+                            if margin > 1e-9: win += mass
+                            elif margin < -1e-9: loss += mass
+                            else: push += mass
+                ph = win/(win+loss)
+                return {"line": line, "p_home": ph, "p_away": 1-ph,
+                        "fair_home": 1/ph, "fair_away": 1/(1-ph), "push": push}
+            def total_price(line):
+                over = round(float(model.totals_probs(h, a, line)[0]), 6)
+                return {"line": line, "p_over": over,
+                        "p_under": round(1.0-over, 6)}
 
             row = {
                 "league": league,
@@ -274,10 +307,25 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
                 "p_A": p[2],
                 "p_over25": p_over,
                 "p_under25": p_under,
+                "p_btts_yes": round(float(btts[0]), 6),
+                "p_btts_no": round(1.0 - round(float(btts[0]), 6), 6),
+                "goal_totals": [total_price(line) for line in config.GOAL_TOTAL_LINES],
+                "asian_handicap": [
+                    {k: round(float(v), 6) for k, v in ah_price(line).items()}
+                    for line in config.ASIAN_HANDICAP_LINES],
                 "xg_home": round(float(lam), 4),
                 "xg_away": round(float(mu), 4),
                 "cold_start": thin,
             }
+            if corner_model is not None:
+                ch, ca = corner_model.expected(h, a)
+                row["corners"] = {
+                    "x_home": round(ch, 3), "x_away": round(ca, 3),
+                    "x_total": round(ch + ca, 3),
+                    "dispersion": round(corner_model.dispersion, 6),
+                    "totals": [{k: round(float(v), 6) for k, v in item.items()}
+                               for item in corner_model.totals(h, a, config.CORNER_TOTAL_LINES)],
+                }
             # Seal the fixture feed's own spelling whenever it differs from the
             # one we grade on. It costs a few bytes and it means no naming
             # mistake is ever permanent: the entry always carries enough to
@@ -304,7 +352,12 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
             "rho": round(model.rho, 4),
             "league_mean_goals": round(model.league_mean, 4),
             "totals_line": config.TOTALS_LINE,
+            "markets": ["1X2", "BTTS", "goal totals", "Asian handicap"],
         }
+        models[league]["corners"] = ({"name": "team-strength negative-binomial",
+            "inputs": ["HC", "AC"], "n_train": corner_model.n_train,
+            "dispersion": round(corner_model.dispersion, 4)} if corner_model else
+            {"available": False, "reason": corner_reason})
 
     if not rows:
         return None
