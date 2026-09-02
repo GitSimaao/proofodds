@@ -93,21 +93,39 @@ python -m proofodds.verify</code></pre>
       football result is worth the gap in between. Our job is to say how much of that
       we capture, and to be exact about it.</p>
 
-      <p><strong>What is covered.</strong> Eight divisions — Premier League,
-      Championship, La Liga, Serie A, Bundesliga, Ligue 1, Primeira Liga, Eredivisie —
-      with one Dixon-Coles goals model fitted per division on that division's matches
-      only. Two markets per match: the result, and whether it goes over 2.5 goals,
-      both out of the same fitted model and both graded against the market-average
-      close. The model itself, the backtest behind it, and the reason the benchmark is
-      the average rather than a single book are on the <a href="/method/">method
-      page</a>, measurement included.</p>
+      <p><strong>What is covered.</strong> {{ n_leagues }} division{{ 's' if n_leagues != 1 }}, with one
+      Dixon-Coles goals model fitted per division on that division's matches only.
+      Every match gets the result, both teams to score, a ladder of goal totals from
+      0.5 to 5.5 and a quarter-line Asian handicap — all different sums of one fitted
+      scoreline distribution, not separate models — plus an experimental corners model
+      fitted to corner counts alone.</p>
 
-      <p><strong>What is not covered, and why.</strong> No both-teams-to-score, no
-      over 1.5, no most-likely-scoreline as a graded market, no Champions League. Not
-      because they are hard — most fall out of the same scoreline grid for free — but
-      because no closing line is published for any of them. We would be stating
-      numbers we could never be shown to be wrong about, and a page where every figure
-      is scored is worth more than a page with more figures on it.</p>
+      <p><strong>Two kinds of number, labelled as such.</strong> Some of those markets
+      have a public closing price and some do not, and the difference is the whole
+      point of the site, so it is a tag on every card rather than a footnote. Where a
+      closing price exists — the result everywhere, over/under 2.5 and the handicap in
+      the divisions whose source publishes them — the forecast is compared with the
+      market and can be shown to lose. Where none exists — BTTS, the totals other than
+      2.5, corners — the number is measured against guessing, which says whether a
+      forecast is calibrated and nothing about beating anyone. It is never presented
+      as an edge.</p>
+
+      <p>Which bucket a market falls in depends on the division. The European season
+      files carry a closing 1X2, over/under 2.5 and one handicap line; the newer
+      league files, the Brasileirão among them, carry a closing 1X2 and nothing else.
+      So for Brazil only the result is scored against the close, and everything else
+      published there is tagged as a forecast.</p>
+
+      <p>An earlier version of this page said the site would publish nothing without a
+      closing line at all — no BTTS, no over 1.5, nothing that could be stated and
+      never be shown wrong. We widened that, and this paragraph is here because
+      changing a rule quietly is exactly the behaviour this project exists to be the
+      opposite of. The reasoning: a forecast measured against guessing is still
+      falsifiable, still sealed before kickoff, still ours to be wrong about in public.
+      It is a weaker claim than beating the market, so it is labelled as a weaker
+      claim everywhere it appears. What has not changed is that nothing is published
+      that cannot be checked against something — and the Champions League is still
+      absent, because ratings from different countries are not on a common scale.</p>
 
       <p><strong>A warning about comparing the two markets.</strong> A 1X2 closing
       line holds about 0.135 nats of knowledge over guessing. A closing total holds

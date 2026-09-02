@@ -163,6 +163,52 @@ GUEST_COMPETITIONS.update({
 })
 
 
+# --- what is scored, and what is only forecast ------------------------------
+# The site publishes more than it can grade, and the difference has to be
+# visible on every page that shows a number rather than buried in a footnote.
+#
+#   SCORED    a public closing price exists for this exact selection, so the
+#             forecast is compared with the market and can be shown to lose.
+#   FORECAST  no free closing benchmark exists anywhere, so the number is
+#             measured against guessing (log loss vs the coin flip) and is
+#             never presented as an edge claim.
+#
+# Which bucket a market falls into depends on the DIVISION, not just the
+# market: the season-by-season European files carry a closing 1X2, over/under
+# 2.5 and one main Asian-handicap line, while the "new leagues" files (the
+# Brasileirao among them) carry a closing 1X2 and nothing else. Sealing an
+# over/under for Brazil is fine; calling it scored would not be.
+SCORED_BY_SOURCE = {
+    "season": ("1X2", "OU2.5", "AH"),
+    "extra": ("1X2",),
+}
+
+# Published everywhere, graded against the close nowhere: football-data.co.uk
+# publishes no closing price for any of them. They earn their place by being
+# falsifiable against the coin flip, not by being free to compute.
+FORECAST_MARKETS = ("BTTS", "TOTALS_LADDER", "CORNERS", "SCORELINES")
+
+MARKET_LABELS = {
+    "1X2": "Result",
+    "OU2.5": "Over/under 2.5 goals",
+    "AH": "Asian handicap",
+    "BTTS": "Both teams to score",
+    "TOTALS_LADDER": "Goal totals other than 2.5",
+    "CORNERS": "Corners Lab",
+    "SCORELINES": "Correct score",
+}
+
+
+def scored_markets(code: str) -> tuple:
+    """Markets with a closing benchmark in this division's source."""
+    source = LEAGUES.get(code, {}).get("source", "season")
+    return SCORED_BY_SOURCE.get(source, ())
+
+
+def is_scored(code: str, market: str) -> bool:
+    return market in scored_markets(code)
+
+
 def guest_competition_name(code: str) -> str:
     return GUEST_COMPETITIONS.get(code, {}).get("name", code)
 

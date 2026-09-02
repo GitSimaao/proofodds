@@ -219,8 +219,8 @@
 </section>
 
 <section class="band"><div class="shell"><p class="eyebrow">New markets</p><h2>BTTS and Asian handicap</h2><div class="pair">
-  <div class="box"><h4>BTTS</h4>{% if btts.live %}<p><strong>{{ '%.4f'|format(btts.model_log_loss) }}</strong> log loss over {{ btts.n }} matches; 0.6931 is a coin flip. There is no free closing BTTS benchmark in this source, so this is forecast validation—not an edge claim.</p>{% else %}<p>Waiting for the first schema-4 BTTS forecasts to settle.</p>{% endif %}</div>
-  <div class="box"><h4>Asian handicap</h4>{% if asian.live %}<p>Model <strong>{{ '%.4f'|format(asian.model_log_loss) }}</strong> vs close <strong>{{ '%.4f'|format(asian.market_log_loss) }}</strong>, {{ asian.n }} matches. Quarter-line half-wins and half-losses are stake-weighted.</p>{% else %}<p>Waiting for forecasts whose exact sealed line matches the published closing handicap.</p>{% endif %}</div>
+  <div class="box"><h4>BTTS <span class="mkt-tag is-forecast">forecast only</span></h4>{% if btts.live %}<p><strong>{{ '%.4f'|format(btts.model_log_loss) }}</strong> log loss over {{ btts.n }} matches; 0.6931 is a coin flip. There is no free closing BTTS benchmark in this source, so this is forecast validation—not an edge claim.</p>{% else %}<p>Waiting for the first schema-4 BTTS forecasts to settle.</p>{% endif %}</div>
+  <div class="box"><h4>Asian handicap <span class="mkt-tag is-scored">scored vs close</span></h4>{% if asian.live %}<p>Model <strong>{{ '%.4f'|format(asian.model_log_loss) }}</strong> vs close <strong>{{ '%.4f'|format(asian.market_log_loss) }}</strong>, {{ asian.n }} matches. Quarter-line half-wins and half-losses are stake-weighted.</p>{% else %}<p>Waiting for forecasts whose exact sealed line matches the published closing handicap.</p>{% endif %}</div>
 </div></div></section>
 
 {% include "_signup.html" %}

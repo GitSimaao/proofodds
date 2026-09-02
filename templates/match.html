@@ -50,10 +50,16 @@
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Dixon-Coles forecast</p>
-          <h2>Match probabilities</h2>
+          <h2>Match probabilities <span class="mkt-tag is-scored">scored vs close</span></h2>
         </div>
         <span class="fair-note">Fair odds · no margin</span>
       </div>
+      <p class="mkt-legend"><strong>scored vs close</strong> means a public closing
+      price exists for this market in this division, so the forecast is compared
+      with the market on the <a href="/scorecard/">scorecard</a> and can be shown
+      to lose. <strong>forecast only</strong> means no free closing benchmark
+      exists for it, so it is measured against guessing and is never presented as
+      an edge claim. Both are sealed before kickoff and neither is ever rewritten.</p>
 
       {{ match.bar|safe }}
       <div class="match-probs">
@@ -85,7 +91,9 @@
         {% endif %}
         {% if match.p_over25 is not none and match.p_under25 is not none %}
         <div class="totals-market">
-          <span class="metric-label">Total goals {{ totals_line }}</span>
+          <span class="metric-label">Total goals {{ totals_line }}
+            <span class="mkt-tag {{ 'is-scored' if match.ou_scored else 'is-forecast' }}">{{ 'scored vs close' if match.ou_scored else 'forecast only' }}</span>
+          </span>
           <div class="totals-options">
             <div>
               <span>Over</span>
@@ -104,17 +112,17 @@
       {% endif %}
 
       {% if match.p_btts_yes is not none %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Both teams to score</p><h3>BTTS</h3></div><span>Dixon–Coles</span></div>
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Both teams to score</p><h3>BTTS <span class="mkt-tag is-forecast">forecast only</span></h3></div><span>Dixon–Coles</span></div>
         <div class="match-probs"><div class="match-prob"><span class="lbl">Yes</span><strong>{{ match.pct_btts_yes }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_yes) }} fair odds</span></div><div class="match-prob"><span class="lbl">No</span><strong>{{ match.pct_btts_no }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_no) }} fair odds</span></div></div>
       </section>
       {% endif %}
       {% if match.asian_handicap %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Quarter-line grid</p><h3>Asian handicap</h3></div><span>Fair odds · pushes excluded</span></div>
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Quarter-line grid</p><h3>Asian handicap <span class="mkt-tag {{ 'is-scored' if match.ah_scored else 'is-forecast' }}">{{ 'scored vs close' if match.ah_scored else 'forecast only' }}</span></h3></div><span>Fair odds · pushes excluded</span></div>
         <div class="market-table"><table><thead><tr><th>Home line</th><th>{{ match.home }}</th><th>{{ match.away }}</th></tr></thead><tbody>{% for ah in match.asian_handicap %}<tr><td>{{ '%+.2f'|format(ah.line) }}</td><td>{{ '%.2f'|format(ah.fair_home) }}</td><td>{{ '%.2f'|format(ah.fair_away) }}</td></tr>{% endfor %}</tbody></table></div>
       </section>
       {% endif %}
       {% if match.corners %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Experimental · HC/AC only</p><h3>Corners Lab</h3></div><a href="/corners/">Open lab</a></div>
+      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Experimental · HC/AC only</p><h3>Corners Lab <span class="mkt-tag is-forecast">forecast only</span></h3></div><a href="/corners/">Open lab</a></div>
         <div class="forecast-secondary"><div><span class="metric-label">Expected corners</span><strong>{{ '%.1f'|format(match.corners.x_home) }} <span>–</span> {{ '%.1f'|format(match.corners.x_away) }}</strong><small>{{ '%.1f'|format(match.corners.x_total) }} total</small></div>{% if match.corner_main %}<div><span class="metric-label">Main total line</span><strong>O {{ match.corner_main.line }} · {{ '%.0f'|format(match.corner_main.p_over*100) }}%</strong><small>{{ '%.2f'|format(1/match.corner_main.p_over) }} fair · Under {{ '%.0f'|format(match.corner_main.p_under*100) }}%</small></div>{% endif %}</div>
       </section>
       {% endif %}

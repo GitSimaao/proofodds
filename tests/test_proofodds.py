@@ -1978,3 +1978,55 @@ def test_corner_cards_fill_the_second_summary_column():
                                   {"line": 10.5, "p_over": .48, "p_under": .52}]}}
     view = render.prediction_view(row)
     assert view["corner_main"]["line"] == 10.5
+
+
+# --------------------------------------------------------------------------- #
+#  Scored vs forecast-only markets
+# --------------------------------------------------------------------------- #
+def test_the_scored_market_registry_matches_what_the_sources_carry():
+    """
+    The season files publish a closing 1X2, over/under 2.5 and one Asian
+    handicap; the "new leagues" files publish a closing 1X2 and nothing else.
+    Calling a market scored where no closing price exists is the exact failure
+    this registry prevents, so it is pinned rather than trusted.
+    """
+    assert config.scored_markets("E0") == ("1X2", "OU2.5", "AH")
+    assert config.scored_markets("BRA") == ("1X2",)
+    assert config.is_scored("BRA", "1X2")
+    assert not config.is_scored("BRA", "OU2.5")
+    assert not config.is_scored("BRA", "AH")
+    # every division the model publishes can at least be scored on the result
+    for code in config.LEAGUES:
+        assert "1X2" in config.scored_markets(code), code
+    # and nothing claims to score a market with no benchmark anywhere
+    for market in config.FORECAST_MARKETS:
+        for code in config.LEAGUES:
+            assert market not in config.scored_markets(code), (code, market)
+
+
+@pytest.mark.needs_data
+def test_a_division_without_closing_totals_never_grades_them():
+    """
+    Structural backstop to the labelling: Brazil's source has no closing total
+    or handicap column, so those markets must be impossible to grade there —
+    not merely untagged.
+    """
+    from proofodds import data
+    try:
+        matches = data.add_market_probabilities(data.load_matches("BRA"))
+    except FileNotFoundError:
+        pytest.skip("BRA creator CSV not synced in this checkout")
+    assert not matches["has_ou_odds"].any()
+    if "has_ah_odds" in matches:
+        assert not matches["has_ah_odds"].any()
+
+
+def test_every_published_market_is_tagged_on_the_match_card():
+    """
+    A number on a card without its tag is the failure mode the whole two-bucket
+    scheme exists to prevent, so the template is checked for one tag per market.
+    """
+    card = (config.TEMPLATE_DIR / "match.html").read_text(encoding="utf-8")
+    assert card.count("mkt-tag") >= 5      # 1X2, O/U, BTTS, AH, corners
+    assert "match.ou_scored" in card and "match.ah_scored" in card
+    assert "mkt-legend" in card

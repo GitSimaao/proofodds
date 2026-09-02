@@ -209,6 +209,12 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "p_over25": row.get("p_over25"),
         "p_under25": row.get("p_under25"),
         "goal_totals": row.get("goal_totals", []),
+        # Whether THIS division has a closing benchmark for each market. The
+        # Brasileirao source publishes a closing 1X2 and nothing else, so its
+        # over/under and handicap are forecasts like BTTS is — the card has to
+        # say which is which, on the card, not in a footnote.
+        "ou_scored": config.is_scored(league, "OU2.5"),
+        "ah_scored": config.is_scored(league, "AH"),
         "asian_handicap": handicaps,
         "main_ah": main_ah,
         "p_btts_yes": row.get("p_btts_yes"),
