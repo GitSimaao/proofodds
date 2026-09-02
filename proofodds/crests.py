@@ -1,4 +1,4 @@
-"""Display-only club crest metadata from football-data.org.
+"""Display-only club crest metadata from trusted football providers.
 
 The public prediction ledger deliberately contains no image URL.  Crest URLs
 can change and have no bearing on a forecast, so they live in the ignored
@@ -17,7 +17,7 @@ from . import config
 
 log = logging.getLogger(__name__)
 
-CREST_HOST = "crests.football-data.org"
+CREST_HOSTS = frozenset({"crests.football-data.org", "r2.thesportsdb.com"})
 MAP_FILENAME = "club_crests.json"
 
 
@@ -34,7 +34,7 @@ def safe_url(value: object) -> str | None:
         port = parsed.port
     except ValueError:
         return None
-    if (parsed.scheme != "https" or parsed.hostname != CREST_HOST
+    if (parsed.scheme != "https" or parsed.hostname not in CREST_HOSTS
             or port not in (None, 443) or parsed.username or parsed.password
             or not parsed.path):
         return None

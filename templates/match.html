@@ -115,7 +115,7 @@
       {% endif %}
       {% if match.corners %}
       <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Experimental · HC/AC only</p><h3>Corners Lab</h3></div><a href="/corners/">Open lab</a></div>
-        <div class="forecast-secondary"><div><span class="metric-label">Expected corners</span><strong>{{ '%.1f'|format(match.corners.x_home) }} <span>–</span> {{ '%.1f'|format(match.corners.x_away) }}</strong><small>{{ '%.1f'|format(match.corners.x_total) }} total</small></div></div>
+        <div class="forecast-secondary"><div><span class="metric-label">Expected corners</span><strong>{{ '%.1f'|format(match.corners.x_home) }} <span>–</span> {{ '%.1f'|format(match.corners.x_away) }}</strong><small>{{ '%.1f'|format(match.corners.x_total) }} total</small></div>{% if match.corner_main %}<div><span class="metric-label">Main total line</span><strong>O {{ match.corner_main.line }} · {{ '%.0f'|format(match.corner_main.p_over*100) }}%</strong><small>{{ '%.2f'|format(1/match.corner_main.p_over) }} fair · Under {{ '%.0f'|format(match.corner_main.p_under*100) }}%</small></div>{% endif %}</div>
       </section>
       {% endif %}
 

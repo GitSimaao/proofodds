@@ -183,6 +183,10 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
                 if row.get("p_btts_yes") is not None else None)
     handicaps = row.get("asian_handicap") or []
     main_ah = min(handicaps, key=lambda x: abs(float(x["p_home"]) - .5)) if handicaps else None
+    corner_data = row.get("corners")
+    corner_totals = corner_data.get("totals", []) if isinstance(corner_data, dict) else []
+    corner_main = (min(corner_totals, key=lambda x: abs(float(x["p_over"]) - .5))
+                   if corner_totals else None)
     favourite = ("H", "D", "A")[max(
         range(3), key=lambda i: (row["p_H"], row["p_D"], row["p_A"])[i])]
     match_slug = (f"{league.lower()}-{slugify(row['home'])}-v-"
@@ -211,7 +215,8 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "p_btts_no": row.get("p_btts_no"),
         "pct_btts_yes": pct_btts[0] if pct_btts else None,
         "pct_btts_no": pct_btts[1] if pct_btts else None,
-        "corners": row.get("corners"),
+        "corners": corner_data,
+        "corner_main": corner_main,
         "top_scorelines": top_scorelines(
             row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
         "home_mark": club_mark(home, league),

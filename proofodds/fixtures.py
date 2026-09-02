@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 FDORG_URL = "https://api.football-data.org/v4/competitions/{code}/matches"
 FDORG_TEAMS_URL = "https://api.football-data.org/v4/competitions/{code}/teams"
 FDCO_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
+SPORTSDB_TEAM_URL = "https://www.thesportsdb.com/api/v1/json/123/searchteams.php"
 
 
 class Fixture:
@@ -199,8 +200,6 @@ def from_football_data_org(league: str, days_ahead: int) -> list[Fixture] | None
 
 def sync_crests(leagues: list[str] | str | None = None) -> dict[str, int]:
     """Fetch every club in each competition without publishing predictions."""
-    if not config.FDORG_TOKEN:
-        raise RuntimeError("PROOFODDS_FDORG_TOKEN is not set")
     if leagues is None:
         leagues = list(config.ENABLED_LEAGUES)
     elif isinstance(leagues, str):
@@ -211,6 +210,14 @@ def sync_crests(leagues: list[str] | str | None = None) -> dict[str, int]:
     for league in leagues:
         code = config.LEAGUES[league]["fdorg"]
         try:
+            if not code:
+                rows = _sportsdb_crest_rows(league)
+                crests.update(league, rows)
+                report[league] = sum(bool(crests.safe_url(row.get("url")))
+                                     for row in rows)
+                continue
+            if not config.FDORG_TOKEN:
+                raise RuntimeError("PROOFODDS_FDORG_TOKEN is not set")
             payload = _request(FDORG_TEAMS_URL.format(code=code)).json()
             teams = payload.get("teams", [])
             unresolved: list[str] = []
@@ -231,6 +238,36 @@ def sync_crests(leagues: list[str] | str | None = None) -> dict[str, int]:
     if not report:
         raise RuntimeError("no crest feed succeeded — " + "; ".join(failures))
     return report
+
+
+def _sportsdb_crest_rows(league: str) -> list[dict]:
+    """Crest fallback for model leagues absent from football-data.org."""
+    from .data import fold, known_teams
+
+    country = config.LEAGUES[league].get("country", "")
+    rows = []
+    for club in sorted(known_teams(league)):
+        resp = requests.get(SPORTSDB_TEAM_URL, params={"t": club}, timeout=20)
+        if resp.status_code != 200:
+            log.warning("%s: TheSportsDB returned %s for %s",
+                        league, resp.status_code, club)
+            continue
+        candidates = [team for team in (resp.json().get("teams") or [])
+                      if str(team.get("strSport", "")).casefold() == "soccer"
+                      and str(team.get("strCountry", "")).casefold() == country.casefold()]
+        exact = [team for team in candidates
+                 if fold(str(team.get("strTeam", ""))) == fold(club)]
+        chosen = exact[0] if exact else (candidates[0] if len(candidates) == 1 else None)
+        if not chosen:
+            log.warning("%s: no unambiguous Scottish crest for %s", league, club)
+            continue
+        try:
+            team_id = int(chosen["idTeam"])
+        except (KeyError, TypeError, ValueError):
+            team_id = None
+        rows.append({"club": club, "raw_name": chosen.get("strTeam"),
+                     "id": team_id, "url": chosen.get("strBadge")})
+    return rows
 
 
 def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:

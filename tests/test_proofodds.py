@@ -655,6 +655,26 @@ def test_full_crest_sync_uses_the_team_resource_without_sealing(
         "https://crests.football-data.org/57.png")
 
 
+def test_scottish_crest_sync_uses_the_display_only_fallback(tmp_path, monkeypatch):
+    from proofodds import crests, fixtures
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"teams": [{"idTeam": "133647", "strTeam": "Celtic",
+                               "strSport": "Soccer", "strCountry": "Scotland",
+                               "strBadge": "https://r2.thesportsdb.com/images/media/team/badge/celtic.png"}]}
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(data, "known_teams", lambda league: frozenset({"Celtic"}))
+    monkeypatch.setattr(fixtures.requests, "get", lambda *args, **kwargs: Response())
+    assert fixtures.sync_crests("SC0") == {"SC0": 1}
+    assert crests.lookup("SC0", "Celtic") == (
+        "https://r2.thesportsdb.com/images/media/team/badge/celtic.png")
+
+
 @pytest.mark.parametrize("url", [
     "http://crests.football-data.org/57.png",
     "https://crests.football-data.org.evil.test/57.png",
@@ -1362,11 +1382,12 @@ def test_club_crest_tiles_use_a_neutral_white_background():
         assert old_colour not in css
 
 
-def test_only_the_football_data_crest_host_is_allowed_by_the_deploy_csp():
+def test_only_the_approved_crest_hosts_are_allowed_by_the_deploy_csp():
     for relative in ("deploy/nginx-security-headers.conf", "deploy/Caddyfile"):
         content = (config.ROOT / relative).read_text()
         assert ("img-src 'self' data: https://crests.football-data.org"
                 in content)
+        assert "https://r2.thesportsdb.com" in content
 
 
 def test_the_po_mark_is_used_consistently(tmp_path, monkeypatch):
@@ -1919,3 +1940,16 @@ def test_corner_model_produces_normalised_total_distribution():
     pmf = model.total_pmf(0, 1)
     assert np.isclose(pmf.sum(), 1) and (pmf >= 0).all()
     assert model.expected(0, 1)[0] > 0
+
+
+def test_corner_cards_fill_the_second_summary_column():
+    from proofodds import render
+    row = {"league": "SC0", "kickoff": "2030-09-02T18:45:00Z",
+           "home": "Celtic", "away": "Aberdeen",
+           "p_H": .6, "p_D": .2, "p_A": .2,
+           "published_at": "2026-09-02T00:08:00Z",
+           "corners": {"x_home": 7.5, "x_away": 3.2, "x_total": 10.6,
+                       "totals": [{"line": 9.5, "p_over": .58, "p_under": .42},
+                                  {"line": 10.5, "p_over": .48, "p_under": .52}]}}
+    view = render.prediction_view(row)
+    assert view["corner_main"]["line"] == 10.5
