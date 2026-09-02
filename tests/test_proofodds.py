@@ -675,6 +675,26 @@ def test_scottish_crest_sync_uses_the_display_only_fallback(tmp_path, monkeypatc
         "https://r2.thesportsdb.com/images/media/team/badge/celtic.png")
 
 
+def test_scottish_crest_sync_uses_the_sportsdb_full_name_alias(tmp_path, monkeypatch):
+    from proofodds import crests, fixtures
+    from types import SimpleNamespace
+    queries = []
+
+    def get(_url, params=None, **_kwargs):
+        queries.append(params["t"])
+        return SimpleNamespace(status_code=200, json=lambda: {"teams": [{
+            "idTeam": "133643", "strTeam": "Heart of Midlothian",
+            "strSport": "Soccer", "strCountry": "Scotland",
+            "strBadge": "https://r2.thesportsdb.com/images/media/team/badge/hearts.png"}]})
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(data, "known_teams", lambda league: frozenset({"Hearts"}))
+    monkeypatch.setattr(fixtures.requests, "get", get)
+    assert fixtures.sync_crests("SC0") == {"SC0": 1}
+    assert queries == ["Heart of Midlothian"]
+    assert crests.lookup("SC0", "Hearts").endswith("/hearts.png")
+
+
 @pytest.mark.parametrize("url", [
     "http://crests.football-data.org/57.png",
     "https://crests.football-data.org.evil.test/57.png",

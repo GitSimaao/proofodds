@@ -245,9 +245,13 @@ def _sportsdb_crest_rows(league: str) -> list[dict]:
     from .data import fold, known_teams
 
     country = config.LEAGUES[league].get("country", "")
+    search_aliases = {
+        "Hearts": "Heart of Midlothian",
+    }
     rows = []
     for club in sorted(known_teams(league)):
-        resp = requests.get(SPORTSDB_TEAM_URL, params={"t": club}, timeout=20)
+        query = search_aliases.get(club, club)
+        resp = requests.get(SPORTSDB_TEAM_URL, params={"t": query}, timeout=20)
         if resp.status_code != 200:
             log.warning("%s: TheSportsDB returned %s for %s",
                         league, resp.status_code, club)
