@@ -95,10 +95,13 @@ def main() -> int:
             if "1X2" not in prices:
                 missing += 1
                 continue
+            pair = statsapi.opening_and_closing_1x2(match, args.book)
             rows.append({
                 "id": match["id"],
                 "comp": comp,
                 "over": statsapi.overround(prices["1X2"]),
+                "open_over": (statsapi.overround(pair["opening"])
+                              if "opening" in pair else None),
                 "markets": sorted(prices),
             })
 
@@ -114,6 +117,23 @@ def main() -> int:
     print(f"  median {median:.3%}   mean {statistics.fmean(overs):.3%}")
     print(f"  p10 {overs[len(overs)//10]:.3%}   "
           f"p90 {overs[-max(1, len(overs)//10)]:.3%}")
+
+    # Does the price actually move towards kickoff? A market tightens as it
+    # closes, so a genuine closing price should carry a thinner margin than
+    # the opening one. If the two are the same, `last_seen` is probably not a
+    # close, and the payload has no timestamp to settle it any other way.
+    pairs = [(r["open_over"], r["over"]) for r in rows
+             if r["open_over"] is not None]
+    if pairs:
+        opens = sorted(o for o, _ in pairs)
+        tighter = sum(1 for o, c in pairs if c < o)
+        print(f"\n  opening overround, same matches: "
+              f"median {statistics.median(opens):.3%}")
+        print(f"  last_seen is tighter than opening in {tighter}/{len(pairs)} "
+              f"({tighter/len(pairs):.0%}) — a genuine close should usually be")
+        if tighter / len(pairs) < 0.5:
+            print("  ! last_seen does not systematically tighten. Treat it as "
+                  "a late price, not a close, and say so on the method page.")
 
     seen: dict[str, int] = {}
     for row in rows:

@@ -2138,3 +2138,18 @@ def test_the_client_refuses_to_call_without_a_key(monkeypatch, tmp_path):
     with _pytest.raises(statsapi.StatsAPIError) as caught:
         statsapi.get("football/competitions", {"page": 1})
     assert "never be committed" in str(caught.value)
+
+
+def test_opening_and_closing_are_read_separately(monkeypatch):
+    """
+    The payload carries no timestamp, so the only evidence that `last_seen` is
+    a close rather than a late price is that its margin is thinner than the
+    opening one. Reading both is what makes that check possible.
+    """
+    from proofodds import statsapi
+    monkeypatch.setattr(statsapi, "match_odds", lambda *a, **k: _odds_payload())
+    pair = statsapi.opening_and_closing_1x2({"id": "mt_1"})
+    assert pair["opening"] == {"H": 2.05, "D": 3.45, "A": 3.80}
+    assert pair["last_seen"] == {"H": 2.10, "D": 3.50, "A": 3.70}
+    # and the fixture behaves like a real market: the close is tighter
+    assert statsapi.overround(pair["last_seen"]) < statsapi.overround(pair["opening"])

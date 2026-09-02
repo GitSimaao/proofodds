@@ -252,11 +252,11 @@ def shotmap(match_id: str) -> dict:
 # --------------------------------------------------------------------------- #
 #  Reading a price out of the payload
 # --------------------------------------------------------------------------- #
-def _price(node) -> float | None:
-    """`{opening, last_seen}` -> the last seen price, as a float."""
+def _price(node, field: str = "last_seen") -> float | None:
+    """`{opening, last_seen}` -> one of the two prices, as a float."""
     if not isinstance(node, dict):
         return None
-    raw = node.get("last_seen")
+    raw = node.get(field)
     try:
         value = float(raw)
     except (TypeError, ValueError):
@@ -271,6 +271,30 @@ def book_markets(payload: dict, bookmaker: str) -> dict:
         if str(entry.get("bookmaker", "")).lower() == bookmaker.lower():
             return entry.get("markets") or {}
     return {}
+
+
+def opening_and_closing_1x2(match: dict, bookmaker: str | None = None) -> dict:
+    """
+    Both prices for the result market, for the drift check.
+
+    The payload carries no timestamp, so there is no way to ask when
+    `last_seen` was captured — which matters, because a price collected hours
+    before kickoff is not a close, and grading against it would quietly weaken
+    the benchmark. What can be inferred: a market tightens as it approaches
+    kickoff, so if `last_seen` is genuinely later than `opening` its margin
+    should be systematically thinner. If the two margins are indistinguishable,
+    `last_seen` is probably not a closing price at all.
+    """
+    markets = book_markets(match_odds(match["id"]),
+                           bookmaker or config.STATSAPI_BENCHMARK_BOOK)
+    node = markets.get(MARKET_MATCH_ODDS) or {}
+    out = {}
+    for field in ("opening", "last_seen"):
+        prices = {k: _price(node.get(v), field)
+                  for k, v in (("H", "home"), ("D", "draw"), ("A", "away"))}
+        if all(prices.values()):
+            out[field] = prices
+    return out
 
 
 def closing_odds(match: dict, bookmaker: str | None = None) -> dict:
