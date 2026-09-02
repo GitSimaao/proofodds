@@ -172,6 +172,13 @@
         <div><dt>Kickoff</dt><dd>{{ 'Date fixed; time TBC' if match.kickoff_tbc else match.kickoff }}</dd></div>
       </dl>
       <p class="audit-copy">This page is a view of the earliest sealed forecast for this fixture. The JSON entry is the record; later publications cannot replace it.</p>
+      {% if match.sparse_markets %}
+      <p class="audit-copy">That is also why this card carries no
+      {{ match.sparse_markets|join(', ') }}: the fixture was first published
+      before {{ 'that market was' if match.sparse_markets|length == 1 else 'those markets were' }}
+      added, and filling {{ 'it' if match.sparse_markets|length == 1 else 'them' }} in
+      now would mean rewriting a sealed entry. Later fixtures carry the full set.</p>
+      {% endif %}
       <a class="button-link" href="{{ match.entry_url }}">Open raw prediction <span aria-hidden="true">↗</span></a>
       <a class="text-link" href="/method/">Read the methodology</a>
     </aside>

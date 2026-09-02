@@ -215,6 +215,21 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         # say which is which, on the card, not in a footnote.
         "ou_scored": config.is_scored(league, "OU2.5"),
         "ah_scored": config.is_scored(league, "AH"),
+        # A fixture first published before a market existed carries only what
+        # was sealed that day. First publication wins, so the missing markets
+        # cannot be added later — and the card says why, rather than leaving a
+        # reader to wonder where the four markets the method page promises are.
+        # Corners are the exception: they need HC/AC counts to fit, and the
+        # "new leagues" files carry none. A Brasileirao card without corners
+        # is a limit of the source, not of the seal, so it is not listed here.
+        "sparse_markets": [
+            label for key, label in (("p_over25", "over/under 2.5"),
+                                     ("p_btts_yes", "both teams to score"),
+                                     ("asian_handicap", "the Asian handicap"),
+                                     ("corners", "corners"))
+            if not row.get(key)
+            and not (key == "corners" and config.LEAGUES.get(
+                league, {}).get("source", "season") != "season")],
         "asian_handicap": handicaps,
         "main_ah": main_ah,
         "p_btts_yes": row.get("p_btts_yes"),
