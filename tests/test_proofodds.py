@@ -2030,3 +2030,111 @@ def test_every_published_market_is_tagged_on_the_match_card():
     assert card.count("mkt-tag") >= 5      # 1X2, O/U, BTTS, AH, corners
     assert "match.ou_scored" in card and "match.ah_scored" in card
     assert "mkt-legend" in card
+
+
+# --------------------------------------------------------------------------- #
+#  TheStatsAPI client
+# --------------------------------------------------------------------------- #
+def _odds_payload(book="Pinnacle", **markets):
+    base = {"match_odds": {"home": {"opening": "2.05", "last_seen": "2.10"},
+                           "draw": {"opening": "3.45", "last_seen": "3.50"},
+                           "away": {"opening": "3.80", "last_seen": "3.70"}}}
+    base.update(markets)
+    return {"data": {"match_id": "mt_1", "bookmakers": [
+        {"bookmaker": book, "markets": base}]}}
+
+
+def test_a_price_that_is_still_moving_is_never_a_closing_price(monkeypatch):
+    """
+    The single safety property of the whole module. There is no `closing`
+    field — prices are {opening, last_seen} — and on a match that has not
+    finished, last_seen is simply the latest number. Grading against it would
+    score the model against a moving target, silently.
+    """
+    import pytest as _pytest
+    from proofodds import statsapi
+    monkeypatch.setattr(statsapi, "match_odds",
+                        lambda *a, **k: _odds_payload())
+
+    for status in ("scheduled", "live", "postponed", ""):
+        with _pytest.raises(statsapi.StatsAPIError) as caught:
+            statsapi.closing_odds({"id": "mt_1", "status": status})
+        assert "not finished" in str(caught.value)
+
+    prices = statsapi.closing_odds({"id": "mt_1", "status": "finished"})
+    assert prices["1X2"] == {"H": 2.10, "D": 3.50, "A": 3.70}
+
+
+def test_placeholder_prices_are_dropped_not_inverted(monkeypatch):
+    """0 and 1 are placeholders. 1/0 is what turns one row into 34 nats."""
+    from proofodds import statsapi
+    monkeypatch.setattr(statsapi, "match_odds", lambda *a, **k: _odds_payload(
+        match_odds={"home": {"last_seen": "2.05"},
+                    "draw": {"last_seen": "0"},
+                    "away": {"last_seen": "3.60"}},
+        btts={"yes": {"last_seen": "1.80"}, "no": {"last_seen": "1.95"}}))
+    prices = statsapi.closing_odds({"id": "mt_1", "status": "finished"})
+    assert "1X2" not in prices          # incomplete -> absent, never partial
+    assert prices["BTTS"] == {"yes": 1.80, "no": 1.95}
+
+
+def test_closing_odds_reads_lines_and_handicaps(monkeypatch):
+    from proofodds import statsapi
+    monkeypatch.setattr(statsapi, "match_odds", lambda *a, **k: _odds_payload(
+        total_goals={"2.5": {"over": {"last_seen": "1.90"},
+                             "under": {"last_seen": "1.95"}},
+                     "3.5": {"over": {"last_seen": "3.10"},
+                             "under": {"last_seen": "1.36"}}},
+        asian_handicap={"home": {"-0.5": {"last_seen": "2.10"}},
+                        "away": {"+0.5": {"last_seen": "1.80"}}}))
+    prices = statsapi.closing_odds({"id": "mt_1", "status": "finished"})
+    assert prices["OU"]["2.5"] == {"over": 1.90, "under": 1.95}
+    assert prices["OU"]["3.5"]["under"] == 1.36
+    assert prices["AH"]["-0.5"]["home"] == 2.10
+    assert prices["AH"]["+0.5"]["away"] == 1.80
+
+
+def test_a_book_we_did_not_ask_for_is_not_substituted(monkeypatch):
+    """
+    Pinnacle does not price every market here; soft books do. Falling back to
+    whoever is present would quietly grade a sharp benchmark against a soft
+    one, and the number would look better for no reason.
+    """
+    from proofodds import statsapi
+    monkeypatch.setattr(statsapi, "match_odds",
+                        lambda *a, **k: _odds_payload(book="Bet365"))
+    assert statsapi.closing_odds({"id": "mt_1", "status": "finished"}) == {}
+
+
+def test_overround_separates_a_sharp_book_from_an_average():
+    from proofodds import statsapi
+    # a real Pinnacle close runs ~2.5-3% over; an average or soft book 4-5%
+    sharp = statsapi.overround({"H": 2.10, "D": 3.50, "A": 3.70})
+    average = statsapi.overround({"H": 2.05, "D": 3.45, "A": 3.65})
+    assert 0.015 < sharp < 0.038          # inside the band the gate accepts
+    assert average > 0.038                # outside it, which is the point
+    assert average > sharp
+
+
+def test_the_monthly_quota_stops_rather_than_warns(tmp_path):
+    import pytest as _pytest
+    from proofodds import statsapi
+    budget = statsapi.Budget(path=tmp_path / "b.json", per_min=99, monthly=3)
+    for _ in range(3):
+        budget.check()
+        budget.spend()
+    assert budget.remaining() == 0
+    with _pytest.raises(statsapi.QuotaExhausted):
+        budget.check()
+    # and it survives a restart, because the counter is on disk
+    assert statsapi.Budget(path=tmp_path / "b.json", monthly=3).used() == 3
+
+
+def test_the_client_refuses_to_call_without_a_key(monkeypatch, tmp_path):
+    import pytest as _pytest
+    from proofodds import statsapi
+    monkeypatch.setattr(config, "STATSAPI_KEY", "")
+    monkeypatch.setattr(config, "STATSAPI_DIR", tmp_path)
+    with _pytest.raises(statsapi.StatsAPIError) as caught:
+        statsapi.get("football/competitions", {"page": 1})
+    assert "never be committed" in str(caught.value)

@@ -234,6 +234,28 @@ ODDS_API_KEY = os.environ.get("PROOFODDS_ODDS_API_KEY", "")
 FIXTURES_PROVIDER = os.environ.get("PROOFODDS_FIXTURES_PROVIDER", "auto")  # auto|fdorg|csv
 FDORG_TOKEN = os.environ.get("PROOFODDS_FDORG_TOKEN", "")
 
+# --- TheStatsAPI ------------------------------------------------------------
+# Paid source. Supplies Pinnacle's closing prices for the live record (the
+# free source stopped carrying them in January 2026), plus coverage of ~160
+# competitions for the guest ledger. It never touches the backtest, which
+# stays on the free CSVs, and it never touches the ledger rule.
+STATSAPI_KEY = os.environ.get("PROOFODDS_STATSAPI_KEY", "")
+STATSAPI_BASE = os.environ.get("PROOFODDS_STATSAPI_BASE",
+                               "https://api.thestatsapi.com/api")
+STATSAPI_DIR = DATA_DIR / "statsapi"
+# Observed on the trial: x-ratelimit-limit 12 (per minute), monthly quota
+# 10,000 — a tenth of what the pricing page says. The client trusts the
+# headers over the brochure and keeps a margin under both.
+STATSAPI_RATE_PER_MIN = int(os.environ.get("PROOFODDS_STATSAPI_RPM", "10"))
+STATSAPI_MONTHLY_QUOTA = int(os.environ.get("PROOFODDS_STATSAPI_QUOTA", "10000"))
+# The bookmaker whose close is the benchmark. One name, one place.
+STATSAPI_BENCHMARK_BOOK = "Pinnacle"
+# Our division code -> TheStatsAPI competition id. Filled from
+# `python -m proofodds.statsapi map-divisions`, which searches by name and
+# prints this dict ready to paste. Empty until then; nothing depends on it
+# before phase 3.
+STATSAPI_COMPETITIONS: dict[str, str] = {}
+
 # A club with fewer than this many matches in the training window is priced at
 # (or near) league average. It still gets a prediction — silently dropping a
 # fixture would be worse — but the ledger and the site flag it.
