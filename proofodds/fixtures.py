@@ -3,8 +3,8 @@ Upcoming fixtures, for every division we publish.
 
 Two sources, tried in order:
 
-1. football-data.org. The configured plan covers the eight divisions in
-   config.LEAGUES. Needs a token in PROOFODDS_FDORG_TOKEN.
+1. football-data.org. The configured plan uses it for divisions whose `fdorg`
+   code is available. Needs a token in PROOFODDS_FDORG_TOKEN.
 2. data/fixtures.csv — a plain file you can maintain by hand. Columns:
    league,date,time,home,away  (date YYYY-MM-DD, time HH:MM UTC, both optional
    except date; `league` may be omitted when only one division is enabled)
@@ -263,7 +263,8 @@ def _sportsdb_crest_rows(league: str) -> list[dict]:
                  if fold(str(team.get("strTeam", ""))) == fold(club)]
         chosen = exact[0] if exact else (candidates[0] if len(candidates) == 1 else None)
         if not chosen:
-            log.warning("%s: no unambiguous Scottish crest for %s", league, club)
+            log.warning("%s: no unambiguous %s crest for %s", league,
+                        country or "football", club)
             continue
         try:
             team_id = int(chosen["idTeam"])

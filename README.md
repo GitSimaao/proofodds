@@ -1,17 +1,20 @@
 # ProofOdds
 
-Football match probabilities for ten competitions, **published before kickoff
+Football match probabilities for eleven competitions, **published before kickoff
 and scored afterwards** against the market-average closing line.
 
 | | | |
 |---|---|---|
 | `E0` Premier League | `SP1` La Liga | `D1` Bundesliga |
 | `E1` Championship | `I1` Serie A | `F1` Ligue 1 |
-| `N1` Eredivisie | | `P1` Primeira Liga |
+| `N1` Eredivisie | `P1` Primeira Liga | `B1` Jupiler Pro League |
+| `SC0` Scottish Premiership | `BRA` Brasileirao Serie A | |
 
-Two markets are published for every match — the result, and whether it goes over 2.5
-goals — both out of one fitted model and both graded against the market-average
-closing price (football-data.co.uk's `AvgC` columns; the site graded against
+Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a quarter-line Asian
+Handicap grid from one fitted model. Result and goal-total lines are graded against the
+market-average closing price where the source publishes it; BTTS has no free closing
+benchmark and is shown as forecast validation, not an edge claim. The benchmark is
+football-data.co.uk's `AvgC` columns; the site graded against
 Pinnacle until football-data stopped carrying those columns in January 2026 —
 the method page publishes the measured difference between the two benchmarks,
 at most 0.002 nats in any division, and `scripts/check_benchmark.py` reproduces it).
@@ -27,10 +30,10 @@ and the site says so on the front page.
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
-Eight divisions rather than one is a statistical decision before it is a product one.
+Several divisions rather than one is a statistical decision before it is a product one.
 A season of the Premier League is 380 matches; the margin of error on the model-minus-
 market gap at that sample is wider than the gap itself, so a single-league scorecard
-cannot say anything for years. Eight divisions is roughly 2,700 matches a season, which
+cannot say anything for years. Eleven divisions provide a broad match sample, which
 brings the answer inside one.
 
 ---
@@ -218,7 +221,7 @@ football-data.org, which writes `Eintracht Frankfurt` and `Borussia Mönchenglad
 and `Club Atlético de Madrid`. Every prediction is keyed on a club name, and a name
 that does not join is a prediction that is published, hashed, and then never scored.
 
-With one division that risk was a hand-written list of twenty clubs. With seven it is
+With one division that risk was a hand-written list of twenty clubs. With eleven it is
 about a hundred and forty, changing every summer with promotion — a list nobody
 maintains. So there is no list. The canonical set of names for a division is whatever
 appears in that division's own results files, and a feed name is resolved onto it in
@@ -245,12 +248,13 @@ results file uses, and which rule connected them — then exits non-zero if anyt
 unresolved. Add the division to `PROOFODDS_LEAGUES` once it is clean.
 
 ```bash
-PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,SC0,BRA
+PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,B1,SC0,BRA
 ```
 
-The 157 club names of the 2025/26 season are checked in `tests/league_names.py` and
-asserted on every test run, so a change to the resolver cannot quietly break a
-division that used to work.
+The checked-in core club names of the 2025/26 season are in
+`tests/league_names.py` and asserted on every test run, so a change to the resolver
+cannot quietly break a division that used to work. New divisions are audited from
+their live fixture feed before they are enabled.
 
 ---
 
@@ -295,8 +299,8 @@ Phase 0 runs on the VPS plus a domain. Nothing else is required:
 
 | | |
 |---|---|
-| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — currently used for all eight divisions |
-| Upcoming fixtures | football-data.org — currently used for all eight divisions |
+| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — currently used for all eleven enabled divisions |
+| Upcoming fixtures | football-data.co.uk `fixtures.csv` for B1/SC0; football-data.org for the other enabled divisions |
 | External timestamps | OpenTimestamps — free, no account or API key |
 | Live pre-match odds | optional, not needed for grading |
 

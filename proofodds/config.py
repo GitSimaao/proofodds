@@ -66,6 +66,10 @@ LEAGUES = {
     "F1":  {"name": "Ligue 1",        "short": "L1",   "country": "France",   "flag": "france",      "fdorg": "FL1", "tier": 1},
     "P1":  {"name": "Primeira Liga",  "short": "LPT",  "country": "Portugal", "flag": "portugal",    "fdorg": "PPL", "tier": 1},
     "N1":  {"name": "Eredivisie",     "short": "ERE",  "country": "Netherlands", "flag": "netherlands", "fdorg": "DED", "tier": 1},
+    # Belgium is not in football-data.org's free-tier competition set.  The
+    # Football-Data fixture CSV carries B1, so this division can still use a
+    # single auditable source for upcoming names and closing prices.
+    "B1":  {"name": "Jupiler Pro League", "short": "JPL", "country": "Belgium", "flag": "belgium", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
     "SC0": {"name": "Scottish Premiership", "short": "SPL", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
     "BRA": {"name": "Brasileirao Serie A", "short": "BRA", "country": "Brazil", "flag": "brazil", "fdorg": "BSA", "tier": 1, "source": "extra", "fixtures": "fdorg"},
 }
@@ -76,7 +80,7 @@ LEAGUES = {
 # one line; a league whose names do not join seals predictions that can never
 # be graded, and the ledger is never rewritten.
 #
-#   PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,SC0,BRA
+#   PROOFODDS_LEAGUES=E0,E1,SP1,I1,D1,F1,P1,N1,B1,SC0,BRA
 ENABLED_LEAGUES = [c.strip().upper() for c in os.environ.get(
     "PROOFODDS_LEAGUES", "E0").split(",") if c.strip()]
 ENABLED_LEAGUES = [c for c in ENABLED_LEAGUES if c in LEAGUES] or ["E0"]
@@ -90,8 +94,10 @@ def league_name(code: str) -> str:
 
 
 # --- creator ledger coverage -----------------------------------------------
-# The Dixon-Coles model above deliberately remains an eight-division product:
-# adding a competition there means fitting, validating and publishing another
+# The Dixon-Coles model above deliberately stays separate from the creator
+# ledger: each configured model division gets its own fit, while the creator
+# ledger can cover every measurable competition football-data.co.uk publishes.
+# Adding a competition here means fitting, validating and publishing another
 # model.  The creator ledger has a different job.  It only needs a result and
 # a market-average closing price for the exact selection that was sealed, so
 # it can cover every competition football-data.co.uk currently publishes.

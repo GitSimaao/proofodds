@@ -289,7 +289,7 @@ def upcoming_view(rows: list[dict] | None = None, *,
         days.append(day)
         by_date[date] = day
 
-    # Group by division inside each selected day. Eight leagues shown at once
+    # Group by division inside each selected day. Many leagues shown at once
     # are a wall; the reader chooses the date first, then optionally narrows it.
     for row in rows:
         current = by_date[row["kickoff_dt"].date()]

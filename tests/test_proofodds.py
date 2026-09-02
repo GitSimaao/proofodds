@@ -1905,6 +1905,11 @@ def test_btts_and_asian_handicap_are_coherent():
 
 def test_new_competitions_and_corner_source_boundaries():
     from proofodds import config
+    assert config.LEAGUES["B1"] == {
+        "name": "Jupiler Pro League", "short": "JPL", "country": "Belgium",
+        "flag": "belgium", "fdorg": None, "tier": 1,
+        "source": "season", "fixtures": "fdco",
+    }
     assert config.LEAGUES["SC0"]["source"] == "season"
     assert config.LEAGUES["SC0"]["fixtures"] == "fdco"
     assert config.LEAGUES["BRA"]["source"] == "extra"

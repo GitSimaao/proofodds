@@ -18,16 +18,13 @@
     <div class="prose">
 
       <h2>The model</h2>
-      <p>Two markets are published: the result, and whether the match goes over
-      2.5 goals. Both come out of the same fitted model — the scoreline grid contains
-      the whole distribution, so the total is a different sum of the same numbers, not
-      a second set of assumptions. Both are graded against the market-average
-      closing price.</p>
-
-      <p>There is no both-teams-to-score, no over 1.5, no most-likely-scoreline, and
-      the reason is the same in each case: no closing line is published for them, so
-      we could state a number and never be shown to be wrong about it. A page where
-      every figure is scored is worth more than a page with more figures on it.</p>
+      <p>Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a
+      quarter-line Asian-handicap grid. All are different sums of the same
+      Dixon–Coles scoreline distribution — not separate fitted models. Result and
+      goal-total lines are graded against the market-average close where available;
+      Asian handicap is graded when its exact sealed line matches the published close.
+      BTTS has no free closing benchmark, so it is forecast validation rather than an
+      edge claim.</p>
 
       <p>One model is fitted per division, on that division's matches only. Ratings are
       not comparable across countries — a Championship attack rating of 1.1 says nothing
@@ -90,13 +87,14 @@
       numbers stop meaning anything, so we switched — everywhere, including the backtest
       below, which was recomputed against the average from scratch.</p>
       <p>Before switching, we measured what the change does. On every match since 2019/20
-      that carries both prices, in all eight divisions we publish, the two de-vigged
+      that carries both prices, in the eight original divisions in this benchmark
+      comparison, the two de-vigged
       benchmarks were scored against each other:</p>
       <ul>
         <li><strong>Premier League</strong> (2,490 matches): Pinnacle 0.9584 vs average
         0.9582 on the result market — a difference of 0.0001 in log loss. On the totals
         market, 0.6729 vs 0.6732. The two probability series correlate at 0.9995.</li>
-        <li><strong>All eight divisions</strong>: the largest difference anywhere is the
+        <li><strong>All eight original divisions</strong>: the largest difference anywhere is the
         Portuguese Primeira Liga at +0.0020 (the average is a slightly softer benchmark
         there); the Eredivisie reads +0.0013 and every other division ±0.0007 or less.
         On totals, no division differs by more than 0.0004. No single season in any

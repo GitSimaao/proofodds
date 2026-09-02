@@ -1,7 +1,7 @@
 """Results and closing prices used only by the creator/guest ledger.
 
 The model data path and the creator data path are intentionally separate.
-`data.py` owns the eight divisions whose matches train a Dixon-Coles model.
+`data.py` owns the configured divisions whose matches train a Dixon-Coles model.
 This module owns the wider set of competitions in which somebody else may
 seal a pick.  Supporting a competition here makes no claim that ProofOdds has
 fitted or validated a model for it.
