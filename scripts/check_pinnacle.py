@@ -57,6 +57,12 @@ def main() -> int:
     ap.add_argument("--book", default=config.STATSAPI_BENCHMARK_BOOK)
     ap.add_argument("--days", type=int, default=45,
                     help="look back this many days for finished matches")
+    ap.add_argument("--code", default=None,
+                    help="our division code (E0, N1, SC0 ...) for the "
+                         "relative test. Only needed alongside --competition "
+                         "while STATSAPI_COMPETITIONS is still empty; without "
+                         "it the relative test has no CSV to compare against "
+                         "and reports NOT TESTED rather than passing.")
     args = ap.parse_args()
 
     import datetime as dt
@@ -66,11 +72,17 @@ def main() -> int:
     # (our division code, their competition id) — the code is needed for the
     # relative test below, which reads our own free CSVs for the same league.
     if args.competition:
-        pairs = [(next((k for k, v in config.STATSAPI_COMPETITIONS.items()
-                        if v == args.competition), "?"), args.competition)]
+        division_pairs = [(args.code
+                           or next((k for k, v
+                                    in config.STATSAPI_COMPETITIONS.items()
+                                    if v == args.competition), "?"),
+                           args.competition)]
     else:
-        pairs = list(config.STATSAPI_COMPETITIONS.items())
-    comps = [api_id for _, api_id in pairs]
+        division_pairs = list(config.STATSAPI_COMPETITIONS.items())
+    # Deliberately not `pairs`: that name is rebound further down to the
+    # (opening, closing) overround tuples, which used to wipe this list out
+    # before the relative test ran — making it compare nothing and pass.
+    comps = [api_id for _, api_id in division_pairs]
     if not comps:
         print("No competitions mapped yet. Run "
               "`python -m proofodds.statsapi map-divisions` and fill "
@@ -186,9 +198,18 @@ def main() -> int:
     # failures disappear.
     print("\n  sharp relative to the same league's market average:")
     relative_ok = True
-    for code, api_id in pairs:
+    compared = 0
+    for code, api_id in division_pairs:
         ours = [r["over"] for r in rows if r["comp"] == api_id]
-        if not ours or code == "?":
+        if not ours:
+            continue
+        if code == "?":
+            # Silently skipping here once let the whole test report PASS
+            # having compared nothing at all — the exact false reassurance
+            # this second test was added to avoid.
+            print(f"    {api_id}: no division code, so there is no CSV to "
+                  "compare against — pass --code (STATSAPI_COMPETITIONS is "
+                  "empty)")
             continue
         try:
             frame = data.add_market_probabilities(data.load_matches(code))
@@ -204,14 +225,17 @@ def main() -> int:
         pin_margin = statistics.median(ours)
         thinner = pin_margin < avg_margin
         relative_ok &= thinner
+        compared += 1
         print(f"    {code:4s} Pinnacle {pin_margin:.3%}  vs  market average "
               f"{avg_margin:.3%}  ({len(recent)} rows)  "
               f"{'THINNER — sharp' if thinner else 'WIDER — not sharp'}")
 
     ok = SHARP_MIN <= median <= SHARP_MAX
     print(f"\nband for a sharp book: {SHARP_MIN:.1%}–{SHARP_MAX:.1%}")
+    relative = ("PASS" if relative_ok else "FAIL") if compared else "NOT TESTED"
     print(f"absolute test: {'PASS' if ok else 'FAIL'}   "
-          f"relative test: {'PASS' if relative_ok else 'FAIL'}")
+          f"relative test: {relative}"
+          + ("" if compared else " (0 divisions compared)"))
     print("result:", "PASS — prices like a sharp book; the benchmark may move"
           if ok else
           "FAIL — this does not price like Pinnacle. Do NOT move the "
