@@ -39,7 +39,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proofodds import config, statsapi  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from proofodds import config, data, statsapi  # noqa: E402
 
 # A three-way sharp close. Pinnacle sits near 2.5%; anything at or above 4%
 # is an average or a soft book wearing the name.
@@ -61,8 +63,14 @@ def main() -> int:
     since = (dt.datetime.now(dt.timezone.utc)
              - dt.timedelta(days=args.days)).date().isoformat()
 
-    comps = ([args.competition] if args.competition
-             else list(config.STATSAPI_COMPETITIONS.values()))
+    # (our division code, their competition id) — the code is needed for the
+    # relative test below, which reads our own free CSVs for the same league.
+    if args.competition:
+        pairs = [(next((k for k, v in config.STATSAPI_COMPETITIONS.items()
+                        if v == args.competition), "?"), args.competition)]
+    else:
+        pairs = list(config.STATSAPI_COMPETITIONS.items())
+    comps = [api_id for _, api_id in pairs]
     if not comps:
         print("No competitions mapped yet. Run "
               "`python -m proofodds.statsapi map-divisions` and fill "
@@ -157,8 +165,53 @@ def main() -> int:
               "rather than counted as having no price — but coverage is "
               "understated until they are re-run.")
 
+    # ------------------------------------------------------------------ #
+    #  The second test: sharp relative to THIS league, not to the PL
+    # ------------------------------------------------------------------ #
+    # The absolute band above is calibrated on a Premier League prior, and a
+    # sharp book runs a wider margin on a thin market than on the most liquid
+    # one in the world. Judged against that band the Eredivisie and the
+    # Scottish Premiership came out "too wide" — which may say more about
+    # their liquidity than about the feed.
+    #
+    # So compare each division with itself: our free CSVs carry the
+    # market-average close for the same league over the same period, and a
+    # genuine sharp book must run a THINNER margin than the market average
+    # wherever it operates. That comparison adjusts for liquidity by
+    # construction and costs no API requests at all.
+    #
+    # Stated plainly because it matters: this test was added after seeing the
+    # first one fail on two divisions. That is why both results are printed,
+    # always, and why the band above was not quietly widened to make the
+    # failures disappear.
+    print("\n  sharp relative to the same league's market average:")
+    relative_ok = True
+    for code, api_id in pairs:
+        ours = [r["over"] for r in rows if r["comp"] == api_id]
+        if not ours or code == "?":
+            continue
+        try:
+            frame = data.add_market_probabilities(data.load_matches(code))
+        except Exception as exc:                       # noqa: BLE001
+            print(f"    {code}: cannot read our own CSVs ({exc})")
+            continue
+        recent = frame[(frame["Date"] >= pd.Timestamp(since))
+                       & frame["has_odds"]]
+        if recent.empty:
+            print(f"    {code}: no market-average rows in the same window")
+            continue
+        avg_margin = float(recent["overround"].median())
+        pin_margin = statistics.median(ours)
+        thinner = pin_margin < avg_margin
+        relative_ok &= thinner
+        print(f"    {code:4s} Pinnacle {pin_margin:.3%}  vs  market average "
+              f"{avg_margin:.3%}  ({len(recent)} rows)  "
+              f"{'THINNER — sharp' if thinner else 'WIDER — not sharp'}")
+
     ok = SHARP_MIN <= median <= SHARP_MAX
     print(f"\nband for a sharp book: {SHARP_MIN:.1%}–{SHARP_MAX:.1%}")
+    print(f"absolute test: {'PASS' if ok else 'FAIL'}   "
+          f"relative test: {'PASS' if relative_ok else 'FAIL'}")
     print("result:", "PASS — prices like a sharp book; the benchmark may move"
           if ok else
           "FAIL — this does not price like Pinnacle. Do NOT move the "

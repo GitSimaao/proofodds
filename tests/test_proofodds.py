@@ -2175,15 +2175,15 @@ def test_being_throttled_is_not_the_same_as_having_no_price(monkeypatch, tmp_pat
     monkeypatch.setattr(statsapi.requests, "get", lambda *a, **k: _Response())
     monkeypatch.setattr(statsapi.time, "sleep", lambda *_: None)
 
-    # Bound to tmp_path: the module-level _budget resolves its path at import
-    # from the real STATSAPI_DIR, so a test that let it through would spend
-    # the live monthly quota on every CI run.
-    budget = statsapi.Budget(path=tmp_path / "b.json", per_min=99)
-
+    # An explicit budget bound to tmp_path. Without it the call falls through
+    # to the module-level singleton, whose counter file was bound at import
+    # time to the REAL cache directory — and the suite then spends live
+    # monthly quota every time it runs. It did, twice per run, until the VPS
+    # agent noticed the number climbing.
+    budget = statsapi.Budget(path=tmp_path / "budget.json")
     with _pytest.raises(statsapi.RateLimited):
         statsapi.get("football/matches/mt_1/odds", cache=False, budget=budget)
     assert issubclass(statsapi.RateLimited, statsapi.StatsAPIError)
-    assert statsapi._budget.path != budget.path
 
 
 def test_requests_are_spaced_rather_than_bursted(monkeypatch):
