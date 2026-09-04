@@ -2153,3 +2153,47 @@ def test_opening_and_closing_are_read_separately(monkeypatch):
     assert pair["last_seen"] == {"H": 2.10, "D": 3.50, "A": 3.70}
     # and the fixture behaves like a real market: the close is tighter
     assert statsapi.overround(pair["last_seen"]) < statsapi.overround(pair["opening"])
+
+
+def test_being_throttled_is_not_the_same_as_having_no_price(monkeypatch, tmp_path):
+    """
+    The first Ligue 1 sweep recorded eight matches as having no Pinnacle price
+    when they had simply been refused. Coverage is the number the benchmark
+    decision rests on, so a refusal has to be a different type from an
+    absence — otherwise our own rate limiter quietly argues against migrating.
+    """
+    import pytest as _pytest
+    from proofodds import statsapi
+
+    class _Response:
+        status_code = 429
+        headers = {"retry-after": "0"}
+        text = "rate limited"
+
+    monkeypatch.setattr(config, "STATSAPI_KEY", "test-key")
+    monkeypatch.setattr(config, "STATSAPI_DIR", tmp_path)
+    monkeypatch.setattr(statsapi.requests, "get", lambda *a, **k: _Response())
+    monkeypatch.setattr(statsapi.time, "sleep", lambda *_: None)
+
+    with _pytest.raises(statsapi.RateLimited):
+        statsapi.get("football/matches/mt_1/odds", cache=False)
+    assert issubclass(statsapi.RateLimited, statsapi.StatsAPIError)
+
+
+def test_requests_are_spaced_rather_than_bursted(monkeypatch):
+    """
+    Ten requests in two seconds is a burst to a token bucket however
+    comfortably it fits inside a per-minute figure. Even spacing is the same
+    throughput without the 429s.
+    """
+    from proofodds import statsapi
+    slept: list[float] = []
+    monkeypatch.setattr(statsapi.time, "sleep", lambda s: slept.append(s))
+    clock = {"t": 0.0}
+    monkeypatch.setattr(statsapi.time, "monotonic", lambda: clock["t"])
+
+    budget = statsapi.Budget(per_min=10)
+    budget.throttle()                 # first call is free
+    assert not slept
+    budget.throttle()                 # second must wait a full 6s gap
+    assert slept and abs(slept[-1] - 6.0) < 1e-9

@@ -60,6 +60,19 @@ class QuotaExhausted(StatsAPIError):
     pass
 
 
+class RateLimited(StatsAPIError):
+    """
+    Distinct from a missing price, and the distinction matters.
+
+    A sweep that catches every StatsAPIError alike counts a throttled request
+    as "this match has no Pinnacle price". That understates coverage in
+    exactly the measurement being used to decide whether the benchmark moves —
+    it happened on the first Ligue 1 sweep, where eight matches were recorded
+    as missing when they had simply been refused. A rate limit is a fact about
+    us, not about the data.
+    """
+
+
 # --------------------------------------------------------------------------- #
 #  Budget: this plan is far smaller than the brochure says
 # --------------------------------------------------------------------------- #
@@ -116,18 +129,24 @@ class Budget:
                 "until it resets; nothing is graded against a guess.")
 
     def throttle(self) -> None:
-        """Simple sliding window. Sleeps rather than risking a 429."""
+        """
+        Space requests evenly instead of bursting to the limit and stalling.
+
+        A rolling-window limiter fires its whole allowance back to back and
+        then waits out the minute. That is inside the documented limit and
+        still drew 429s: a server with a token bucket sees ten requests in two
+        seconds as a burst whatever the per-minute figure says. One request
+        every `60/per_min` seconds is the same throughput, gentler, and it is
+        what stopped the Ligue 1 sweep losing matches to throttling.
+        """
+        gap = 60.0 / max(1, self.per_min)
         now = time.monotonic()
-        self._recent = [t for t in self._recent if now - t < 60.0]
-        if len(self._recent) >= self.per_min:
-            wait = 60.0 - (now - self._recent[0]) + 0.25
+        if self._recent:
+            wait = self._recent[-1] + gap - now
             if wait > 0:
-                log.info("TheStatsAPI: pausing %.1fs to stay under %d/min",
-                         wait, self.per_min)
                 time.sleep(wait)
-            now = time.monotonic()
-            self._recent = [t for t in self._recent if now - t < 60.0]
-        self._recent.append(now)
+                now = time.monotonic()
+        self._recent = [now]
 
 
 _budget = Budget()
@@ -194,8 +213,29 @@ def get(path: str, params: dict | None = None, *, cache: bool = True,
     budget.spend()
 
     if response.status_code == 429:
-        raise StatsAPIError(f"{path}: rate limited (429) — lower "
-                            "PROOFODDS_STATSAPI_RPM")
+        # One patient retry. There is no Retry-After header, so wait a whole
+        # window rather than guessing something shorter and being refused
+        # again — and if it still fails, say so in a type the caller can tell
+        # apart from "this match has no price".
+        delay = float(response.headers.get("retry-after") or 60.0)
+        log.warning("TheStatsAPI: rate limited on %s, waiting %.0fs for one "
+                    "retry", path, delay)
+        time.sleep(delay)
+        budget.check()
+        try:
+            response = requests.get(
+                url, params=params, timeout=30,
+                headers={"Authorization": f"Bearer {config.STATSAPI_KEY}",
+                         "User-Agent": USER_AGENT,
+                         "Accept": "application/json"})
+        except requests.RequestException as exc:
+            raise RateLimited(f"{path}: {exc}") from exc
+        budget.spend()
+        if response.status_code == 429:
+            raise RateLimited(
+                f"{path}: still rate limited after {delay:.0f}s — lower "
+                "PROOFODDS_STATSAPI_RPM. This match was NOT checked and must "
+                "not be counted as having no price.")
     if response.status_code >= 400:
         # Never echo the key, and never echo a whole error page.
         raise StatsAPIError(f"{path}: HTTP {response.status_code} "

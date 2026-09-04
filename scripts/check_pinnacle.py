@@ -74,7 +74,7 @@ def main() -> int:
           f"{budget.remaining()} left. Sampling up to {args.matches} matches "
           f"finished since {since}.\n")
 
-    rows, missing = [], 0
+    rows, missing, throttled = [], 0, 0
     per_comp = max(1, args.matches // len(comps))
     for comp in comps:
         found = statsapi.matches(competition_id=comp, status="finished",
@@ -88,6 +88,13 @@ def main() -> int:
             except statsapi.QuotaExhausted as exc:
                 print(f"\nstopped: {exc}")
                 break
+            except statsapi.RateLimited as exc:
+                # NOT a missing price. Counting a refused request as absent
+                # data understates coverage in the very measurement this
+                # script exists to produce.
+                print(f"  ~ {match.get('id')}: throttled, not checked")
+                throttled += 1
+                continue
             except statsapi.StatsAPIError as exc:
                 print(f"  ! {match.get('id')}: {exc}")
                 missing += 1
@@ -113,7 +120,8 @@ def main() -> int:
     overs = sorted(r["over"] for r in rows)
     median = statistics.median(overs)
     print(f"{args.book} closing 1X2 overround over {len(rows)} matches"
-          f"{f' ({missing} skipped)' if missing else ''}:")
+          f"{f' ({missing} with no price)' if missing else ''}"
+          f"{f', {throttled} NOT CHECKED (throttled)' if throttled else ''}:")
     print(f"  median {median:.3%}   mean {statistics.fmean(overs):.3%}")
     print(f"  p10 {overs[len(overs)//10]:.3%}   "
           f"p90 {overs[-max(1, len(overs)//10)]:.3%}")
@@ -142,6 +150,12 @@ def main() -> int:
     print("\n  markets present, by share of sampled matches:")
     for market, count in sorted(seen.items(), key=lambda kv: -kv[1]):
         print(f"    {market:8s} {count}/{len(rows)} ({count/len(rows):.0%})")
+
+    if throttled:
+        print(f"\n  ! {throttled} match(es) were refused by the rate limiter "
+              "and never checked. They are excluded from every figure above "
+              "rather than counted as having no price — but coverage is "
+              "understated until they are re-run.")
 
     ok = SHARP_MIN <= median <= SHARP_MAX
     print(f"\nband for a sharp book: {SHARP_MIN:.1%}–{SHARP_MAX:.1%}")
