@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="shell hero">
-  <p class="eyebrow">For tipsters, creators and anyone claiming an edge</p>
+  <p class="eyebrow">For anyone who forecasts football and would rather know</p>
   <h1>Seal your own record</h1>
   <p class="lead">The machinery on this site does not care whose predictions it measures.
   Send us yours before kickoff and they go into a hash chain under exactly the same
@@ -47,12 +47,36 @@
       </div>
       <div class="box">
         <h4>Coverage</h4>
-        <p>Anything football-data.co.uk publishes a closing price for — around forty
-        competitions across Europe and beyond, well past the {{ n_leagues }} divisions our
-        own model prices. A selection with no closing benchmark cannot be given CLV and
-        we will say so rather than invent one.</p>
+        <p><strong>38 competitions</strong> — everything football-data.co.uk publishes a
+        closing price for, and far past the {{ n_leagues }} divisions our own model
+        prices. Twenty-two European leagues carry 1X2, over/under 2.5 and the main Asian
+        handicap; sixteen further countries, from Argentina and Brazil to Japan and the
+        USA, carry 1X2. Run <code>python -m proofodds.guest coverage</code> for the exact
+        matrix. A selection with no closing benchmark cannot be given CLV and we will say
+        so rather than invent one.</p>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>If you built a model</h2>
+    <p class="section-note">Most of the people who could use this are not selling
+    anything. They have a model and no way to find out whether it is any good.</p>
+    <p>A backtest cannot tell you. It is fitted, tuned and evaluated on the same
+    history, and every mistake that produces — a feature that leaked the result, a
+    hyperparameter chosen on the test set, a season kept because it looked better —
+    makes the number go up rather than down. That is the failure mode: the backtest is
+    wrong in the flattering direction, and it is wrong quietly.</p>
+    <p>The only honest answer is out-of-sample, forward, against a benchmark you cannot
+    argue with. That is exactly what this machinery does, and it is what we point at our
+    own model — which is how we can tell you it loses, and by how much, with an interval
+    around it. Seal a season of forecasts and you get the same treatment: graded against
+    the market-average close, reported with the sample size and the confidence interval,
+    and no headline claimed from a number too small to carry one.</p>
+    <p class="section-note">There is no charge and no plan to introduce one for this. It
+    is the part of the project we most want to exist.</p>
   </div>
 </section>
 
