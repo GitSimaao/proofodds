@@ -75,6 +75,7 @@
             <th>Entry hash</th>
             <th>Links to</th>
             <th>Generator</th>
+            <th>Divisions</th>
             <th>External time</th>
             <th class="num">Raw</th>
           </tr>
@@ -93,6 +94,16 @@
                 <span class="hash">{{ e.generator_source[:10] }}</span>
               {% else %}
                 <span class="muted">Not recorded</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if e.coverage and e.coverage.missing %}
+                <span class="behind">{{ e.coverage.returned|length - e.coverage.missing|length }}/{{ e.coverage.requested|length }}</span>
+                <br><span class="muted" title="{% for m in e.coverage.missing %}{{ m.league }}: {{ m.reason }}{{ '; ' if not loop.last }}{% endfor %}">no {{ e.coverage.missing|map(attribute='league')|join(', ') }}</span>
+              {% elif e.coverage %}
+                <span class="muted">{{ e.coverage.requested|length }}/{{ e.coverage.requested|length }}</span>
+              {% else %}
+                <span class="muted">—</span>
               {% endif %}
             </td>
             <td>
@@ -122,6 +133,38 @@
       </div>
     {% endif %}
 
+    <h3 id="limits">What this proves, and what it does not</h3>
+    <p class="section-note">Each layer below has a deliberately narrow claim, and the
+    narrowness is the point. A proof that is described as stronger than it is does more
+    damage than no proof at all.</p>
+    <div class="pair">
+      <div class="box yes">
+        <h4>Proved</h4>
+        <p><strong>Nothing was altered.</strong> Change one probability in a past entry
+        and its hash stops recomputing; fix that and the next entry's
+        <code>prev_hash</code> stops matching, and so on to the head. Rebuilding the whole
+        chain means force-pushing over a public repository.</p>
+        <p><strong>It existed before a Bitcoin block.</strong> Each entry from 28 August
+        carries a detached OpenTimestamps proof, and the block in its row was mined before
+        the first kickoff that entry covers.</p>
+      </div>
+      <div class="box no">
+        <h4>Not proved</h4>
+        <p><strong>That nothing was left out.</strong> A hash chain proves no entry was
+        edited. It cannot prove, by itself, that a fixture we priced was published rather
+        than held back, or that the newest entry is not missing. Two things narrow it:
+        {% if coverage_from %}the <code>coverage</code> block sealed into every entry from
+        {{ coverage_from }} onward names each division the run was asked for and the reason
+        any of them returned nothing{% else %}from the next entry sealed after this page was
+        built, a <code>coverage</code> block records each division the run was asked for and
+        the reason any of them returned nothing &mdash; the entries above predate it and
+        cannot say what they did not cover{% endif %}, and the chain is pushed to a public
+        repository on every run, so a shortened history is visible to anyone who cloned it
+        earlier. Neither is a proof, and calling them one would be the sort of claim this
+        page exists to avoid.</p>
+      </div>
+    </div>
+
     <h3>Recomputing the chain</h3>
     <p class="section-note">Clone the repository and run one command. It reads every file in
     <code>predictions/</code>, recomputes each SHA-256 over the entry with its own
@@ -132,6 +175,27 @@
 cd proofodds
 python -m proofodds.verify</pre>
     </div>
+    <p class="section-note">Or point it at a directory of files downloaded from this site.
+    It ignores anything in there that is not a ledger entry — the build summary at
+    <a href="/predictions/_chain.json">/predictions/_chain.json</a> among them — and reports
+    only on the chain itself.</p>
+    <div class="scroll" style="padding:16px 18px;min-width:0">
+      <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">python proofodds/verify.py /path/to/downloaded/predictions</pre>
+    </div>
+
+    <h3>Recomputing the score</h3>
+    <p class="section-note">The command above proves nothing here was altered. It says
+    nothing about whether the number on the <a href="/scorecard/">scorecard</a> is the
+    right number for these files, so there is a second command for that half. It reads
+    the sealed entries, joins them to the raw results, and recomputes the de-vigging, the
+    log loss and the interval in a separate implementation from the one that publishes
+    them &mdash; then fails if the two disagree. <code>--csv</code> writes one row per
+    graded match, so the whole scorecard fits in a spreadsheet column.</p>
+    <div class="scroll" style="padding:16px 18px;min-width:0">
+      <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">pip install -r requirements.txt
+python scripts/rescore.py --refresh --csv audit.csv</pre>
+    </div>
+
 
     <h3>Verifying an external timestamp</h3>
     <p class="section-note">For any row with a proof, download the JSON and its

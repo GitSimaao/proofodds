@@ -183,6 +183,10 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
                 if row.get("p_btts_yes") is not None else None)
     handicaps = row.get("asian_handicap") or []
     main_ah = min(handicaps, key=lambda x: abs(float(x["p_home"]) - .5)) if handicaps else None
+    # Still read, still sealed, deliberately not rendered. Corners are the one
+    # market this site publishes no score for, so it publishes no forecast for
+    # them either — see the note in config.FORECAST_MARKETS. The entries keep
+    # accumulating so the record exists on the day the scoring does.
     corner_data = row.get("corners")
     corner_totals = corner_data.get("totals", []) if isinstance(corner_data, dict) else []
     corner_main = (min(corner_totals, key=lambda x: abs(float(x["p_over"]) - .5))
@@ -218,18 +222,12 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         # A fixture first published before a market existed carries only what
         # was sealed that day. First publication wins, so the missing markets
         # cannot be added later — and the card says why, rather than leaving a
-        # reader to wonder where the four markets the method page promises are.
-        # Corners are the exception: they need HC/AC counts to fit, and the
-        # "new leagues" files carry none. A Brasileirao card without corners
-        # is a limit of the source, not of the seal, so it is not listed here.
+        # reader to wonder where the markets the method page promises are.
         "sparse_markets": [
             label for key, label in (("p_over25", "over/under 2.5"),
                                      ("p_btts_yes", "both teams to score"),
-                                     ("asian_handicap", "the Asian handicap"),
-                                     ("corners", "corners"))
-            if not row.get(key)
-            and not (key == "corners" and config.LEAGUES.get(
-                league, {}).get("source", "season") != "season")],
+                                     ("asian_handicap", "the Asian handicap"))
+            if not row.get(key)],
         "asian_handicap": handicaps,
         "main_ah": main_ah,
         "p_btts_yes": row.get("p_btts_yes"),
@@ -249,6 +247,10 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "favourite": favourite,
         "kickoff_dt": kickoff,
         "kickoff_tbc": tbc,
+        # Present only when the feed moved an unfixed kickoff after we sealed
+        # it. The card shows both, so the correction is part of the record
+        # rather than something a reader has to diff two JSON files to find.
+        "kickoff_sealed": row.get("kickoff_sealed"),
         "kickoff_label": (kickoff.strftime("%a %d %b") + ", time TBC"
                           if tbc else kickoff.strftime("%a %d %b, %H:%M UTC")),
         "kickoff_date_label": kickoff.strftime("%A, %d %B %Y"),
@@ -345,6 +347,9 @@ def ledger_view(anchor_report=None) -> list[dict]:
             "generator_commit": generator.get("commit"),
             "generator_dirty": generator.get("dirty"),
             "generator_source": generator.get("source_sha256"),
+            # Schema 5 and later. Absent on older entries, which is itself the
+            # honest answer: they cannot say what they did not cover.
+            "coverage": entry.get("coverage"),
             "anchor": by_entry.get(path.name, {
                 "status": "none", "blocks": [], "proof": None}),
         })
@@ -409,7 +414,11 @@ def build(out_dir=None) -> None:
         "tagline": config.SITE_TAGLINE,
         "repo_url": config.REPO_URL,
         "built_at": build_now.strftime("%d %b %Y"),
+        # Machine-readable, so the page can compare its own age with the
+        # reader's clock and say when it has gone stale.
+        "built_iso": build_now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "uniform_log_loss": config.UNIFORM_LOG_LOSS,
+        "min_league_rows": config.MIN_LEAGUE_ROWS,
         "backtest": config.BACKTEST,
         "score": score,
         "totals": totals,
@@ -458,11 +467,6 @@ def build(out_dir=None) -> None:
         picker_end=days[-1]["label"] if days else "",
         **common))
 
-    corner_matches = [m for m in matches if m.get("corners") and not m["is_past"]]
-    write("corners/index.html", env.get_template("corners.html").render(
-        page="corners", canonical="/corners/", matches=corner_matches,
-        **common))
-
     for match in matches:
         write(match["match_url"].lstrip("/") + "index.html",
               env.get_template("match.html").render(
@@ -477,8 +481,14 @@ def build(out_dir=None) -> None:
         calibration_chart=charts.calibration(calib),
         **common))
 
+    # The date the coverage block actually starts, read off the entries rather
+    # than typed into the page. Entries sealed before it exists cannot say what
+    # they did not cover, and the page has to be able to say that too.
+    with_coverage = [e for e in reversed(entries) if e.get("coverage")]
     write("ledger/index.html", env.get_template("ledger.html").render(
         page="ledger", canonical="/ledger/",
+        coverage_from=(with_coverage[0]["published_at"][:10]
+                       if with_coverage else None),
         entries=entries, chain=chain, anchors=anchors, **common))
 
     write("method/index.html", env.get_template("method.html").render(
@@ -527,11 +537,24 @@ def build(out_dir=None) -> None:
         for path in guest.entry_files(record["slug"]):
             shutil.copy2(path, raw_dir / path.name)
         # Directory listings are off on the server; a JSON index makes the raw
-        # chain reachable by URL alone.
-        (raw_dir / "index.json").write_text(json.dumps(
+        # chain reachable by URL alone. Named with a leading underscore for the
+        # same reason as /predictions/_chain.json: a guest chain is verified by
+        # pointing the standalone verifier at the directory, and a listing file
+        # sitting among the entries used to read as a broken chain.
+        (raw_dir / "_files.json").write_text(json.dumps(
             {"guest": record["slug"],
              "files": [p.name for p in guest.entry_files(record["slug"])]},
             indent=2), encoding="utf-8")
+
+    # The offer, not just the demonstration.
+    #
+    # Every piece of machinery for measuring somebody else's record was built
+    # and tested, and the site said nothing about it anywhere — no nav item, no
+    # footer link, /guests/ a 404. A visitor who would have wanted their record
+    # sealed had no way to find out it was possible. The page exists before the
+    # first guest does, on purpose: the offer is what produces the guest.
+    write("referee/index.html", env.get_template("referee.html").render(
+        page="referee", canonical="/referee/", guests=guest_records, **common))
 
     write("privacy/index.html", env.get_template("privacy.html").render(
         page="privacy", canonical="/privacy/", **common))
@@ -550,8 +573,8 @@ def build(out_dir=None) -> None:
     (out_dir / "favicon.svg").write_bytes(logo)
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
-    public_pages = ["/", "/corners/", "/scorecard/", "/ledger/", "/method/", "/privacy/",
-                    "/log/", "/log/first-post/"]
+    public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/referee/",
+                    "/privacy/", "/log/", "/log/first-post/", "/predictions/"]
     public_pages.extend(f"/guests/{r['slug']}/" for r in guest_records)
     public_pages.extend(match["match_url"] for match in matches)
     (out_dir / "sitemap.xml").write_text(
@@ -562,10 +585,51 @@ def build(out_dir=None) -> None:
     raw.mkdir(exist_ok=True)
     for path in ledger.ledger_files():
         shutil.copy2(path, raw / path.name)
-    (raw / "index.json").write_text(
+    # The build summary is NOT named index.json.
+    #
+    # `verify.py` reads every *.json in the directory it is pointed at, and the
+    # obvious way to audit this site is to download /predictions/ and run the
+    # verifier on it. With a summary file sitting in there, that produced
+    # "CHAIN BROKEN — index.json: content hash mismatch" against a chain that
+    # was perfectly intact — the single worst possible false alarm for this
+    # project to ship. The verifier now skips non-entry files as well, so this
+    # is the belt to that pair of braces.
+    (raw / "_chain.json").write_text(
         json.dumps({"entries": entries, "chain": chain,
                     "external_timestamps": anchors}, indent=2),
         encoding="utf-8")
+
+    # /predictions/ and /timestamps/ are linked from the footer of every page as
+    # the raw evidence, and both answered 403: directory listings are off on the
+    # server and neither had an index. The single most inviting link on the site
+    # — "Raw JSON" — was a Forbidden page. These two write a real index instead
+    # of turning listings on, so the evidence is browsable and each file is
+    # named beside its hash rather than dumped by the web server.
+    write("predictions/index.html", env.get_template("raw_index.html").render(
+        page="ledger", canonical="/predictions/",
+        heading="The sealed ledger, raw",
+        blurb=("One JSON file per publication day, each carrying the SHA-256 of "
+               "the one before it. These are the files the scorecard is computed "
+               "from and the files the verifier reads."),
+        columns=["Matches", "Entry hash"],
+        files=[{"name": e["file"], "url": f"/predictions/{e['file']}",
+                "cells": [e["n"], e["hash"][:16] + "…"]} for e in entries],
+        extra_url="/predictions/_chain.json", **common))
+
+    write("timestamps/index.html", env.get_template("raw_index.html").render(
+        page="ledger", canonical="/timestamps/",
+        heading="Detached OpenTimestamps proofs",
+        blurb=("One proof per sealed entry, from the first entry submitted "
+               "onward. Download a proof and its matching JSON into the same "
+               "directory and the standard client verifies it against Bitcoin "
+               "without involving this server."),
+        columns=["Status", "Block"],
+        files=[{"name": row["proof"],
+                "url": f"/timestamps/{row['proof']}",
+                "cells": [row["status"],
+                          row["blocks"][0] if row["blocks"] else "—"]}
+               for row in reversed(anchors["entries"]) if row["proof"]],
+        extra_url=None, **common))
 
     # Detached OpenTimestamps proofs.  They live outside /predictions/ so that
     # the raw ledger remains JSON-only and its web-server content type stays
@@ -578,3 +642,55 @@ def build(out_dir=None) -> None:
             shutil.copy2(path, proofs / path.name)
 
     log.info("built %d pages into %s", pages_written, out_dir)
+
+
+def publish_site(keep_backups: int = 2) -> None:
+    """
+    Build into a staging directory, then swap it in with two renames.
+
+    `build()` starts by deleting its output directory and then writes three
+    hundred pages into it one at a time. Pointed straight at the directory
+    nginx is serving — which is what the daily job did — that is several
+    seconds during which the site is a 404, and then a stretch during which it
+    is half a site, every three hours. Nobody noticed because nobody was
+    looking; a few hundred people arriving from one link would.
+
+    So the build goes somewhere else and the swap is two renames, which take no
+    measurable time and leave a complete site on either side of them. The
+    previous build is kept for a couple of rounds as a rollback that needs no
+    tooling: `mv site-backup-<stamp> site` and it is back.
+    """
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    staging = config.ROOT / f"staging-{stamp}"
+    backup = config.ROOT / f"site-backup-{stamp}"
+    live = config.SITE_DIR
+
+    build(staging)
+
+    # Refuse to swap in something obviously broken. A staging directory with no
+    # front page is a build that failed halfway, and replacing a working site
+    # with it would turn a bad build into an outage.
+    for required in ("index.html", "scorecard/index.html", "ledger/index.html",
+                     "predictions/index.html"):
+        if not (staging / required).is_file():
+            shutil.rmtree(staging, ignore_errors=True)
+            raise RuntimeError(
+                f"refusing to publish: staging build has no {required}")
+
+    had_live = live.exists()
+    if had_live:
+        live.rename(backup)
+    try:
+        staging.rename(live)
+    except OSError:
+        if had_live:
+            backup.rename(live)          # put the working site back
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    log.info("published %s -> %s", staging.name, live.name)
+
+    old_backups = sorted(config.ROOT.glob("site-backup-*"))
+    for stale in old_backups[:-keep_backups] if keep_backups else old_backups:
+        shutil.rmtree(stale, ignore_errors=True)
+        log.info("removed old build %s", stale.name)

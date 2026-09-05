@@ -362,12 +362,31 @@ def for_name_audit(league: str, days_ahead: int) -> list[Fixture] | None:
 
 def upcoming(leagues: list[str] | str | None = None,
              days_ahead: int | None = None) -> list[Fixture]:
+    """Every fixture we can price in the next `days_ahead` days, all divisions."""
+    return upcoming_with_coverage(leagues, days_ahead)[0]
+
+
+def upcoming_with_coverage(leagues: list[str] | str | None = None,
+                           days_ahead: int | None = None
+                           ) -> tuple[list[Fixture], dict]:
     """
-    Every fixture we can price in the next `days_ahead` days, all divisions.
+    The same fixtures, plus a record of which divisions produced none and why.
 
     One division failing does not take the others down: a run that publishes
     six leagues and logs the seventh is far better than a run that publishes
     nothing because Serie A's request timed out.
+
+    But "logs the seventh" was the whole of it, and a log line is not a record.
+    The reasons were built here, printed, and thrown away, so a division whose
+    fixture feed failed simply vanished from that day's sealed entry with
+    nothing inside the entry saying it had ever been asked for. It happened:
+    Belgium and Scotland are in the 3 September entry, absent from the 4th, and
+    back on the 5th, and the file for the 4th records no gap at all. Had the
+    outage outlasted a kickoff, those matches would never have been sealed, the
+    scorecard would have been quietly smaller, and nothing would have said so.
+
+    `build_entry` seals what comes back from here, so the entry can now state
+    which divisions it was asked to cover and which of them it does not.
     """
     if leagues is None:
         leagues = list(config.ENABLED_LEAGUES)
@@ -414,19 +433,43 @@ def upcoming(leagues: list[str] | str | None = None,
         elif not consulted:
             reasons.append("data/fixtures.csv is missing or empty")
 
+    per_league: dict[str, int] = {}
+    for f in fixtures:
+        per_league[f.league] = per_league.get(f.league, 0) + 1
+
+    # A division asked for that produced nothing, with whatever the source said
+    # about it. "No unplayed match in the window" and "source unreachable" are
+    # very different facts and the entry has to keep them apart.
+    by_league_reason: dict[str, list[str]] = {}
+    for reason in reasons:
+        code, _, detail = reason.partition(":")
+        by_league_reason.setdefault(code.strip(), []).append(
+            detail.strip() or reason)
+    coverage = {
+        "requested": list(leagues),
+        "returned": {code: per_league.get(code, 0) for code in leagues},
+        "missing": [
+            {"league": code,
+             "reason": "; ".join(by_league_reason.get(code, []))
+                       or "no fixture returned and no reason reported"}
+            for code in leagues if not per_league.get(code)],
+        "notes": [r for r in reasons
+                  if r.partition(":")[0].strip() not in leagues],
+    }
+
     if not fixtures:
         # Say WHICH of several very different situations this is. Blaming the
         # token when the window is simply empty sends you looking in the wrong
         # place for an hour.
         log.warning("nothing to publish — %s", "; ".join(reasons) or "no source")
-        return []
+        return [], coverage
 
-    per_league: dict[str, int] = {}
-    for f in fixtures:
-        per_league[f.league] = per_league.get(f.league, 0) + 1
     log.info("%d upcoming fixtures in the next %d days (%s)",
              len(fixtures), days_ahead,
              ", ".join(f"{k}={v}" for k, v in sorted(per_league.items())))
-    if reasons:
-        log.info("quiet divisions — %s", "; ".join(reasons))
-    return sorted(fixtures, key=lambda f: (f.kickoff, f.league, f.home))
+    if coverage["missing"]:
+        log.warning("divisions with no fixture this run — %s",
+                    "; ".join(f"{m['league']}: {m['reason']}"
+                              for m in coverage["missing"]))
+    return (sorted(fixtures, key=lambda f: (f.kickoff, f.league, f.home)),
+            coverage)

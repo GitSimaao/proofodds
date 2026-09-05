@@ -43,10 +43,10 @@
     </a>
     <nav class="nav" aria-label="Main">
       <a href="/"{% if page in ['index', 'match'] %} aria-current="page"{% endif %}>Matches</a>
-      <a href="/corners/"{% if page == 'corners' %} aria-current="page"{% endif %}>Corners Lab</a>
       <a href="/scorecard/"{% if page == 'scorecard' %} aria-current="page"{% endif %}>Scorecard</a>
       <a href="/ledger/"{% if page == 'ledger' %} aria-current="page"{% endif %}>Ledger</a>
       <a href="/method/"{% if page == 'method' %} aria-current="page"{% endif %}>Method</a>
+      <a href="/referee/"{% if page in ['referee', 'guest'] %} aria-current="page"{% endif %}>Seal yours</a>
     </nav>
     <button class="theme-toggle" type="button" aria-label="Switch theme">
       <svg class="i-sun" viewBox="0 0 24 24" width="17" height="17" fill="none"
@@ -85,6 +85,7 @@
     <div class="foot-links">
       <h4>How it works</h4>
       <a href="/method/">Method</a>
+      <a href="/referee/">Seal your own record</a>
       <a href="/log/">Log</a>
       <a href="{{ repo_url }}" rel="noopener">Source code</a>
       <a href="/privacy/">Privacy</a>
@@ -95,11 +96,42 @@
     <p>Statistical forecasts published for informational purposes. Not betting
     advice. 18+. If gambling stops being fun, it is worth talking to someone —
     <a href="https://www.begambleaware.org/" rel="noopener">BeGambleAware</a>.</p>
-    <p>Built {{ built_at }} · Odds and results from football-data.co.uk</p>
+    <p>Built <time datetime="{{ built_iso }}" data-built>{{ built_at }}</time> · Odds and results from football-data.co.uk</p>
   </div>
 </footer>
 
+<div class="stale-note" hidden data-stale-note role="status">
+  <strong>This page has not rebuilt for <span data-stale-age></span>.</strong>
+  The daily job seals predictions and regrades results every three hours; when it
+  stops, this site keeps serving the last good build and everything on it silently
+  goes out of date. Rather than let it look current, the page says so itself. The
+  <a href="/predictions/">sealed ledger</a> is unaffected — nothing in it depends on
+  this site being up.
+</div>
+
 <script>
+(function () {
+  // Say out loud when this build is stale.
+  //
+  // The job runs every three hours. If it dies, nginx keeps serving the last
+  // good build forever and the scorecard, the fixtures and the ledger summary
+  // all quietly stop being true while still looking freshly rendered. There is
+  // no monitoring on this box worth the name, so the honest fallback is for the
+  // page to check its own age against the reader's clock and admit it.
+  var STALE_HOURS = 30;                 // one missed day, plus slack
+  var stamp = document.querySelector("[data-built]");
+  var note = document.querySelector("[data-stale-note]");
+  if (!stamp || !note) return;
+  var built = new Date(stamp.getAttribute("datetime"));
+  if (isNaN(built)) return;
+  var hours = (Date.now() - built.getTime()) / 3600000;
+  if (hours < STALE_HOURS) return;
+  var label = hours < 48 ? Math.round(hours) + " hours"
+                         : Math.round(hours / 24) + " days";
+  note.querySelector("[data-stale-age]").textContent = label;
+  note.hidden = false;
+})();
+
 (function () {
   // Kickoff times are stored in UTC; render them in the reader's timezone.
   document.querySelectorAll("[data-utc]").forEach(function (el) {

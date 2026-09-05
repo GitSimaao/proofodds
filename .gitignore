@@ -34,6 +34,9 @@ __pycache__/
 # Session backups (rollback artefacts, not record)
 *.bak*
 
+# Operational noise from OnFailure=, not record.
+failures.log
+
 # Editor / OS
 .DS_Store
 *.swp

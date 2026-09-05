@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} — {{ site_name }}{% endblock %}
+{% block description %}{{ blurb }}{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">Served raw · nothing rendered</p>
+  <h1>{{ heading }}</h1>
+  <p class="lead">{{ blurb }}</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <p class="section-note">Directory listings are off on this server, so this page is
+    the index. Every file below is served exactly as it sits in the
+    <a href="{{ repo_url }}" rel="noopener">public repository</a> — no rewriting, no
+    generation at request time. If you would rather not click through them one by one,
+    clone the repository and run the
+    <a href="/ledger/#limits">two verification commands</a> instead.</p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            {% for column in columns %}<th class="num">{{ column }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in files %}
+          <tr>
+            <td><a href="{{ row.url }}"><code>{{ row.name }}</code></a></td>
+            {% for cell in row.cells %}<td class="num muted">{{ cell }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if extra_url %}
+    <p class="table-note">A machine-readable summary of the whole chain, including the
+    verification result and the timestamp status of every entry, is at
+    <a href="{{ extra_url }}"><code>{{ extra_url }}</code></a>. It is deliberately not
+    named <code>index.json</code>: the verifier reads every JSON file in the directory it
+    is pointed at, and a summary sitting among the entries used to make an intact chain
+    report as broken.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

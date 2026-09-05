@@ -31,15 +31,35 @@
           divisions whose source publishes them.</p>
         </div>
         <div class="box">
-          <h4>Forecast only</h4>
+          <h4>Scored against guessing</h4>
           <p>No free closing benchmark exists anywhere for these, so there is nothing to
           be measured against except guessing — log loss against the coin flip, which
-          says whether a forecast is calibrated, not whether it beats anyone. They are
-          sealed and scored on that basis and are never presented as an edge.
-          Today: <strong>BTTS</strong>, the <strong>goal-total lines other than
-          2.5</strong>, <strong>Corners Lab</strong> and the <strong>correct-score</strong>
-          view.</p>
+          says whether a forecast is calibrated, not whether it beats anyone. Sealed and
+          scored on that basis, never presented as an edge.
+          Today that is <strong>both teams to score</strong>, and only that: its number
+          is on the <a href="/scorecard/">scorecard</a>.</p>
         </div>
+        <div class="box">
+          <h4>Sealed, not yet scored</h4>
+          <p>Published on the match cards, sealed into the ledger before kickoff, and
+          carrying <strong>no score anywhere on this site</strong>: the
+          <strong>goal-total lines other than 2.5</strong> and the
+          <strong>correct-score</strong> view. They are shown as context, they are
+          falsifiable later because they are sealed now, and until a number exists they
+          are evidence of nothing.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Why there are three boxes and not two</strong>
+        Until September this page had two, and it listed the goal-total ladder, the
+        correct-score view and a corners model in the second one under the words
+        "sealed and scored on that basis". Only BTTS was scored. Nothing else on the
+        site produced a number for the other three, and a site whose whole argument is
+        that it keeps the score it promises to keep had promised a score it was not
+        keeping. The third box is that correction. The corners model came out
+        altogether: it still fits and still writes its distribution into every sealed
+        entry, so the record accumulates, but the page and the navigation link are gone
+        until <code>grade.py</code> can put a number beside them.
       </div>
       <p>The earlier version of this page said the site would publish nothing without a
       closing line at all. We changed our mind on that and we would rather say so than
@@ -54,16 +74,13 @@
       over/under 2.5 and one main Asian-handicap line. The "new leagues" files — the
       <strong>Brasileirão</strong> among them — carry a closing 1X2 and nothing else. So
       for Brazil only the result is scored against the close; its over/under and handicap
-      are sealed and shown as forecasts, tagged that way on every match card. Corners are
-      omitted there entirely, because that source carries no corner counts either.</p>
+      are sealed and shown as forecasts, tagged that way on every match card.</p>
 
       <h2>The model</h2>
       <p>Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a
       quarter-line Asian-handicap grid. All are different sums of the same
       Dixon–Coles scoreline distribution — not separate fitted models, and not a second
-      set of assumptions. Corners Lab is the one exception: a separate count model fitted
-      only to the home and away corner totals, with an overdispersed predictive
-      distribution, and labelled experimental because that is what it is.</p>
+      set of assumptions.</p>
 
       <p>One model is fitted per division, on that division's matches only. Ratings are
       not comparable across countries — a Championship attack rating of 1.1 says nothing
@@ -110,9 +127,14 @@
       <p>Closing odds are turned into probabilities by inverting the three prices and dividing
       each by their total, which removes the bookmaker's margin proportionally. Two reference
       points frame every number on this site: predicting 1/3 each time scores
-      <strong>{{ '%.4f'|format(uniform_log_loss) }}</strong>, and the closing line scores about
-      <strong>{{ '%.4f'|format(backtest.market_log_loss) }}</strong>. The whole of football
-      knowledge is the gap between those two.</p>
+      <strong>{{ '%.4f'|format(uniform_log_loss) }}</strong>, and the closing line scores
+      <strong>{{ '%.4f'|format(backtest.market_log_loss) }}</strong> over the
+      {{ backtest.division_name }} backtest below. The whole of football knowledge is the
+      gap between those two. That second figure moves with the division and the sample:
+      across the {{ n_leagues }} divisions on the live
+      <a href="/scorecard/">scorecard</a> the closing line is currently scoring
+      something different again, which is why every page here quotes the number
+      belonging to the sample it is talking about rather than one house figure.</p>
 
       <h2>The benchmark — and why it changed once</h2>
       <p>The line we grade against is the <strong>market-average closing price</strong> as
@@ -147,12 +169,26 @@
       raw CSVs. Pinnacle's prices are still recorded in the data where they exist, as a
       cross-check, and are never graded against.</p>
 
-      <h2>The backtest — and why it is on this page, not the scorecard</h2>
+      <h2 id="backtest">The backtest — and why it is on this page, not the scorecard</h2>
       <p>Before a single live prediction existed, this exact model was run walk-forward over
       nine seasons of the Premier League. The average closing price is published from
       2019/20, so the scored window is the last seven of them — the first two train the
       model without being graded. That result is a useful prior and it is not a track
       record, so it lives here and never appears next to the live numbers.</p>
+      <div class="callout">
+        <strong>What this backtest does not cover</strong>
+        It is the <strong>{{ backtest.division_name }} only</strong>, and so are the two
+        hyperparameters: the decay rate and the prior width were chosen on
+        {{ backtest.division }} seasons 2017/18–2020/21 and then frozen. The other
+        {{ n_leagues - 1 }} divisions on this site run the same model with those settings
+        transferred, and have no walk-forward history of their own. Most of the live
+        scorecard is therefore made of divisions this backtest says nothing about — the
+        Championship alone supplies more of the graded sample than the Premier League
+        does. Treat the figures below as a prior for the model's <em>shape</em>, not as a
+        forecast of what it will do in Belgium or Brazil. Fitting and validating a
+        walk-forward per division is the obvious next piece of work and it has not been
+        done.
+      </div>
     </div>
 
     <div class="strip" style="margin-top:26px">

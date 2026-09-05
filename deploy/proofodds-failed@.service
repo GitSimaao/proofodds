@@ -1,0 +1,39 @@
+# Runs when scripts/daily.py exits non-zero, via OnFailure= in proofodds.service.
+#
+# Why it exists: the job runs every three hours and nothing was watching it. A
+# failure left the last good build being served indefinitely, with the scorecard,
+# the fixtures and the ledger summary all quietly out of date and nothing on the
+# box or the site saying so. The visible half of the fix is in the site itself
+# (the footer build stamp turns into a banner once a build is over 30 hours old);
+# this is the half that survives the site not rebuilding at all.
+#
+#   sudo cp deploy/proofodds-failed@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#
+# Read it with:  cat /opt/proofodds/failures.log
+#            or: systemctl status 'proofodds-failed@*'
+
+[Unit]
+Description=Record a failed ProofOdds run (%i)
+
+[Service]
+Type=oneshot
+User=proofodds
+Group=proofodds
+WorkingDirectory=/opt/proofodds
+
+# One line per failure with the exit status, then the last 40 journal lines so
+# the cause is beside the timestamp rather than somewhere in a week of logs.
+ExecStart=/bin/sh -c '\
+  { \
+    printf "\\n==== %%s  %%s failed ====\\n" "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)" "%i"; \
+    systemctl show -p Result -p ExecMainStatus --value "%i" | tr "\\n" " "; \
+    printf "\\n"; \
+    journalctl -u "%i" -n 40 --no-pager -o cat; \
+  } >> /opt/proofodds/failures.log 2>&1'
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds

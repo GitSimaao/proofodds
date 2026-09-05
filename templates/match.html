@@ -121,11 +121,6 @@
         <div class="market-table"><table><thead><tr><th>Home line</th><th>{{ match.home }}</th><th>{{ match.away }}</th></tr></thead><tbody>{% for ah in match.asian_handicap %}<tr><td>{{ '%+.2f'|format(ah.line) }}</td><td>{{ '%.2f'|format(ah.fair_home) }}</td><td>{{ '%.2f'|format(ah.fair_away) }}</td></tr>{% endfor %}</tbody></table></div>
       </section>
       {% endif %}
-      {% if match.corners %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Experimental · HC/AC only</p><h3>Corners Lab <span class="mkt-tag is-forecast">forecast only</span></h3></div><a href="/corners/">Open lab</a></div>
-        <div class="forecast-secondary"><div><span class="metric-label">Expected corners</span><strong>{{ '%.1f'|format(match.corners.x_home) }} <span>–</span> {{ '%.1f'|format(match.corners.x_away) }}</strong><small>{{ '%.1f'|format(match.corners.x_total) }} total</small></div>{% if match.corner_main %}<div><span class="metric-label">Main total line</span><strong>O {{ match.corner_main.line }} · {{ '%.0f'|format(match.corner_main.p_over*100) }}%</strong><small>{{ '%.2f'|format(1/match.corner_main.p_over) }} fair · Under {{ '%.0f'|format(match.corner_main.p_under*100) }}%</small></div>{% endif %}</div>
-      </section>
-      {% endif %}
 
       {% if match.top_scorelines %}
       <section class="scorelines" aria-labelledby="scorelines-title">
@@ -170,8 +165,21 @@
         <div><dt>Ledger entry</dt><dd><a href="{{ match.entry_url }}">{{ match.entry_file }}</a></dd></div>
         <div><dt>Entry hash</dt><dd><code title="{{ match.entry_hash }}">{{ match.entry_hash[:16] }}…</code></dd></div>
         <div><dt>Kickoff</dt><dd>{{ 'Date fixed; time TBC' if match.kickoff_tbc else match.kickoff }}</dd></div>
+        {% if match.kickoff_sealed %}
+        <div><dt>Kickoff as sealed</dt><dd>{{ match.kickoff_sealed }} <span class="muted">(unfixed at the time)</span></dd></div>
+        {% endif %}
       </dl>
       <p class="audit-copy">This page is a view of the earliest sealed forecast for this fixture. The JSON entry is the record; later publications cannot replace it.</p>
+      {% if match.kickoff_sealed %}
+      <p class="audit-copy">When this was sealed the fixture list had not fixed the
+      kickoff, so the entry above carries <code>{{ match.kickoff_sealed }}</code> — the
+      feed's best guess that day. The match was later confirmed for
+      <code>{{ match.kickoff }}</code>. The forecast on this page is still the one sealed
+      in <a href="{{ match.entry_url }}">{{ match.entry_file }}</a> and not a byte of it
+      changed; only the time we grade it against did, because a kickoff is a fact the
+      feed corrected rather than a forecast we revised. Grading it against the guess
+      would have meant never grading it at all.</p>
+      {% endif %}
       {% if match.sparse_markets %}
       <p class="audit-copy">That is also why this card carries no
       {{ match.sparse_markets|join(', ') }}: the fixture was first published

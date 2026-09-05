@@ -183,10 +183,29 @@ SCORED_BY_SOURCE = {
     "extra": ("1X2",),
 }
 
-# Published everywhere, graded against the close nowhere: football-data.co.uk
-# publishes no closing price for any of them. They earn their place by being
-# falsifiable against the coin flip, not by being free to compute.
-FORECAST_MARKETS = ("BTTS", "TOTALS_LADDER", "CORNERS", "SCORELINES")
+# Published, graded against the close nowhere: football-data.co.uk publishes no
+# closing price for any of them. They earn their place by being falsifiable
+# against the coin flip, not by being free to compute.
+#
+# Only what is ACTUALLY scored belongs here. The method page used to list the
+# goal-total ladder, corners and the correct-score view alongside BTTS and say
+# all four were "sealed and scored on that basis" — and only BTTS had a score
+# anywhere on the site. On a site whose entire argument is that it keeps the
+# score it promises to keep, that was the worst sentence we had published. A
+# market joins this tuple when grade.py can produce a number for it, not when
+# the model can produce a probability for it.
+FORECAST_MARKETS = ("BTTS",)
+
+# Sealed into every entry, shown on the site, and not scored by anything yet.
+# Kept apart from FORECAST_MARKETS on purpose: these are a promise of future
+# evidence, not evidence, and the method page has to say which is which.
+SEALED_UNSCORED_MARKETS = ("TOTALS_LADDER", "SCORELINES")
+
+# Sealed into every entry and not shown at all. The corner model still fits and
+# still writes its distribution into the ledger on every run, so the record
+# accumulates; the page and the nav item came down because a market nobody
+# scores should not have a section implying somebody does.
+SEALED_HIDDEN_MARKETS = ("CORNERS",)
 
 MARKET_LABELS = {
     "1X2": "Result",
@@ -271,6 +290,18 @@ SCORECARD_START = "2017-08-01"
 UNIFORM_LOG_LOSS = 1.0986122886681098        # -log(1/3), three-way
 UNIFORM_LOG_LOSS_BINARY = 0.6931471805599453  # -log(1/2), two-way
 
+# Below this many graded matches a division's log loss is printed as a count
+# and nothing else.
+#
+# The per-match standard deviation of (model loss - market loss) runs about
+# 0.18 in our own data, so the standard error of a division's gap is roughly
+# 0.18/sqrt(n): +-0.08 at twenty matches, +-0.18 at four. The gap we are trying
+# to see is 0.02. A table that prints "BRA -0.1109" off a single match is not
+# reporting a result, it is handing a reader a coin flip formatted to four
+# decimal places — and the reader who quotes it back will pick the division
+# where the coin came up our way.
+MIN_LEAGUE_ROWS = 20
+
 # The goals line we publish. A half-goal, so no match can push.
 TOTALS_LINE = 2.5
 GOAL_TOTAL_LINES = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5)
@@ -294,11 +325,22 @@ BACKTEST = {
     "n": 2660,
     "model_log_loss": 0.9827,
     "market_log_loss": 0.9639,
-    "gap": 0.0189,
+    # Derived, not retyped. The hand-written value read 0.0189 against two
+    # published figures whose difference is 0.0188 — a discrepancy anyone can
+    # find with a subtraction, on the one page that argues its numbers
+    # reconcile.
+    "gap": round(0.9827 - 0.9639, 4),
     "model_accuracy": 0.527,
     "market_accuracy": 0.550,
     "test_n": 1900,
     "test_model": 0.9783,
     "test_market": 0.9556,
     "repo": "https://github.com/GitSimaao/pl-dixon-coles",
+    # Said in the data as well as in the prose, because it is the caveat a
+    # careful reader finds on their own otherwise: the walk-forward covers ONE
+    # of the divisions this site now publishes, and the two hyperparameters
+    # were tuned there too. The other ten run on settings transferred from the
+    # Premier League with no out-of-sample history of their own.
+    "division": "E0",
+    "division_name": "Premier League",
 }

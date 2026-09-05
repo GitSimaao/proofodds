@@ -112,10 +112,13 @@ def main() -> int:
                               "with the last good cache")
 
         log.info("fetching fixtures")
-        upcoming = fixtures.upcoming(leagues)
+        # The coverage report travels with the fixtures into the sealed entry,
+        # so a division whose feed failed is a line in the file rather than a
+        # line in a log nobody reads.
+        upcoming, coverage = fixtures.upcoming_with_coverage(leagues)
 
         now = dt.datetime.now(dt.timezone.utc)
-        path = ledger.publish(upcoming, now=now)
+        path = ledger.publish(upcoming, now=now, coverage=coverage)
 
         # Timestamping is an addition to the record, never a gate on it.
         #
@@ -147,7 +150,9 @@ def main() -> int:
                  report["n_entries"], report["head"][:12])
 
     log.info("building site")
-    render.build()
+    # Build into staging and swap, rather than deleting the directory nginx is
+    # serving and refilling it page by page.
+    render.publish_site()
     log.info("done — %s", config.SITE_DIR)
     return 0
 

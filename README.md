@@ -11,9 +11,14 @@ and scored afterwards** against the market-average closing line.
 | `SC0` Scottish Premiership | `BRA` Brasileirao Serie A | |
 
 Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a quarter-line Asian
-Handicap grid from one fitted model. Result and goal-total lines are graded against the
-market-average closing price where the source publishes it; BTTS has no free closing
-benchmark and is shown as forecast validation, not an edge claim. The benchmark is
+Handicap grid from one fitted model. Three kinds of number, and the site labels which is
+which on every card: the **result** everywhere, plus **over/under 2.5** and the **Asian
+handicap** where the source publishes a closing price, are graded against the market
+average. **BTTS** has no closing benchmark anywhere, so it is graded against the coin
+flip and is never an edge claim. The **other goal-total lines** and the correct-score
+view are sealed and shown and are **not scored by anything** — that is stated wherever
+they appear, because until a number exists beside them they are evidence of nothing.
+The benchmark is
 football-data.co.uk's `AvgC` columns; the site graded against
 Pinnacle until football-data stopped carrying those columns in January 2026 —
 the method page publishes the measured difference between the two benchmarks,
@@ -25,8 +30,14 @@ not a third benchmarked claim.
 
 One Dixon-Coles model is fitted per competition, on that competition's matches only. It does
 not beat the closing line — a walk-forward backtest over the seven Premier League
-seasons with a published average close puts it about 0.019 nats per match behind —
-and the site says so on the front page.
+seasons with a published average close puts it about 0.019 nats per match behind, over
+2,660 matches — and the [method page](https://proofodds.com/method/) says so beside the
+figures. The **live** record is a much smaller sample and the front page says what that
+is worth: the gap there carries a 95% interval that still contains zero, so it cannot yet
+separate the model from the closing line in either direction. Both numbers appear with
+their width. That backtest is the Premier League only, and so is the hyperparameter
+tuning; the other ten divisions run those settings transferred, with no walk-forward
+history of their own, which the method page states rather than leaving to be found.
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
@@ -84,7 +95,24 @@ standard library, and rewrites the hashing rather than calling the code that
 wrote it. Our code checking our code could agree with itself while both were
 wrong; a separate implementation, short enough to read in one sitting, cannot.
 A test asserts the two agree on every sealed entry, and another asserts the
-file never grows a dependency.
+file never grows a dependency. It also works on a directory of files downloaded
+straight from the site, and ignores anything in there that is not a ledger
+entry — the build summary at `/predictions/_chain.json` among them.
+
+**And the other half.** The command above proves nothing was *altered*. It says
+nothing about whether the score on the scorecard is the right score for those
+files, so there is a second command for that:
+
+```bash
+pip install -r requirements.txt
+python scripts/rescore.py --refresh --csv audit.csv
+```
+
+`rescore.py` reads the sealed entries, joins them to the raw results and
+recomputes the de-vigging, the log loss and the confidence interval in a
+separate implementation from the one that publishes them — then exits non-zero
+if the two disagree. `--csv` writes one row per graded match, so the entire
+scorecard fits in a spreadsheet column and you can average it yourself.
 
 Set that up with `sudo bash scripts/setup-git.sh git@github.com:USER/proofodds.git`.
 It refuses to commit anything if `.env` is not ignored — a token pushed to a
@@ -162,6 +190,8 @@ python -m proofodds.anchor         # retry/upgrade timestamp proofs, print their
 python -m pytest tests -q          # data-marked tests skip until the CSVs are downloaded
 python scripts/check_names.py      # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain (no deps)
+python scripts/rescore.py --csv audit.csv   # recompute the SCORE, second implementation
+python scripts/check_benchmark.py  # the Pinnacle -> market-average measurement
 ```
 
 `scripts/replay.py` runs the same pipeline over historical matchdays into a
@@ -327,13 +357,15 @@ proofodds/
   grade.py         join predictions to results, log loss vs the closing line
   charts.py        inline SVG, themed through CSS custom properties
   render.py        Jinja2 -> static site
-  verify.py        `python -m proofodds.verify`
+  verify.py        `python -m proofodds.verify` — the chain, stdlib only
   newsletter.py    the weekly scorecard email and the Kit client
-templates/         base, index, per-match pages, scorecard, ledger, method, privacy
+  corners.py       count model, still fitted and sealed, not published or scored
+templates/         base, index, per-match pages, scorecard, ledger, method, referee, privacy
 static/style.css   one stylesheet, light and dark
 static/logo.svg    the PO mark used by the header, footer, favicon and web app
 static/flags/      self-hosted country flags used by division filters
-scripts/           daily.py, weekly.py, sync_crests.py, replay.py, bootstrap.sh, setup-git.sh
+scripts/           daily.py, weekly.py, rescore.py, check_benchmark.py, check_names.py,
+                   sync_crests.py, replay.py, bootstrap.sh, setup-git.sh
 deploy/            nginx server block, Caddyfile, systemd unit + timer, .env.example
 predictions/       the ledger — committed, never rewritten
 timestamps/        detached .ots proofs — pending, attested and mismatched stay distinct

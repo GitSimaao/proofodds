@@ -39,7 +39,11 @@
       <div>
         <div class="k">Gap per match</div>
         <div class="v {{ 'ahead' if score.beats_market else 'behind' }}">{{ '%+.4f'|format(score.gap) }}</div>
+        {% if score.se %}
+        <div class="n">&plusmn;{{ '%.4f'|format(1.96 * score.se) }} at 95% &middot; {{ score.n }} matches</div>
+        {% else %}
         <div class="n">{{ '%+.1f'|format(score.gap_total) }} nats in total</div>
+        {% endif %}
       </div>
       <div>
         <div class="k">Top pick correct</div>
@@ -55,11 +59,42 @@
       about football is worth {{ '%.4f'|format(score.uniform_log_loss - score.market_log_loss) }} nats,
       {% if not score.share_of_available %}and that is the whole battlefield.
       {% elif score.share_of_available <= 1 %}and this model captures
-      {{ (score.share_of_available * 100)|round|int }}% of it.
+      {{ (score.share_of_available * 100)|round|int }}% of it{% if score.share_low %} —
+      though {{ score.n }} matches only pin that figure between
+      {{ (score.share_low * 100)|round|int }}% and {{ (score.share_high * 100)|round|int }}%{% endif %}.
       {% else %}and this model is currently scoring better than the closing line itself —
       which at {{ score.n }} matches is far more likely to be noise than an edge.{% endif %}
-      A gap of a few thousandths is a real difference in this business, not a rounding error.
     </div>
+
+    {% if score.se %}
+    <div class="callout">
+      <strong>How much of this is signal</strong>
+      Not much of it yet, and the honest thing is to say so before somebody else does.
+      The gap is <strong>{{ '%+.4f'|format(score.gap) }} &plusmn; {{ '%.4f'|format(1.96 * score.se) }}</strong>
+      per match at 95% confidence &mdash; an interval of
+      {{ '%+.4f'|format(score.ci_low) }} to {{ '%+.4f'|format(score.ci_high) }} over
+      {{ score.n }} graded matches
+      (standard error {{ '%.4f'|format(score.se) }}, t&nbsp;=&nbsp;{{ '%.2f'|format(score.t) }}).
+      {% if score.separated %}
+      That interval excludes zero, so this sample does now tell the model and the
+      closing line apart.
+      {% else %}
+      <strong>That interval contains zero.</strong> This sample cannot yet tell the model
+      apart from the closing line in either direction, and any headline claiming
+      otherwise &mdash; ours included &mdash; would be reading noise.
+      {% endif %}
+      Because both are scored on the same matches, the difference is paired and its
+      interval is far tighter than either log loss alone; it still needs a few thousand
+      matches to close on a gap this size. The number with the sample behind it is the
+      <a href="/method/#backtest">walk-forward backtest</a>: {{ backtest.n }} matches, and
+      there the model's loss is comfortably separated from the market's.
+      Recompute it: <code>diff = model_loss - market_loss</code> per match, then
+      <code>mean &plusmn; 1.96 &times; sd / &radic;n</code> &mdash; or run
+      <code>scripts/rescore.py --csv audit.csv</code> from a clone and average the
+      columns yourself. That script recomputes every figure on this page from the
+      sealed files by a second implementation and fails loudly if the two disagree.
+    </div>
+    {% endif %}
 
     <h3>Where the ground is lost</h3>
     <div class="chart-wrap">
@@ -109,7 +144,11 @@
       <div>
         <div class="k">Gap per match</div>
         <div class="v {{ 'ahead' if totals.beats_market else 'behind' }}">{{ '%+.4f'|format(totals.gap) }}</div>
+        {% if totals.se %}
+        <div class="n">&plusmn;{{ '%.4f'|format(1.96 * totals.se) }} at 95%{{ '' if totals.separated else ' · contains zero' }}</div>
+        {% else %}
         <div class="n">{{ 'ahead of' if totals.beats_market else 'behind' }} the market</div>
+        {% endif %}
       </div>
       <div>
         <div class="k">Went over</div>
@@ -129,7 +168,10 @@
       The comparison that means something is the share of what was there to win:
       <strong>{{ (score.share_of_available * 100)|round|int }}%</strong> on the
       result, <strong>{{ (totals.share_of_available * 100)|round|int }}%</strong>
-      on the total.
+      on the total &mdash; both still wide enough at this sample
+      ({% if score.share_low %}{{ (score.share_low * 100)|round|int }}&ndash;{{ (score.share_high * 100)|round|int }}%
+      and {% endif %}{% if totals.share_low %}{{ (totals.share_low * 100)|round|int }}&ndash;{{ (totals.share_high * 100)|round|int }}%{% endif %})
+      that the difference between them is not yet a finding.
       {% if score.share_of_available > 1 or totals.share_of_available > 1 %}
       A figure above 100% means the model is currently beating the closing line in
       that market. It happens, and over a few hundred matches it usually unhappens.
@@ -140,9 +182,13 @@
 
     {% if leagues|length > 1 %}
     <h3>Division by division</h3>
-    <p class="section-note">The same question asked seven times. A model that is
+    <p class="section-note">The same question asked {{ leagues|length }} times. A model that is
     genuinely close to the market should be close in most of them; an edge that
-    lives in one division and nowhere else is usually a lucky autumn, not an edge.</p>
+    lives in one division and nowhere else is usually a lucky autumn, not an edge.
+    A division's log loss appears here only once it has {{ min_league_rows }} graded
+    matches. Below that the gap's own margin of error is several times the gap, so the
+    number would say nothing except which way a coin landed &mdash; and the division
+    where it landed our way is the one that would get quoted.</p>
     <div class="scroll">
       <table>
         <thead>
@@ -160,10 +206,12 @@
           <tr>
             <td><span class="badge">{{ l.league }}</span> {{ l.name }}</td>
             <td class="num">{{ l.n }}</td>
-            {% if l.n %}
+            {% if l.enough %}
             <td class="num">{{ '%.4f'|format(l.model) }}</td>
             <td class="num">{{ '%.4f'|format(l.market) }}</td>
-            <td class="num {{ 'ahead' if l.gap < 0 else 'behind' }}">{{ '%+.4f'|format(l.gap) }}</td>
+            <td class="num {{ 'ahead' if l.gap < 0 else 'behind' }}">{{ '%+.4f'|format(l.gap) }}{% if l.se %} <small class="pm">&plusmn;{{ '%.3f'|format(1.96 * l.se) }}</small>{% endif %}</td>
+            {% elif l.n %}
+            <td class="num muted" colspan="3">too few to score &mdash; needs {{ min_league_rows }}</td>
             {% else %}
             <td class="num muted">—</td>
             <td class="num muted">—</td>
@@ -175,9 +223,11 @@
         </tbody>
       </table>
     </div>
-    <p class="table-note">Per-division rows are small samples for a long time. The
-    headline at the top of this page is the one with enough matches behind it to be
-    worth reading, and even that needs a season.</p>
+    <p class="table-note">Per-division rows are small samples for a long time, and
+    even the ones shown carry an interval wider than the gap they report. The headline
+    at the top of this page is the one with the most matches behind it, and it needs a
+    season too. "Pending" counts sealed predictions still waiting on a result or a
+    closing price.</p>
     {% endif %}
 
     {% if weeks %}
@@ -190,7 +240,7 @@
             <th class="num">Matches</th>
             <th class="num">ProofOdds</th>
             <th class="num">Closing line</th>
-            <th class="num">Gap</th>
+            <th class="num">Gap &plusmn; 95%</th>
           </tr>
         </thead>
         <tbody>
@@ -200,7 +250,7 @@
             <td class="num">{{ w.n }}</td>
             <td class="num">{{ '%.4f'|format(w.model) }}</td>
             <td class="num">{{ '%.4f'|format(w.market) }}</td>
-            <td class="num {{ 'ahead' if w.gap < 0 else 'behind' }}">{{ '%+.4f'|format(w.gap) }}</td>
+            <td class="num {{ 'ahead' if w.gap < 0 else 'behind' }}">{{ '%+.4f'|format(w.gap) }}{% if w.se %} <small class="pm">&plusmn;{{ '%.3f'|format(1.96 * w.se) }}</small>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -219,8 +269,8 @@
 </section>
 
 <section class="band"><div class="shell"><p class="eyebrow">New markets</p><h2>BTTS and Asian handicap</h2><div class="pair">
-  <div class="box"><h4>BTTS <span class="mkt-tag is-forecast">forecast only</span></h4>{% if btts.live %}<p><strong>{{ '%.4f'|format(btts.model_log_loss) }}</strong> log loss over {{ btts.n }} matches; 0.6931 is a coin flip. There is no free closing BTTS benchmark in this source, so this is forecast validation—not an edge claim.</p>{% else %}<p>Waiting for the first schema-4 BTTS forecasts to settle.</p>{% endif %}</div>
-  <div class="box"><h4>Asian handicap <span class="mkt-tag is-scored">scored vs close</span></h4>{% if asian.live %}<p>Model <strong>{{ '%.4f'|format(asian.model_log_loss) }}</strong> vs close <strong>{{ '%.4f'|format(asian.market_log_loss) }}</strong>, {{ asian.n }} matches. Quarter-line half-wins and half-losses are stake-weighted.</p>{% else %}<p>Waiting for forecasts whose exact sealed line matches the published closing handicap.</p>{% endif %}</div>
+  <div class="box"><h4>BTTS <span class="mkt-tag is-forecast">forecast only</span></h4>{% if btts.live %}<p><strong>{{ '%.4f'|format(btts.model_log_loss) }}</strong> log loss over {{ btts.n }} matches; 0.6931 is a coin flip. There is no free closing BTTS benchmark in this source, so this is forecast validation—not an edge claim.{% if btts.se %} At {{ btts.n }} matches the distance from the coin flip is {{ '%+.4f'|format(btts.model_log_loss - btts.uniform_log_loss) }} &plusmn; {{ '%.4f'|format(1.96 * btts.se) }}, which {{ 'clears' if btts.separated else 'does not clear' }} zero.{% endif %}</p>{% else %}<p>Waiting for the first schema-4 BTTS forecasts to settle.</p>{% endif %}</div>
+  <div class="box"><h4>Asian handicap <span class="mkt-tag is-scored">scored vs close</span></h4>{% if asian.live %}<p>Model <strong>{{ '%.4f'|format(asian.model_log_loss) }}</strong> vs close <strong>{{ '%.4f'|format(asian.market_log_loss) }}</strong>, {{ asian.n }} matches. Quarter-line half-wins and half-losses are stake-weighted.{% if asian.se %} The gap is {{ '%+.4f'|format(asian.gap) }} &plusmn; {{ '%.4f'|format(1.96 * asian.se) }}; at {{ asian.n }} matches that is {{ 'a separation' if asian.separated else 'nowhere near a result, whichever way it points' }}.{% endif %}</p>{% else %}<p>Waiting for forecasts whose exact sealed line matches the published closing handicap.</p>{% endif %}</div>
 </div></div></section>
 
 {% include "_signup.html" %}
@@ -243,7 +293,9 @@
       <div class="box no">
         <h4>No quiet edits</h4>
         <p>The <a href="/ledger/">ledger</a> is a hash chain
-        in a public repository. If a past prediction changed, this site would say so itself.</p>
+        in a public repository. If a past prediction changed, this site would say so itself.
+        What a chain cannot prove on its own is that nothing was <em>left out</em>; the
+        <a href="/ledger/#limits">ledger page says so</a> rather than letting you assume otherwise.</p>
       </div>
     </div>
   </div>

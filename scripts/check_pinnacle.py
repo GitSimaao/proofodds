@@ -27,7 +27,14 @@ This does not prove the prices are correct. It proves they are the right
 *kind* of price, which is the strongest available check with no overlap, and
 the method page says exactly that rather than implying more.
 
-Exit status is 0 only when the median overround falls inside the band.
+Exit status is 0 only when BOTH tests pass: the pooled median inside the band,
+and every division compared coming out thinner than its own market average.
+
+The relative test used to be printed and then ignored by the exit status. That
+is the same failure as the one already fixed here once — a test that runs and
+cannot fail is a test that reassures without checking — so it now gates the
+result alongside the absolute band, and a division that could not be compared
+at all makes the whole thing NOT TESTED rather than PASS.
 """
 
 from __future__ import annotations
@@ -230,16 +237,41 @@ def main() -> int:
               f"{avg_margin:.3%}  ({len(recent)} rows)  "
               f"{'THINNER — sharp' if thinner else 'WIDER — not sharp'}")
 
-    ok = SHARP_MIN <= median <= SHARP_MAX
+    absolute_ok = SHARP_MIN <= median <= SHARP_MAX
     print(f"\nband for a sharp book: {SHARP_MIN:.1%}–{SHARP_MAX:.1%}")
+
+    # A pooled median hides a division. Report the per-division spread beside
+    # it so one league far outside the band cannot shelter behind seven inside
+    # it — the band is a claim about every division we would grade, not about
+    # the average of them.
+    by_comp: dict[str, list[float]] = {}
+    for row in rows:
+        by_comp.setdefault(row["comp"], []).append(row["over"])
+    outside = {comp: statistics.median(values) for comp, values in by_comp.items()
+               if not SHARP_MIN <= statistics.median(values) <= SHARP_MAX}
+    if len(by_comp) > 1:
+        print(f"  pooled median {median:.3%} over {len(by_comp)} divisions; "
+              f"{len(outside)} outside the band"
+              + (": " + ", ".join(f"{c} {v:.3%}" for c, v in sorted(outside.items()))
+                 if outside else ""))
+
     relative = ("PASS" if relative_ok else "FAIL") if compared else "NOT TESTED"
-    print(f"absolute test: {'PASS' if ok else 'FAIL'}   "
+    print(f"absolute test: {'PASS' if absolute_ok else 'FAIL'}   "
           f"relative test: {relative}"
           + ("" if compared else " (0 divisions compared)"))
-    print("result:", "PASS — prices like a sharp book; the benchmark may move"
-          if ok else
-          "FAIL — this does not price like Pinnacle. Do NOT move the "
-          "benchmark; use the API for coverage only.")
+
+    # Both gates, and an untested relative gate is not a pass.
+    ok = absolute_ok and compared > 0 and relative_ok
+    if ok:
+        print("result: PASS — prices like a sharp book on both tests; the "
+              "benchmark may move.")
+    elif not compared:
+        print("result: NOT TESTED — the relative test compared no division, so "
+              "there is no evidence to move the benchmark on. Pass --code, or "
+              "fill config.STATSAPI_COMPETITIONS.")
+    else:
+        print("result: FAIL — this does not price like Pinnacle on every test. "
+              "Do NOT move the benchmark; use the API for coverage only.")
     return 0 if ok else 1
 
 

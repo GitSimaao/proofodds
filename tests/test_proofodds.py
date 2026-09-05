@@ -120,6 +120,60 @@ def test_chain_detects_a_rehashed_tamper(ledger_in, tmp_path):
     assert any("broken link" in b["reason"] for b in report["broken"])
 
 
+def test_a_summary_file_beside_the_entries_is_not_a_broken_chain(
+        ledger_in, tmp_path):
+    """
+    The exact false alarm this pair of fixes exists to remove.
+
+    The build serves /predictions/ raw so anyone can recompute the hashes, and
+    it also wrote a build summary called index.json into the same directory.
+    Downloading that directory and running the project's own verifier on it —
+    the single most obvious way to audit this site — reported CHAIN BROKEN
+    against a chain that was intact.
+    """
+    import json as _json
+    from proofodds import verify as standalone
+
+    _minimal_chain(ledger_in, config.PREDICTIONS_DIR, days=3)
+    served = tmp_path / "served"
+    served.mkdir()
+    for path in ledger_in.ledger_files():
+        (served / path.name).write_bytes(path.read_bytes())
+    # both the new name and the old one a reader may already have downloaded
+    (served / "_chain.json").write_text(_json.dumps({"entries": [], "chain": {}}))
+    (served / "index.json").write_text(_json.dumps({"entries": [], "chain": {}}))
+    (served / "README.json").write_text(_json.dumps(["not an entry"]))
+
+    ok, problems, stats = standalone.verify(served)
+    assert ok, problems
+    assert stats["entries"] == 3
+    assert sorted(stats["skipped"]) == ["README.json", "_chain.json", "index.json"]
+
+
+def test_the_build_never_writes_a_bare_index_json_among_the_entries(tmp_path):
+    """Pinned at the source, not just at the verifier."""
+    source = (config.ROOT / "proofodds" / "render.py").read_text(encoding="utf-8")
+    assert '(raw / "index.json")' not in source
+    assert '(raw / "_chain.json")' in source
+
+
+def test_a_missing_entry_is_still_a_broken_chain(ledger_in, tmp_path):
+    """
+    Skipping non-entries must not become a way to skip a real problem: remove a
+    file from the middle and the link check has to fail as loudly as before.
+    """
+    from proofodds import verify as standalone
+    _minimal_chain(ledger_in, config.PREDICTIONS_DIR, days=3)
+    served = tmp_path / "served"
+    served.mkdir()
+    files = ledger_in.ledger_files()
+    for path in files:
+        (served / path.name).write_bytes(path.read_bytes())
+    (served / files[1].name).unlink()
+    ok, problems, _ = standalone.verify(served)
+    assert not ok and any("broken link" in p for p in problems)
+
+
 def test_empty_ledger_verifies(ledger_in):
     report = ledger_in.verify_chain()
     assert report["ok"] and report["n_entries"] == 0
@@ -906,7 +960,7 @@ def test_every_new_entry_identifies_the_generator(
     ], now=now)
 
     entry = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())
-    assert entry["version"] == 4
+    assert entry["version"] == ledger_in.SCHEMA_VERSION
     assert entry["generator"] == identity
     assert stub_models.verify_chain()["ok"]
 
@@ -923,6 +977,62 @@ def test_generator_source_hash_changes_with_the_source_bytes(ledger_in, tmp_path
 
     assert before != after
     assert ledger_in.generator_source_hash([second, first]) == after
+
+
+def test_a_division_whose_fixture_feed_returned_nothing_is_recorded(
+        ledger_in, stub_models):
+    """
+    `skipped` covered a division whose MODEL would not fit. A division whose
+    FIXTURE FEED returned nothing never reached build_entry and left no trace
+    in the sealed file at all — Belgium and Scotland are in the 3 September
+    entry, gone from the 4th, back on the 5th, and the file for the 4th records
+    no gap. Had that outage outlived a kickoff those matches would never have
+    been sealed and the scorecard would simply have been smaller.
+    """
+    from proofodds.fixtures import Fixture
+    now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
+    coverage = {
+        "requested": ["E0", "B1", "SC0"],
+        "returned": {"E0": 1, "B1": 0, "SC0": 0},
+        "missing": [{"league": "B1", "reason": "source unreachable"},
+                    {"league": "SC0", "reason": "no unplayed match in the window"}],
+        "notes": [],
+    }
+    stub_models.publish(
+        [Fixture(now + dt.timedelta(days=2), "Arsenal", "Chelsea", league="E0")],
+        now=now, coverage=coverage)
+
+    entry = json.loads(sorted(config.PREDICTIONS_DIR.glob("*.json"))[0].read_text())
+    assert entry["coverage"]["requested"] == ["E0", "B1", "SC0"]
+    assert {m["league"] for m in entry["coverage"]["missing"]} == {"B1", "SC0"}
+    # the two very different reasons must stay apart
+    reasons = {m["league"]: m["reason"] for m in entry["coverage"]["missing"]}
+    assert "unreachable" in reasons["B1"]
+    assert "no unplayed match" in reasons["SC0"]
+    assert stub_models.verify_chain()["ok"]
+
+
+def test_coverage_names_every_division_that_returned_nothing(monkeypatch):
+    """The report is built where the failures are known, not reconstructed."""
+    from proofodds import fixtures as fx
+    monkeypatch.setattr(config, "FIXTURES_PROVIDER", "fdorg")
+
+    def fake(league, days_ahead):
+        if league == "E0":
+            return [fx.Fixture(dt.datetime(2026, 9, 5, 14, 0, tzinfo=dt.timezone.utc),
+                               "Arsenal", "Chelsea", league="E0")]
+        if league == "I1":
+            raise RuntimeError("connection reset")
+        return []
+
+    monkeypatch.setattr(fx, "from_football_data_org", fake)
+    got, coverage = fx.upcoming_with_coverage(["E0", "I1", "D1"], days_ahead=8)
+    assert len(got) == 1
+    assert coverage["returned"] == {"E0": 1, "I1": 0, "D1": 0}
+    missing = {m["league"]: m["reason"] for m in coverage["missing"]}
+    assert set(missing) == {"I1", "D1"}
+    assert "unreachable" in missing["I1"]
+    assert "no unplayed match" in missing["D1"]
 
 
 def test_a_division_that_cannot_be_fitted_is_recorded_not_hidden(
@@ -1091,6 +1201,95 @@ def test_a_schema_1_entry_is_still_read_exactly_as_sealed(ledger_in, tmp_path):
     assert rows[0]["model_rho"] == -0.0738
 
 
+def test_a_fixture_whose_date_moves_is_one_prediction_not_two(
+        ledger_in, stub_models):
+    """
+    The second route into the double-seal, and the one that was live.
+
+    A fixture the feed has not fixed a time for is sealed at midnight on the
+    feed's guess of a date. When the feed later fixes it, the date can move.
+    Keyed on the date, the same match was sealed twice: two match pages, a
+    phantom stuck in "pending" forever, and — the part that actually breaks the
+    rule — the row that joined the results file was the SECOND publication,
+    because that was the one carrying the date the results file agreed with.
+    """
+    from proofodds.fixtures import Fixture
+    ledger = stub_models
+
+    ledger.publish(
+        [Fixture(dt.datetime(2026, 9, 5, 0, 0, tzinfo=dt.timezone.utc),
+                 "Porto", "Moreirense", league="E0", time_confirmed=False)],
+        now=dt.datetime(2026, 8, 28, 0, 8, tzinfo=dt.timezone.utc))
+    ledger.publish(
+        [Fixture(dt.datetime(2026, 9, 4, 19, 15, tzinfo=dt.timezone.utc),
+                 "Porto", "Moreirense", league="E0", time_confirmed=True)],
+        now=dt.datetime(2026, 8, 29, 0, 8, tzinfo=dt.timezone.utc))
+    assert len(ledger.ledger_files()) == 2      # both files sealed, untouched
+
+    rows = ledger.all_predictions()
+    assert len(rows) == 1, "one fixture must not become two predictions"
+    row = rows[0]
+    # First publication supplies the forecast and owns the attribution...
+    assert row["entry_file"] == "2026-08-28.json"
+    assert row["published_at"] == "2026-08-28T00:08:00Z"
+    # ...while the kickoff is the corrected one, or it can never be graded.
+    assert row["kickoff"] == "2026-09-04T19:15:00Z"
+    assert row["kickoff_sealed"] == "2026-09-05T00:00:00Z"
+    assert row["kickoff_tbc"] is False
+
+
+def test_a_later_forecast_still_never_replaces_an_earlier_one(
+        ledger_in, stub_models, monkeypatch):
+    """
+    The correction above moves a kickoff and nothing else. If it ever started
+    moving probabilities too it would have quietly become the thing it fixed.
+    """
+    from proofodds.fixtures import Fixture
+    ledger = stub_models
+
+    ledger.publish(
+        [Fixture(dt.datetime(2026, 9, 5, 0, 0, tzinfo=dt.timezone.utc),
+                 "Arsenal", "Chelsea", league="E0", time_confirmed=False)],
+        now=dt.datetime(2026, 8, 28, 0, 8, tzinfo=dt.timezone.utc))
+    sealed = json.loads((config.PREDICTIONS_DIR / "2026-08-28.json")
+                        .read_text())["predictions"][0]
+
+    # the model changes its mind completely before the second publication
+    monkeypatch.setattr(_StubModel, "outcome_probs",
+                        lambda self, h, a: [0.90, 0.05, 0.05])
+    monkeypatch.setattr(_StubModel, "expected_goals", lambda self, h, a: (3.1, 0.4))
+    ledger.publish(
+        [Fixture(dt.datetime(2026, 9, 4, 19, 15, tzinfo=dt.timezone.utc),
+                 "Arsenal", "Chelsea", league="E0", time_confirmed=True)],
+        now=dt.datetime(2026, 8, 29, 0, 8, tzinfo=dt.timezone.utc))
+
+    row = ledger.all_predictions()[0]
+    assert len(ledger.all_predictions()) == 1
+    for field in ("p_H", "p_D", "p_A", "xg_home", "xg_away"):
+        assert row[field] == sealed[field], field
+    assert row["kickoff"] == "2026-09-04T19:15:00Z"
+
+
+def test_the_same_pairing_a_season_apart_is_two_predictions(
+        ledger_in, stub_models):
+    """
+    The window has to be tight enough to merge a rescheduled fixture and loose
+    enough to keep a genuine second meeting apart. A split-league division can
+    put the same pairing at the same ground twice; nothing puts it there twice
+    in a fortnight.
+    """
+    from proofodds.fixtures import Fixture
+    ledger = stub_models
+    for offset, kickoff in (
+            (0, dt.datetime(2026, 9, 5, 14, 0, tzinfo=dt.timezone.utc)),
+            (1, dt.datetime(2026, 11, 21, 14, 0, tzinfo=dt.timezone.utc))):
+        ledger.publish(
+            [Fixture(kickoff, "Celtic", "Rangers", league="E0")],
+            now=dt.datetime(2026, 8, 28, 0, 8, tzinfo=dt.timezone.utc)
+                + dt.timedelta(days=offset))
+    assert len(ledger.all_predictions()) == 2
+
+
 def test_the_scorecard_splits_by_division(real_names):
     from proofodds import grade
     rows = grade.by_league(_fake_week())
@@ -1196,6 +1395,52 @@ def test_the_weekly_email_reports_the_second_market_separately():
     assert "Over/under 2.5 goals" in text
     assert "not comparable" in text
     assert newsletter.render_html(s)
+
+
+def test_the_score_recomputes_by_a_second_implementation():
+    """
+    `verify.py` proves the ledger was not edited and says nothing about whether
+    the published SCORE is the right score for those files. This is the other
+    half: de-vigging, log loss and the interval written out again in
+    scripts/rescore.py, and checked against what grade.py reports.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "rescore", config.ROOT / "scripts" / "rescore.py")
+    rescore = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rescore)
+
+    # de-vig: three prices in, three probabilities summing to one
+    probs = rescore.devig([2.0, 4.0, 4.0])
+    assert abs(sum(probs) - 1.0) < 1e-12
+    assert probs[0] > probs[1] == probs[2]
+
+    # log loss reference points, independent of grade.py's constants
+    assert abs(rescore.surprise(1 / 3) - config.UNIFORM_LOG_LOSS) < 1e-12
+    assert abs(rescore.surprise(0.5) - config.UNIFORM_LOG_LOSS_BINARY) < 1e-12
+    assert rescore.surprise(1.0) == 0.0
+
+    # and the interval matches grade.paired_interval on the same input
+    from proofodds import grade
+    sample = [0.1, -0.2, 0.35, 0.0, -0.05, 0.4, -0.11]
+    mean, se, half = rescore.interval(sample)
+    theirs = grade.paired_interval(sample)
+    assert abs(mean - theirs["mean"]) < 1e-12
+    assert abs(se - theirs["se"]) < 1e-12
+    assert abs((mean + half) - theirs["ci_high"]) < 1e-12
+
+
+@pytest.mark.needs_data
+def test_the_published_scorecard_survives_the_second_implementation():
+    """The end-to-end version, run against whatever is actually sealed."""
+    import subprocess as _sp
+    result = _sp.run([sys.executable, str(config.ROOT / "scripts" / "rescore.py")],
+                     cwd=str(config.ROOT), capture_output=True, text=True,
+                     timeout=300)
+    if "Nothing sealed yet" in result.stdout or "none graded yet" in result.stdout:
+        pytest.skip("no graded matches in this checkout")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "AGREES" in result.stdout
 
 
 def test_the_verifier_needs_nothing_installed():
@@ -2023,13 +2268,68 @@ def test_a_division_without_closing_totals_never_grades_them():
 
 def test_every_published_market_is_tagged_on_the_match_card():
     """
-    A number on a card without its tag is the failure mode the whole two-bucket
-    scheme exists to prevent, so the template is checked for one tag per market.
+    A number on a card without its tag is the failure mode the whole labelling
+    scheme exists to prevent, so the template is checked for one tag per market
+    it renders.
+
+    The count is derived from the markets the card actually shows rather than
+    pinned to a constant: when Corners Lab came off the card the old constant
+    was the only thing that noticed, which is the wrong way round.
     """
     card = (config.TEMPLATE_DIR / "match.html").read_text(encoding="utf-8")
-    assert card.count("mkt-tag") >= 5      # 1X2, O/U, BTTS, AH, corners
+    shown = ["match.p_H",            # the result
+             "match.p_over25",       # over/under 2.5
+             "match.p_btts_yes",     # both teams to score
+             "match.asian_handicap"] # the handicap grid
+    for marker in shown:
+        assert marker in card, marker
+    assert card.count("mkt-tag") >= len(shown)
     assert "match.ou_scored" in card and "match.ah_scored" in card
     assert "mkt-legend" in card
+    # Removed markets must leave no orphan link or heading behind.
+    assert "/corners/" not in card and "Corners Lab" not in card
+
+
+def test_nothing_is_called_scored_unless_something_scores_it():
+    """
+    The bug this pins: the method page listed the goal-total ladder, the
+    correct-score view and a corners model as "sealed and scored" against the
+    coin flip, and `grade.py` produced a number for exactly none of them. Only
+    BTTS was ever scored.
+
+    So the registry of forecast-only markets is checked against the grader
+    rather than against the prose. A market may only be called scored-against-
+    guessing if a scorecard function exists that can report an `n` for it.
+    """
+    from proofodds import grade
+    scorers = {"BTTS": grade.btts_scorecard}
+    assert set(config.FORECAST_MARKETS) == set(scorers), (
+        "FORECAST_MARKETS lists a market with no scorer in grade.py — either "
+        "write the scorer or move it to SEALED_UNSCORED_MARKETS")
+    for market, fn in scorers.items():
+        assert callable(fn), market
+    # The three buckets must not overlap, and every label must be nameable.
+    buckets = (set(config.FORECAST_MARKETS),
+               set(config.SEALED_UNSCORED_MARKETS),
+               set(config.SEALED_HIDDEN_MARKETS))
+    for i, a in enumerate(buckets):
+        for b in buckets[i + 1:]:
+            assert not (a & b), (a, b)
+    for market in set().union(*buckets):
+        assert market in config.MARKET_LABELS, market
+
+
+def test_a_market_with_no_score_is_never_described_as_scored():
+    """
+    Prose guard, deliberately crude. The exact sentence that was wrong lived in
+    two templates and no test looked at either of them.
+    """
+    for name in ("method.html", "log_first_post.html"):
+        text = (config.TEMPLATE_DIR / name).read_text(encoding="utf-8")
+        lowered = " ".join(text.lower().split())
+        assert "sealed and scored on that basis and are never" not in lowered, name
+        # Corners must not reappear as a live section or nav destination.
+        assert "/corners/" not in text, name
 
 
 # --------------------------------------------------------------------------- #
@@ -2148,11 +2448,77 @@ def test_opening_and_closing_are_read_separately(monkeypatch):
     """
     from proofodds import statsapi
     monkeypatch.setattr(statsapi, "match_odds", lambda *a, **k: _odds_payload())
-    pair = statsapi.opening_and_closing_1x2({"id": "mt_1"})
+    pair = statsapi.opening_and_closing_1x2({"id": "mt_1", "status": "finished"})
     assert pair["opening"] == {"H": 2.05, "D": 3.45, "A": 3.80}
     assert pair["last_seen"] == {"H": 2.10, "D": 3.50, "A": 3.70}
     # and the fixture behaves like a real market: the close is tighter
     assert statsapi.overround(pair["last_seen"]) < statsapi.overround(pair["opening"])
+
+
+def test_a_live_price_is_never_written_to_the_permanent_cache(monkeypatch, tmp_path):
+    """
+    The leak in the module's one safety property.
+
+    `closing_odds` refused a match that had not finished. It then read through
+    `get(..., cache=True)`, which writes to disk forever, and `match_odds` and
+    `opening_and_closing_1x2` carried no status guard at all. So a single call
+    on a live match cached mid-game prices permanently, and every later
+    `closing_odds` on that match passed its status check — the match really had
+    finished by then — and returned those prices as the close.
+    """
+    import pytest as _pytest
+    from proofodds import statsapi
+
+    monkeypatch.setattr(config, "STATSAPI_KEY", "test-key")
+    monkeypatch.setattr(config, "STATSAPI_DIR", tmp_path)
+    monkeypatch.setattr(statsapi, "_budget",
+                        statsapi.Budget(tmp_path / "_b.json", per_min=600,
+                                        monthly=1000))
+    served = {"n": 0}
+
+    class _Resp:
+        status_code = 200
+        headers: dict = {}
+        def __init__(self, payload): self._payload = payload
+        def json(self): return self._payload
+
+    def fake_get(url, **kwargs):
+        served["n"] += 1
+        # first answer is the live market, second is the settled one
+        price = 2.10 if served["n"] == 1 else 1.55
+        return _Resp({"data": {"bookmakers": [{"bookmaker": "Pinnacle",
+                      "markets": {"match_odds": {
+                          "home": {"opening": 2.0, "last_seen": price},
+                          "draw": {"opening": 3.4, "last_seen": 3.5},
+                          "away": {"opening": 3.8, "last_seen": 3.7}}}}]}})
+
+    monkeypatch.setattr(statsapi.requests, "get", fake_get)
+
+    live = {"id": "mt_9", "status": "inprogress"}
+    finished = {"id": "mt_9", "status": "finished"}
+
+    # reading a live match at all is refused for the closing readers...
+    with _pytest.raises(statsapi.StatsAPIError):
+        statsapi.closing_odds(live)
+    with _pytest.raises(statsapi.StatsAPIError):
+        statsapi.opening_and_closing_1x2(live)
+    # ...and the raw payload for a live match must not be cached
+    statsapi.match_odds(live)
+    assert not list(tmp_path.glob("football_matches_mt_9_odds.json")), \
+        "a live match's prices were written to the permanent cache"
+
+    # so the close, when it is finally asked for, is the settled price
+    prices = statsapi.closing_odds(finished)
+    assert prices["1X2"]["H"] == 1.55
+    assert list(tmp_path.glob("football_matches_mt_9_odds.json"))
+
+
+def test_match_odds_refuses_a_bare_id(monkeypatch):
+    """The status has to travel with the request, so the row is required."""
+    import pytest as _pytest
+    from proofodds import statsapi
+    with _pytest.raises(statsapi.StatsAPIError):
+        statsapi.match_odds("mt_1")
 
 
 def test_being_throttled_is_not_the_same_as_having_no_price(monkeypatch, tmp_path):

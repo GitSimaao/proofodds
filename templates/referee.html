@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Seal your own record — {{ site_name }}{% endblock %}
+{% block description %}We seal and score other people's predictions under the same rules: hashed before kickoff, anchored to Bitcoin, measured by closing line value, published whichever way it goes.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">For tipsters, creators and anyone claiming an edge</p>
+  <h1>Seal your own record</h1>
+  <p class="lead">The machinery on this site does not care whose predictions it measures.
+  Send us yours before kickoff and they go into a hash chain under exactly the same
+  rules as ours — sealed, anchored, never rewritten — and the record is published
+  whichever way it goes. That last part is the whole offer. Anyone can show you a
+  screenshot of a winner.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <h2>What you get, precisely</h2>
+    <div class="pair">
+      <div class="box yes">
+        <h4>The same rules as ours</h4>
+        <p>One chain per person, under <code>guests/&lt;you&gt;/</code>. Each entry carries
+        the SHA-256 of the one before it, gets an OpenTimestamps proof anchored into a
+        Bitcoin block, and is verified by the same standalone
+        <a href="/ledger/#limits">verifier</a> anyone can run against your chain without
+        installing anything. First publication wins. Nothing is ever rewritten, including
+        by you.</p>
+      </div>
+      <div class="box yes">
+        <h4>Measured by closing line value</h4>
+        <p>Your price against the market-average closing price for the same selection.
+        CLV is the accepted evidence of edge and it converges in hundreds of bets where
+        profit is still noise. Flat-stakes profit and loss is shown too, labelled as the
+        noisier number. Where a sealed Asian-handicap line and the closing line differ,
+        the entry is settled and shown but no CLV is claimed — unlike lines are not
+        divided as though they were the same bet.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="box no">
+        <h4>What you do not get</h4>
+        <p>No editing. No deleting a bad week. No "since I changed my approach" restart.
+        No ROI headline. If you seal a month of losers, this site publishes a month of
+        losers under your name, and the point of coming here is that a reader knows that
+        before they look.</p>
+      </div>
+      <div class="box">
+        <h4>Coverage</h4>
+        <p>Anything football-data.co.uk publishes a closing price for — around forty
+        competitions across Europe and beyond, well past the {{ n_leagues }} divisions our
+        own model prices. A selection with no closing benchmark cannot be given CLV and
+        we will say so rather than invent one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>How it works today</h2>
+    <p class="section-note">Deliberately manual, and worth being straight about: there is
+    no submission form yet, because there is no guest yet and building the form first
+    would be building the wrong thing. You send an entry before kickoff — a message is
+    enough — and the operator runs one command. The chain and the anchor do the rest.</p>
+    <div class="scroll" style="padding:16px 18px;min-width:0">
+      <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">competition   E0
+match         Arsenal v Chelsea, 2026-09-12 14:00 UTC
+market        1X2
+selection     H
+odds taken    2.10</pre>
+    </div>
+    <p class="section-note">That is the whole entry. Pick and price, sealed before the
+    whistle, nothing else — no reasoning to be judged on, no stake to be argued about.
+    Your entry is timestamped when we receive it and it is graded from the first
+    publication.</p>
+
+    {% if guests %}
+    <h3>Records so far</h3>
+    <div class="cards">
+      {% for g in guests %}
+      <article class="card"><a class="card-link" href="/guests/{{ g.slug }}/">
+        <strong>{{ g.name }}</strong>
+        <span>{{ g.n_sealed }} sealed · {{ g.n_graded }} graded</span>
+      </a></article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <h3>Nobody has done this yet</h3>
+      <p>There is no guest record on this site, and rather than leave that to be
+      discovered we would rather say it on the page that makes the offer. The code is
+      written and tested, the rules above are the rules, and the first person through
+      the door gets the first chain. If that is you, the terms are the same as ours:
+      free, public, and not editable afterwards.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>Why you might not want this</h2>
+    <p class="section-note">Worth saying plainly, because a page that only lists reasons
+    to say yes is the sort of page this site exists to be the opposite of.</p>
+    <div class="pair">
+      <div class="box no">
+        <h4>It can only hurt a bad record</h4>
+        <p>If you do not have an edge, this will show that, in public, permanently, and
+        there is no mechanism for taking it down. That is not a side effect we are
+        apologising for; it is the product.</p>
+      </div>
+      <div class="box no">
+        <h4>It is slow</h4>
+        <p>CLV converges faster than profit and it is still not fast. A few hundred
+        entries before the number means much, which is months of ordinary volume. Nothing
+        here will settle an argument this week.</p>
+      </div>
+    </div>
+    <p class="section-note" style="margin-top:22px">Interested, or want to argue with the
+    method first? <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>. Both are
+    welcome and the second one is more useful.</p>
+  </div>
+</section>
+
+{% endblock %}

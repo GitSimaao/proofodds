@@ -39,7 +39,9 @@ from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4
+# 5 adds `coverage`: which divisions the run was asked for and which of them
+# the fixture feed did not answer for. Entries 1-4 are read exactly as sealed.
+SCHEMA_VERSION = 5
 GENESIS = "0" * 64
 
 # Files whose contents can change the numbers sealed into an entry.  The git
@@ -192,7 +194,8 @@ def _model_for(now: dt.datetime, league: str = "E0", extra_teams=()):
     return model, teams, past
 
 
-def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
+def build_entry(fixtures: list[Fixture], now: dt.datetime,
+                coverage: dict | None = None) -> dict | None:
     """
     Score every fixture that has not kicked off yet, across every division.
 
@@ -202,6 +205,14 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
     little history, a download that failed — is recorded as skipped inside the
     entry rather than quietly left out. The file has to say what it does not
     contain, or "complete" means nothing.
+
+    `skipped` only ever covered the second half of that. It records a division
+    whose MODEL could not be fitted; a division whose FIXTURE FEED returned
+    nothing never reached this function at all and left no trace in the file.
+    `coverage` closes it: what the run was asked to cover, how many fixtures
+    each division returned, and the reason for every division that returned
+    none. Between them an entry now accounts for every division it was asked
+    about, which is the only sense in which "complete" is checkable.
     """
     future = [f for f in fixtures if f.kickoff > now]
     if not future:
@@ -375,11 +386,14 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime) -> dict | None:
     }
     if skipped:
         payload["skipped"] = skipped
+    if coverage:
+        payload["coverage"] = coverage
     payload["hash"] = compute_hash(payload)
     return payload
 
 
-def publish(fixtures: list[Fixture], now: dt.datetime | None = None) -> Path | None:
+def publish(fixtures: list[Fixture], now: dt.datetime | None = None,
+            coverage: dict | None = None) -> Path | None:
     """
     Write today's entry. Refuses to touch a file that already exists.
 
@@ -393,7 +407,7 @@ def publish(fixtures: list[Fixture], now: dt.datetime | None = None) -> Path | N
         log.info("%s already published — leaving it alone", path.name)
         return None
 
-    entry = build_entry(fixtures, now)
+    entry = build_entry(fixtures, now, coverage=coverage)
     if entry is None:
         return None
 
@@ -403,6 +417,27 @@ def publish(fixtures: list[Fixture], now: dt.datetime | None = None) -> Path | N
              len(entry["predictions"]), ",".join(entry["leagues"]),
              path.name, entry["hash"][:12])
     return path
+
+
+# A fixture the feed has not fixed yet can move by a day or two. Nothing
+# legitimate puts the same pairing at the same ground twice inside this window,
+# so anything closer than this is one fixture being re-described.
+FIXTURE_MATCH_WINDOW_DAYS = 14
+
+
+def _kickoff_of(row: dict) -> dt.datetime | None:
+    try:
+        return dt.datetime.strptime(row["kickoff"], "%Y-%m-%dT%H:%M:%SZ") \
+                          .replace(tzinfo=dt.timezone.utc)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _same_fixture(a: dt.datetime | None, b: dt.datetime | None) -> bool:
+    """Two seals of one pairing close enough in time to be the same match."""
+    if a is None or b is None:
+        return True
+    return abs((a - b).days) <= FIXTURE_MATCH_WINDOW_DAYS
 
 
 def all_predictions() -> list[dict]:
@@ -420,8 +455,36 @@ def all_predictions() -> list[dict]:
     the 26th and as "Coventry" on the 27th, and keying on the raw strings let
     the same match through twice — two cards on the front page with different
     probabilities, and worse, one match counted twice in the log loss.
+
+    The kickoff DATE is not part of that identity, and used to be. That was the
+    same bug by a second route. A fixture the feed has not fixed a time for is
+    sealed at midnight on the feed's best guess of a date, and when the feed
+    later fixes both, the date can move — Porto v Moreirense was sealed on the
+    28th for the 5th of September and on the 29th for the 4th at 19:15. Keyed on
+    the date those were two fixtures. Two match pages went live, each saying it
+    was "the earliest sealed forecast for this fixture"; the phantom sat in the
+    pending count forever, and the row that actually joined the results file was
+    the SECOND publication — the exact substitution "first publication wins"
+    exists to prevent.
+
+    So identity is (division, home, away) within a window, and the two halves of
+    a repeated seal are split deliberately:
+
+      * every probability, and the entry it is attributed to, comes from the
+        FIRST publication. That is the rule and it does not bend.
+      * the kickoff comes from the LAST, because a kickoff is not a forecast.
+        It is a fact about the world that the feed corrected, and grading the
+        first publication against the stale guess means never grading it at
+        all. The corrected row carries `kickoff_sealed` so the original is
+        still visible, and no sealed file is touched by any of this.
+
+    The window keeps a genuine second meeting of the same pairing separate. A
+    club plays the same opponent at home once a season in most of these
+    divisions and at worst twice in a split league, months apart; nothing
+    legitimate repeats inside a fortnight.
     """
-    seen, out = set(), []
+    seen: dict[tuple, int] = {}
+    out: list[dict] = []
     for path in ledger_files():
         entry = read(path)
         # Schema 1 named the division once, at entry level, because there was
@@ -432,12 +495,30 @@ def all_predictions() -> list[dict]:
             league = row.get("league", default_league)
             models = entry.get("models") or {}
             model = models.get(league) or entry.get("model") or {}
-            key = (league, row["kickoff"][:10],
-                   sealed_name(row["home"], league, row.get("home_raw", "")),
-                   sealed_name(row["away"], league, row.get("away_raw", "")))
-            if key in seen:
-                continue
-            seen.add(key)
+            home = sealed_name(row["home"], league, row.get("home_raw", ""))
+            away = sealed_name(row["away"], league, row.get("away_raw", ""))
+            key = (league, home, away)
+            kickoff = _kickoff_of(row)
+
+            previous = seen.get(key)
+            if previous is not None:
+                first = out[previous]
+                if _same_fixture(_kickoff_of(first), kickoff):
+                    # First publication keeps every number. Only the kickoff,
+                    # and the URL and join date that follow from it, move.
+                    if kickoff is not None and kickoff != _kickoff_of(first):
+                        first.setdefault("kickoff_sealed", first["kickoff"])
+                        first["kickoff"] = row["kickoff"]
+                        first["kickoff_tbc"] = bool(row.get("kickoff_tbc"))
+                        log.info(
+                            "%s %s v %s: kickoff corrected %s -> %s from the "
+                            "%s entry; the %s forecast still stands",
+                            league, home, away, first["kickoff_sealed"],
+                            row["kickoff"], entry["published_at"][:10],
+                            first["published_at"][:10])
+                    continue
+
+            seen[key] = len(out)
             out.append({**row,
                         "published_at": entry["published_at"],
                         "entry_hash": entry["hash"],

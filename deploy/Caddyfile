@@ -15,7 +15,12 @@ proofodds.com, www.proofodds.com {
 
 	# The ledger is the product's evidence. Serve it raw, allow anyone to fetch
 	# it from anywhere, and never cache it long enough to look stale.
-	@ledger path /predictions/*
+	#
+	# The Content-Type is matched on *.json, not on the whole directory. Both
+	# directories now carry a browsable index.html — they answered 403 before,
+	# including from the "Raw JSON" link in the footer of every page — and a
+	# blanket header would have served that page as application/json.
+	@ledger path /predictions/*.json
 	header @ledger {
 		Access-Control-Allow-Origin "*"
 		Content-Type "application/json; charset=utf-8"
@@ -23,12 +28,16 @@ proofodds.com, www.proofodds.com {
 	}
 
 	# Detached timestamp proofs are binary and independently downloadable.
-	@timestamps path /timestamps/*
+	@timestamps path /timestamps/*.ots
 	header @timestamps {
 		Access-Control-Allow-Origin "*"
 		Content-Type "application/octet-stream"
 		Cache-Control "public, max-age=300"
 	}
+
+	# The two index pages in those directories are ordinary HTML.
+	@evidence_index path /predictions/ /predictions/index.html /timestamps/ /timestamps/index.html
+	header @evidence_index Cache-Control "public, max-age=300"
 
 	@assets path *.css *.svg *.xml *.txt
 	header @assets Cache-Control "public, max-age=3600"

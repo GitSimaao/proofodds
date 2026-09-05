@@ -37,6 +37,83 @@ def _canonical_for(name: str, raw: str, league: str) -> str:
     return sealed_name(name, league, raw)
 
 
+# --------------------------------------------------------------------------- #
+#  Uncertainty
+# --------------------------------------------------------------------------- #
+#  Every headline on this site is a mean over a sample, and a mean over a
+#  sample has a width. Publishing 0.9386 against 0.9159 to four decimals and
+#  saying nothing about the width invites exactly the reading this project
+#  exists to argue against — that a number is a fact because it has decimals.
+#
+#  The right statistic is the PAIRED difference: the model and the market score
+#  the same matches, so the match-to-match variation that dominates both means
+#  cancels, and the standard error of (model - market) is several times smaller
+#  than the standard error of either one alone. That is also why the gap is the
+#  honest thing to quote a bound on, rather than the two log losses separately.
+#
+#  Deterministic on purpose. A bootstrap would be more exact and would move the
+#  published interval a little on every rebuild for identical data; on a site
+#  whose argument is reproducibility, an interval a reader cannot recompute
+#  with a pocket calculator is the wrong trade.
+Z95 = 1.959963984540054
+
+
+def paired_interval(diff: np.ndarray, weights: np.ndarray | None = None) -> dict:
+    """
+    Mean, standard error and 95% interval for a paired per-match difference.
+
+    `weights` carries the Asian handicap's half-win/half-loss stakes, where a
+    quarter-line match contributes half a settled bet to each side; there the
+    mean is stake-weighted and the effective sample is the stake total, not
+    the row count.
+    """
+    diff = np.asarray(diff, dtype=float)
+    diff = diff[np.isfinite(diff)]
+    n = int(len(diff))
+    if n == 0:
+        return {"n": 0, "mean": None, "se": None, "ci_low": None,
+                "ci_high": None, "t": None, "separated": False}
+    if weights is None:
+        mean = float(diff.mean())
+        se = float(diff.std(ddof=1) / np.sqrt(n)) if n > 1 else None
+    else:
+        w = np.asarray(weights, dtype=float)[:len(diff)]
+        total = float(w.sum())
+        mean = float((diff * w).sum() / total) if total else float("nan")
+        # Weighted standard error of a weighted mean, effective-n form.
+        var = float((w * (diff - mean) ** 2).sum() / total) if total else float("nan")
+        eff = (total ** 2) / float((w ** 2).sum()) if (w ** 2).sum() else 0.0
+        se = float(np.sqrt(var / eff)) if eff > 1 else None
+    if se is None or not np.isfinite(se) or se == 0:
+        return {"n": n, "mean": mean, "se": None, "ci_low": None,
+                "ci_high": None, "t": None, "separated": False}
+    half = Z95 * se
+    return {"n": n, "mean": mean, "se": se,
+            "ci_low": mean - half, "ci_high": mean + half,
+            "t": mean / se,
+            # "separated", not "significant". The question this answers is
+            # narrow: does the interval exclude zero, i.e. can this sample tell
+            # the model and the closing line apart at all yet? It is not a
+            # claim that any difference found is large enough to matter.
+            "separated": bool((mean - half) * (mean + half) > 0)}
+
+
+def _share_bounds(uniform: float, market: float, interval: dict) -> tuple:
+    """
+    Turn the gap's interval into an interval on "share of the available".
+
+    share = (uniform - model) / (uniform - market) = 1 - gap / (uniform - market)
+    so the bound is the gap bound, inverted. The denominator is itself an
+    estimate; holding it fixed understates the width slightly, and the width
+    that matters here is the numerator's by an order of magnitude.
+    """
+    available = uniform - market
+    if not available or available <= 0 or interval.get("ci_low") is None:
+        return None, None
+    return (1 - interval["ci_high"] / available,
+            1 - interval["ci_low"] / available)
+
+
 def graded_frame(leagues=None) -> pd.DataFrame:
     """
     Join published predictions to finished matches, across every division.
@@ -184,6 +261,8 @@ def scorecard(graded: pd.DataFrame) -> dict:
     model = float(done["model_loss"].mean())
     market = float(done["market_loss"].mean())
     cumulative = (done["model_loss"] - done["market_loss"]).cumsum()
+    interval = paired_interval((done["model_loss"] - done["market_loss"]).to_numpy())
+    share_low, share_high = _share_bounds(config.UNIFORM_LOG_LOSS, market, interval)
 
     return {
         "live": True,
@@ -203,6 +282,16 @@ def scorecard(graded: pd.DataFrame) -> dict:
         ),
         "share_of_available": (config.UNIFORM_LOG_LOSS - model) /
                               (config.UNIFORM_LOG_LOSS - market) if market < config.UNIFORM_LOG_LOSS else None,
+        "share_low": share_low,
+        "share_high": share_high,
+        # The width of the headline. `separated` false means this sample cannot
+        # yet tell the model apart from the closing line in either direction,
+        # which is a fact about the sample and has to be said out loud.
+        "se": interval["se"],
+        "ci_low": interval["ci_low"],
+        "ci_high": interval["ci_high"],
+        "t": interval["t"],
+        "separated": interval["separated"],
         "curve": [
             {"date": d.date().isoformat(), "value": float(v)}
             for d, v in zip(done["date"], cumulative)
@@ -236,6 +325,9 @@ def totals_scorecard(graded: pd.DataFrame) -> dict:
     model = float(done["ou_model_loss"].mean())
     market = float(done["ou_market_loss"].mean())
     uniform = config.UNIFORM_LOG_LOSS_BINARY
+    interval = paired_interval(
+        (done["ou_model_loss"] - done["ou_market_loss"]).to_numpy())
+    share_low, share_high = _share_bounds(uniform, market, interval)
     return {
         "live": True,
         "n": int(len(done)),
@@ -248,6 +340,13 @@ def totals_scorecard(graded: pd.DataFrame) -> dict:
         "over_rate": float(done["over25"].mean()),
         "share_of_available": ((uniform - model) / (uniform - market)
                                if market < uniform else None),
+        "share_low": share_low,
+        "share_high": share_high,
+        "se": interval["se"],
+        "ci_low": interval["ci_low"],
+        "ci_high": interval["ci_high"],
+        "t": interval["t"],
+        "separated": interval["separated"],
     }
 
 
@@ -255,8 +354,15 @@ def btts_scorecard(graded: pd.DataFrame) -> dict:
     if graded.empty or "btts_graded" not in graded: return {"live": False, "n": 0}
     done = graded[graded["btts_graded"]]
     if done.empty: return {"live": False, "n": 0}
+    # No benchmark to pair against, so the reference is the coin flip and the
+    # interval is on (model - coin flip) per match. Same rule as everywhere
+    # else: a number without a width is not a measurement.
+    interval = paired_interval(
+        (done.btts_model_loss - config.UNIFORM_LOG_LOSS_BINARY).to_numpy())
     return {"live": True, "n": len(done), "model_log_loss": float(done.btts_model_loss.mean()),
             "uniform_log_loss": config.UNIFORM_LOG_LOSS_BINARY,
+            "se": interval["se"], "ci_low": interval["ci_low"],
+            "ci_high": interval["ci_high"], "separated": interval["separated"],
             "note": "No closing BTTS benchmark in the free source."}
 
 
@@ -265,8 +371,17 @@ def ah_scorecard(graded: pd.DataFrame) -> dict:
     done = graded[graded["ah_graded"]]; active = done.ah_weight.sum()
     if not active: return {"live": False, "n": 0}
     model = float(done.ah_model_loss.sum()/active); market = float(done.ah_market_loss.sum()/active)
+    # Per-match losses are already stake-scaled sums, so divide back out to a
+    # per-unit-stake difference before taking the interval, and weight by the
+    # stake each match actually settled.
+    weight = done.ah_weight.to_numpy(float)
+    per_unit = np.divide((done.ah_model_loss - done.ah_market_loss).to_numpy(float),
+                         np.where(weight > 0, weight, np.nan))
+    interval = paired_interval(per_unit, weights=weight[np.isfinite(per_unit)])
     return {"live": True, "n": len(done), "stake_equiv": float(active), "model_log_loss": model,
-            "market_log_loss": market, "gap": model-market, "beats_market": model < market}
+            "market_log_loss": market, "gap": model-market, "beats_market": model < market,
+            "se": interval["se"], "ci_low": interval["ci_low"],
+            "ci_high": interval["ci_high"], "separated": interval["separated"]}
 
 
 def by_week(graded: pd.DataFrame) -> list[dict]:
@@ -279,12 +394,16 @@ def by_week(graded: pd.DataFrame) -> list[dict]:
     done["week"] = done["date"].dt.to_period("W").dt.start_time
     rows = []
     for week, block in done.groupby("week"):
+        interval = paired_interval(
+            (block["model_loss"] - block["market_loss"]).to_numpy())
         rows.append({
             "week": week.date().isoformat(),
             "n": int(len(block)),
             "model": float(block["model_loss"].mean()),
             "market": float(block["market_loss"].mean()),
             "gap": float(block["model_loss"].mean() - block["market_loss"].mean()),
+            "se": interval["se"],
+            "separated": interval["separated"],
         })
     return rows
 
@@ -313,12 +432,25 @@ def by_league(graded: pd.DataFrame) -> list[dict]:
             "pending": int((~block["graded"]).sum()),
         }
         if len(done):
+            interval = paired_interval(
+                (done["model_loss"] - done["market_loss"]).to_numpy())
             row.update({
                 "model": float(done["model_loss"].mean()),
                 "market": float(done["market_loss"].mean()),
                 "gap": float((done["model_loss"] - done["market_loss"]).mean()),
                 "accuracy": float(done["hit"].mean()) if "hit" in done else None,
+                "se": interval["se"],
+                "ci_low": interval["ci_low"],
+                "ci_high": interval["ci_high"],
+                "separated": interval["separated"],
+                # Below this, the row is a number with an interval several
+                # times its own size. Printing it to four decimals invites a
+                # reader to cherry-pick the division where we happen to be
+                # ahead, which at these samples is a coin landing heads.
+                "enough": len(done) >= config.MIN_LEAGUE_ROWS,
             })
+        else:
+            row["enough"] = False
         rows.append(row)
     return sorted(rows, key=lambda r: order.get(r["league"], 99))
 

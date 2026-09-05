@@ -925,3 +925,23 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
 .mkt-tag.is-forecast { color: var(--muted, #6b7280); }
 .mkt-legend { margin: 10px 0 0; font-size: .82rem; line-height: 1.55;
   color: var(--muted, #6b7280); }
+
+/* Uncertainty, shown next to the number it belongs to rather than in a
+   footnote. A gap without its interval is a decoration; the whole argument of
+   this site is that the interval is part of the measurement. */
+.pm{font-weight:400;opacity:.62;font-size:.82em;white-space:nowrap}
+/* A grid child of .strip, so it needs the cell background the other children
+   get from `.strip > div` — otherwise it renders straight onto the 1px rule
+   colour that forms the grid lines. */
+.strip-note{grid-column:1/-1;background:var(--surface);margin:0;
+  padding:13px 17px;font-size:.85rem;line-height:1.55;color:var(--ink-2)}
+.strip-note a{color:inherit}
+
+/* Shown only when the build is older than the daily job's period. A site whose
+   argument is that its numbers are current has to be the one that says when
+   they have stopped being. */
+.stale-note{position:sticky;bottom:0;z-index:40;margin:0;padding:12px 18px;
+  background:#7A4E0B;color:#FFF6E6;font-size:.85rem;line-height:1.5;
+  text-align:center}
+.stale-note a{color:#FFF6E6;text-decoration:underline}
+.stale-note strong{color:#fff}

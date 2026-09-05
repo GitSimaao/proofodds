@@ -71,12 +71,30 @@ python -m proofodds.verify</code></pre>
         <div>
           <div class="k">Gap per match</div>
           <div class="v {{ 'ahead' if score.beats_market else 'behind' }}">{{ '%+.4f'|format(score.gap) }}</div>
+          {% if score.se %}
+          <div class="n">&plusmn;{{ '%.4f'|format(1.96 * score.se) }} at 95%</div>
+          {% else %}
           <div class="n">{{ 'ahead of' if score.beats_market else 'behind' }} the market</div>
+          {% endif %}
         </div>
       </div>
       {% else %}
       <p><em>The first matches are being graded now — the live number is on the
       <a href="/scorecard/">scorecard</a>.</em></p>
+      {% endif %}
+
+      {% if score.se %}
+      <p><strong>And the live number is not yet a result.</strong> At {{ score.n }}
+      matches the gap carries a 95% interval of {{ '%+.4f'|format(score.ci_low) }} to
+      {{ '%+.4f'|format(score.ci_high) }} &mdash;
+      {% if score.separated %}which excludes zero, so the sample does now separate the
+      model from the closing line.{% else %}which contains zero. This sample cannot tell
+      the model apart from the closing line in either direction, and a site that made a
+      point of publishing its own defeat would be doing the same trick in reverse if it
+      let you read that number as settled.{% endif %}
+      The backtest is where the sample lives: {{ backtest.n }} matches, and there the
+      model's loss is real. The live record will take a season to say anything, and it
+      will say it here either way.</p>
       {% endif %}
 
       <p>That number is on the front page and it stays there whichever way it points.
@@ -97,18 +115,30 @@ python -m proofodds.verify</code></pre>
       Dixon-Coles goals model fitted per division on that division's matches only.
       Every match gets the result, both teams to score, a ladder of goal totals from
       0.5 to 5.5 and a quarter-line Asian handicap — all different sums of one fitted
-      scoreline distribution, not separate models — plus an experimental corners model
-      fitted to corner counts alone.</p>
+      scoreline distribution, not separate models.</p>
 
-      <p><strong>Two kinds of number, labelled as such.</strong> Some of those markets
-      have a public closing price and some do not, and the difference is the whole
-      point of the site, so it is a tag on every card rather than a footnote. Where a
-      closing price exists — the result everywhere, over/under 2.5 and the handicap in
-      the divisions whose source publishes them — the forecast is compared with the
-      market and can be shown to lose. Where none exists — BTTS, the totals other than
-      2.5, corners — the number is measured against guessing, which says whether a
-      forecast is calibrated and nothing about beating anyone. It is never presented
-      as an edge.</p>
+      <p><strong>Three kinds of number, labelled as such.</strong> Some of those
+      markets have a public closing price and some do not, and the difference is the
+      whole point of the site, so it is a tag on every card rather than a footnote.
+      Where a closing price exists — the result everywhere, over/under 2.5 and the
+      handicap in the divisions whose source publishes them — the forecast is compared
+      with the market and can be shown to lose. Where none exists but a score is still
+      possible — both teams to score — the number is measured against guessing, which
+      says whether a forecast is calibrated and nothing about beating anyone. And where
+      there is no score at all yet — the goal totals other than 2.5, the correct-score
+      view — the forecast is sealed, shown, and honestly worth nothing as evidence until
+      somebody, meaning us, publishes a number beside it.</p>
+
+      <p>That third category is a correction. Until September this page and the
+      <a href="/method/">method page</a> had two categories, and both put the goal-total
+      ladder, the correct-score view and a corners model in the second one under the
+      words "measured against guessing". Only BTTS actually was. A site that exists to
+      point out that nobody keeps the score had claimed to keep three scores it was not
+      keeping. The corners page came down entirely — the model still fits and still
+      writes its distribution into every sealed entry, so the record is accumulating,
+      but nothing on the site implies anyone is grading it. This paragraph is here for
+      the same reason the one below it is: a rule changed quietly is the behaviour this
+      project exists to be the opposite of.</p>
 
       <p>Which bucket a market falls in depends on the division. The European season
       files carry a closing 1X2, over/under 2.5 and one handicap line; the newer
@@ -134,6 +164,15 @@ python -m proofodds.verify</code></pre>
       market on goals almost regardless of how good it is. Reading a smaller gap there
       as "better at goals" is exactly backwards, so the scorecard reports the share of
       what was available in each market rather than inviting the comparison.</p>
+
+      <p><strong>What this is for.</strong> A goals model that loses to the closing
+      line is not a business, and pretending otherwise would be the first dishonest
+      thing on the page. What might be a business is being the referee: the machinery
+      above does not care whose predictions it seals, so anyone claiming an edge can put
+      theirs in a chain under the same rules and be measured by closing line value
+      instead of believed. That offer is <a href="/referee/">here</a>, it is free, and
+      nobody has taken it yet — which is said on that page too, because a testimonial
+      section with nothing in it is how this sort of site usually starts lying.</p>
 
       <p><strong>No affiliate links. No ROI headline. No "since we improved the
       model" start date.</strong> Every graded match since the first publication is in

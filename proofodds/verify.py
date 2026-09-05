@@ -38,6 +38,22 @@ from pathlib import Path
 GENESIS = "0" * 64
 
 
+def is_entry(payload) -> bool:
+    """
+    Is this file a ledger entry at all?
+
+    Asked because the answer used to be assumed. A directory of sealed entries
+    may legitimately also hold a summary, a README, or whatever a web server
+    put beside them, and reporting "CHAIN BROKEN" for one of those is a false
+    alarm on the one claim this file exists to make true. An entry is a JSON
+    object carrying the three fields the rule is defined over.
+    """
+    return (isinstance(payload, dict)
+            and isinstance(payload.get("hash"), str)
+            and isinstance(payload.get("prev_hash"), str)
+            and "predictions" in payload)
+
+
 def entry_hash(entry: dict) -> str:
     body = {k: v for k, v in entry.items() if k != "hash"}
     text = json.dumps(body, sort_keys=True, separators=(",", ":"),
@@ -46,18 +62,24 @@ def entry_hash(entry: dict) -> str:
 
 
 def verify(directory: Path) -> tuple[bool, list[str], dict]:
-    files = sorted(directory.glob("*.json"))
     problems: list[str] = []
+    skipped: list[str] = []
     prev = GENESIS
     sealed = 0
     first = last = ""
+    files = []
 
-    for path in files:
+    for path in sorted(directory.glob("*.json")):
         try:
             entry = json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc:
             problems.append(f"{path.name}: unreadable ({exc})")
             continue
+
+        if not is_entry(entry):
+            skipped.append(path.name)
+            continue
+        files.append(path)
 
         recomputed = entry_hash(entry)
         if recomputed != entry.get("hash"):
@@ -78,6 +100,7 @@ def verify(directory: Path) -> tuple[bool, list[str], dict]:
     return not problems, problems, {
         "entries": len(files), "sealed": sealed,
         "first": first, "last": last, "head": prev if files else GENESIS,
+        "skipped": skipped,
     }
 
 
@@ -124,6 +147,9 @@ def main(argv: list[str]) -> int:
     print(f"Sealed  : {stats['sealed']} predictions")
     print(f"Genesis : {GENESIS[:16]}…")
     print(f"Head    : {stats['head']}")
+    if stats["skipped"]:
+        print(f"Ignored : {', '.join(stats['skipped'])} "
+              f"(not ledger entries)")
     print()
 
     if ok:

@@ -2,6 +2,10 @@
 Description=ProofOdds — seal predictions, grade results, rebuild the site
 After=network-online.target
 Wants=network-online.target
+# Nothing was watching this job. A failure left the last good build being served
+# indefinitely, looking freshly rendered and no longer true, and the only trace
+# was in the journal. See deploy/proofodds-failed@.service.
+OnFailure=proofodds-failed@%n.service
 
 [Service]
 Type=oneshot

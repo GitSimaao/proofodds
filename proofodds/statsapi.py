@@ -21,8 +21,24 @@ There is no field called "closing".  Every price is `{opening, last_seen}`.
 On a FINISHED match `last_seen` is the close; on a match that has not kicked
 off it is simply the latest price, and grading against it would be scoring
 ourselves against a number that was still moving.  So `closing_odds` refuses
-any match whose status is not `finished`, and the cache marks which is which.
-That refusal is the whole safety property of this module.
+any match whose status is not `finished`.  That refusal is the whole safety
+property of this module.
+
+And the refusal has to hold at the moment the bytes are STORED, not only when
+they are read, which is where it leaked.  `get()` caches a successful response
+on disk forever, and both odds readers went through that cache with
+`cache=True`.  One call on a match that had not finished — `match_odds` and
+`opening_and_closing_1x2` carried no status guard at all — wrote mid-game
+prices to `data/statsapi/football_matches_<id>_odds.json`, permanently.  Every
+later `closing_odds` on that match then passed the status check, because by
+then the match really had finished, and returned the cached pre-kickoff prices
+as the close.  Silent, permanent, and precisely the substitution the module
+exists to make impossible.
+
+So odds are cached only when the match that produced them was finished at the
+time of the request, every reader takes the whole match row rather than an id
+so the status travels with it, and a cache entry records the status it was
+written under.
 """
 
 from __future__ import annotations
@@ -203,6 +219,11 @@ def get(path: str, params: dict | None = None, *, cache: bool = True,
     budget.check()
     budget.throttle()
     url = f"{config.STATSAPI_BASE.rstrip('/')}/{path.lstrip('/')}"
+    # Spent before the call, not after. A request that times out locally was
+    # very likely still counted at the other end, and a budget that only counts
+    # what came back drifts optimistic in exactly the direction that gets the
+    # month's quota burnt.
+    budget.spend()
     try:
         response = requests.get(
             url, params=params, timeout=30,
@@ -210,7 +231,6 @@ def get(path: str, params: dict | None = None, *, cache: bool = True,
                      "User-Agent": USER_AGENT, "Accept": "application/json"})
     except requests.RequestException as exc:
         raise StatsAPIError(f"{path}: {exc}") from exc
-    budget.spend()
 
     if response.status_code == 429:
         # One patient retry. There is no Retry-After header, so wait a whole
@@ -222,6 +242,7 @@ def get(path: str, params: dict | None = None, *, cache: bool = True,
                     "retry", path, delay)
         time.sleep(delay)
         budget.check()
+        budget.spend()
         try:
             response = requests.get(
                 url, params=params, timeout=30,
@@ -230,7 +251,6 @@ def get(path: str, params: dict | None = None, *, cache: bool = True,
                          "Accept": "application/json"})
         except requests.RequestException as exc:
             raise RateLimited(f"{path}: {exc}") from exc
-        budget.spend()
         if response.status_code == 429:
             raise RateLimited(
                 f"{path}: still rate limited after {delay:.0f}s — lower "
@@ -281,8 +301,24 @@ def matches(**filters) -> list[dict]:
     return paged("football/matches", filters, cache=False)
 
 
-def match_odds(match_id: str, *, cache: bool = True) -> dict:
-    return get(f"football/matches/{match_id}/odds", cache=cache)
+def is_final(match: dict) -> bool:
+    """A match whose odds will never move again."""
+    return str(match.get("status", "")).lower() == FINISHED
+
+
+def match_odds(match: dict) -> dict:
+    """
+    The odds payload for one match row.
+
+    Takes the row, not an id, on purpose: the status decides whether the answer
+    may be written to a cache that is never invalidated. A live match's prices
+    are cached for the length of this process and no longer.
+    """
+    if not isinstance(match, dict) or "id" not in match:
+        raise StatsAPIError(
+            "match_odds needs the match row, not an id — the status is what "
+            "decides whether its prices may be cached as final")
+    return get(f"football/matches/{match['id']}/odds", cache=is_final(match))
 
 
 def shotmap(match_id: str) -> dict:
@@ -324,8 +360,18 @@ def opening_and_closing_1x2(match: dict, bookmaker: str | None = None) -> dict:
     kickoff, so if `last_seen` is genuinely later than `opening` its margin
     should be systematically thinner. If the two margins are indistinguishable,
     `last_seen` is probably not a closing price at all.
+
+    Refuses an unfinished match for the same reason `closing_odds` does. This
+    function had no guard, and since it shares the cache with `closing_odds` a
+    single call here on a live match was enough to poison that match's closing
+    price for good.
     """
-    markets = book_markets(match_odds(match["id"]),
+    if not is_final(match):
+        raise StatsAPIError(
+            f"{match.get('id')} is {str(match.get('status', '')).lower()!r}, "
+            "not finished — its last_seen price is still moving and must not "
+            "be read, cached or compared as a close")
+    markets = book_markets(match_odds(match),
                            bookmaker or config.STATSAPI_BENCHMARK_BOOK)
     node = markets.get(MARKET_MATCH_ODDS) or {}
     out = {}
@@ -357,7 +403,7 @@ def closing_odds(match: dict, bookmaker: str | None = None) -> dict:
             "price is not a closing price and must not be graded against")
 
     bookmaker = bookmaker or config.STATSAPI_BENCHMARK_BOOK
-    markets = book_markets(match_odds(match["id"]), bookmaker)
+    markets = book_markets(match_odds(match), bookmaker)
     out: dict[str, dict] = {}
 
     one_x_two = markets.get(MARKET_MATCH_ODDS) or {}
