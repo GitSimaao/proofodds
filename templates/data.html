@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Use the numbers — {{ site_name }}{% endblock %}
+{% block description %}Every probability this site publishes is already a public JSON file, open across origins, with no key and no account. What it is good for, what it is not, and what is still missing before anyone builds on it.{% endblock %}
+{% block og_title %}ProofOdds — use the numbers{% endblock %}
+{% block og_description %}The whole feed is already public: one JSON file a day, every division, no key. Here is exactly what it contains and what it cannot do.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">For developers, media and researchers</p>
+  <h1>Use the numbers</h1>
+  <p class="lead">There is no API to sign up for, because there is nothing to
+  gate. Every probability this site has ever published is already sitting in a
+  public JSON file, served across origins, with no key and no account — the same
+  bytes the <a href="/ledger/">ledger</a> hashes and the same ones anybody uses
+  to check our arithmetic. This page says what is in them, what they are good
+  for, and what is still missing before you could responsibly build a product
+  on top.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <h2>What the feed is</h2>
+    <p class="section-note">One file per publication day, named by date, never
+    rewritten after it is sealed.</p>
+    <pre class="codeblock"><code>curl {{ site_url }}/predictions/{{ latest_entry }}.json</code></pre>
+    <div class="pair">
+      <div class="box">
+        <h4>What each match carries</h4>
+        <p>Home, draw and away probabilities; both teams to score; a goal-total
+        ladder from 0.5 to 5.5 with over and under on each line; and a
+        quarter-line Asian handicap grid with fair prices and the push
+        probability on every line. All of it derived from one fitted scoreline
+        distribution per match, not from separate models that could disagree
+        with each other.</p>
+      </div>
+      <div class="box">
+        <h4>What each file carries</h4>
+        <p>The divisions covered, the publication timestamp, the hash of the
+        previous entry, this entry's own hash, and the git commit plus source
+        digest of the code that produced the probabilities. A detached
+        OpenTimestamps proof for the same bytes lives under
+        <a href="/timestamps/">/timestamps/</a>.</p>
+      </div>
+    </div>
+    <p class="section-note">{{ sealed_total }} forecasts sealed so far across
+    {{ n_leagues }} divisions; the most recent entry carries {{ latest_count }}.
+    The <a href="/predictions/">index</a> lists every file.
+    <code>_chain.json</code> beside them is a build summary, not a ledger entry,
+    and the verifier ignores it.</p>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>Be clear about what this is</h2>
+    <div class="pair">
+      <div class="box yes">
+        <h4>Reasonable uses</h4>
+        <p>Editorial and broadcast context, where a calibrated probability
+        across {{ n_leagues }} divisions is worth more than a pundit's guess and
+        nobody is staking money on the difference. Research. Teaching. And a
+        sealed, dated, independently timestamped baseline to test your own model
+        against — which is hard to obtain anywhere else, because almost nobody
+        publishes forecasts you can prove were not written afterwards.</p>
+      </div>
+      <div class="box no">
+        <h4>Not a betting edge</h4>
+        <p>Our own <a href="/scorecard/">scorecard</a> says the model loses to
+        the market-average closing line, and the walk-forward backtest says it
+        over {{ backtest.n }} matches rather than a lucky few. Anything
+        built on these numbers to beat a bookmaker is starting from a number
+        that is already behind the price. We would rather lose the user than
+        have them find that out with money on it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>What is missing before you build on it</h2>
+    <p class="section-note">Said here rather than discovered later, because
+    every one of these would matter on the day something broke.</p>
+    <div class="pair">
+      <div class="box no">
+        <h4>No schema promise</h4>
+        <p>Sealed files are never rewritten, so nothing you already fetched can
+        change under you — but new fields have been added as markets were added
+        and will be again. There is a <code>version</code> on every entry and no
+        commitment yet about what a change to it would mean.</p>
+      </div>
+      <div class="box no">
+        <h4>No uptime commitment</h4>
+        <p>This is one virtual machine with a timer on it. The static site
+        survives most things and the ledger is mirrored in a public git
+        repository, but nothing here is operated to a service level and it would
+        be dishonest to imply otherwise.</p>
+      </div>
+      <div class="box no">
+        <h4>No history in bulk</h4>
+        <p>The record starts on 26 August 2026 and grows one file a day. There
+        is no archive endpoint and no pre-launch history, because entries
+        generated after the fact are not a track record and this site will not
+        publish them as one.</p>
+      </div>
+      <div class="box no">
+        <h4>Licensing is not settled</h4>
+        <p>Our probabilities are ours. The results and closing prices they are
+        graded against come from football-data.co.uk, the fixtures from
+        football-data.org, and neither the accessibility of a feed nor a free
+        tier grants onward commercial rights. If your use is commercial, that is
+        a conversation to have with those sources — and one we are working
+        through ourselves before charging anyone for anything.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <h2>If you would actually use this</h2>
+    <p class="section-note">There is no roadmap here to sign up to, and inventing
+    one before knowing whether anybody wants it is how the wrong thing gets
+    built.</p>
+    <p>The honest position is that we do not yet know what shape this should
+    take — a documented schema, a historical bulk file, a proper endpoint with
+    an availability promise, or nothing at all beyond the files that already
+    exist. What decides it is whether anyone turns up needing one of them.</p>
+    <p>So if you would put these numbers in something real, say what you would
+    need and what it is for. A sentence is enough, and a description of the
+    problem is more useful than a feature request.</p>
+    <p><a class="button-link" href="mailto:{{ contact_email }}?subject=Data%20feed%20—%20what%20I%20would%20need">Tell us what you need <span aria-hidden="true">→</span></a></p>
+  </div>
+</section>
+
+{% endblock %}
