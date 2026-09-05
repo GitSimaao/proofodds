@@ -10,6 +10,17 @@
 <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
 <meta property="og:description" content="{% block og_description %}{{ tagline }}{% endblock %}">
 <meta property="og:type" content="website">
+{# Absolute, and versioned on the brand hash: the platforms cache a card for
+   weeks and key it on the URL, so a redesign only reaches them if the URL
+   moves with it. #}
+<meta property="og:image" content="{{ site_url }}/og.png?v={{ brand_v }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ProofOdds — our model loses to the closing line. We publish the score anyway.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{% block twitter_title %}{{ self.og_title() }}{% endblock %}">
+<meta name="twitter:description" content="{% block twitter_description %}{{ self.og_description() }}{% endblock %}">
+<meta name="twitter:image" content="{{ site_url }}/og.png?v={{ brand_v }}">
 <meta name="theme-color" content="#0B1628">
 <link rel="icon" href="/favicon.svg?v={{ brand_v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ brand_v }}">
@@ -86,6 +97,7 @@
       <h4>How it works</h4>
       <a href="/method/">Method</a>
       <a href="/referee/">Seal your own record</a>
+      <a href="/data/">Use the numbers</a>
       <a href="/log/">Log</a>
       <a href="{{ repo_url }}" rel="noopener">Source code</a>
       <a href="/privacy/">Privacy</a>

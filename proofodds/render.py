@@ -402,7 +402,8 @@ def build(out_dir=None) -> None:
     logo = (config.STATIC_DIR / "logo.svg").read_bytes()
     brand_files = (logo
                    + (config.STATIC_DIR / "apple-touch-icon.png").read_bytes()
-                   + (config.STATIC_DIR / "site.webmanifest").read_bytes())
+                   + (config.STATIC_DIR / "site.webmanifest").read_bytes()
+                   + (config.STATIC_DIR / "og.png").read_bytes())
     asset_v = hashlib.sha256(css).hexdigest()[:10]
     brand_v = hashlib.sha256(brand_files).hexdigest()[:10]
 
@@ -556,6 +557,18 @@ def build(out_dir=None) -> None:
     write("referee/index.html", env.get_template("referee.html").render(
         page="referee", canonical="/referee/", guests=guest_records, **common))
 
+    # The third thing a visitor might want, after the weekly report and the
+    # offer to be measured: the numbers themselves. They were already public —
+    # /predictions/ is served raw and cross-origin — but nothing on the site
+    # said so, or said what they are worth, so the only people who found them
+    # were the ones already reading the ledger.
+    write("data/index.html", env.get_template("data.html").render(
+        page="data", canonical="/data/",
+        latest_entry=entries[0]["file"].removesuffix(".json") if entries else "",
+        latest_count=entries[0]["n"] if entries else 0,
+        sealed_total=sum(entry["n"] for entry in entries),
+        **common))
+
     write("privacy/index.html", env.get_template("privacy.html").render(
         page="privacy", canonical="/privacy/", **common))
 
@@ -574,7 +587,8 @@ def build(out_dir=None) -> None:
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
     public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/referee/",
-                    "/privacy/", "/log/", "/log/first-post/", "/predictions/"]
+                    "/data/", "/privacy/", "/log/", "/log/first-post/",
+                    "/predictions/"]
     public_pages.extend(f"/guests/{r['slug']}/" for r in guest_records)
     public_pages.extend(match["match_url"] for match in matches)
     (out_dir / "sitemap.xml").write_text(
