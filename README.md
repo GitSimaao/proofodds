@@ -192,6 +192,9 @@ python scripts/check_names.py      # audit club names before adding a division
 python -m proofodds.verify         # recompute the whole chain (no deps)
 python scripts/rescore.py --csv audit.csv   # recompute the SCORE, second implementation
 python scripts/check_benchmark.py  # the Pinnacle -> market-average measurement
+python scripts/vendor_crests.py    # download club crests into static/clubs/
+python scripts/make_og_image.py    # redraw static/og.png, the social card
+python scripts/traffic.py --all    # who came, where from, and what they wanted
 ```
 
 `scripts/replay.py` runs the same pipeline over historical matchdays into a
@@ -392,6 +395,28 @@ to the deterministic two-letter mark rather than breaking a card.
 A deliberately self-hosted crest at `static/clubs/<canonical-slug>.svg` (then
 `.png` or `.webp`) always takes precedence over the provider URL. This is useful
 when the project later obtains an explicitly licensed asset pack.
+
+That path is also how the site stops hotlinking. The front page asks for a few
+hundred crests, and pointing all of them at somebody else's CDN means a rate
+limit or a moved file breaks every card at once — during a traffic spike, which
+is exactly when it would happen:
+
+```bash
+python scripts/vendor_crests.py     # cache -> static/clubs/, downscaled
+```
+
+It reads the same ignored cache, writes one file per club under the slug the
+renderer looks up, and shrinks each to a 160px palette PNG — the largest a crest
+is ever painted is 76px, and the originals ran to 280KB each. Pillow does the
+resizing and is deliberately **not** in `requirements.txt`: it is a build-time
+convenience, the daily job never needs it, and without it the crests are simply
+stored at whatever size the provider sent.
+
+`static/clubs/` is git-ignored. Serving these on the site is one thing; shipping
+216 protected marks inside a public repository is a broader redistribution than
+this project has any right to. Run the script once per deployment; a club with
+no local file still falls back to the provider URL and then to the monogram, so
+a fresh clone renders correctly before it has ever been run.
 
 Club crests remain protected marks. API access and image availability do not by
 themselves grant redistribution or commercial rights; confirm the chosen

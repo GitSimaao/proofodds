@@ -31,6 +31,16 @@ __pycache__/
 # hand, would sweep it straight into the public ledger repository.
 .cache/
 
+# Vendored club crests. scripts/vendor_crests.py downloads them from the
+# providers into static/clubs/ so the site serves its own images instead of
+# hotlinking a third-party CDN through a launch. They are protected marks
+# belonging to the clubs: serving them on the site is one thing, shipping 216
+# of them inside a public repository is a broader redistribution than this
+# project has any right to, and the repo's job is to carry the evidence, not
+# the decoration. A deliberately licensed asset pack would be committed here
+# instead, under the same names.
+static/clubs/
+
 # Session backups (rollback artefacts, not record)
 *.bak*
 
