@@ -100,14 +100,8 @@ LEAGUES = {
     #                   corner count, and 552 of those are from 2015/16.
     #
     # The result market never depended on these columns; only the (sealed,
-    # hidden, unscored) corner model does. Note what that means for EC and is
-    # not currently handled: data.py materialises HC/AC as all-NaN for a season
-    # that lacks them, so the `{"HC","AC"}.issubset(...)` guard in ledger.py is
-    # true for EC and the 636 surviving rows clear CORNER_MIN_MATCHES. EC
-    # therefore fits a corner model, and corners.fit_from_frame applies no time
-    # decay, so that model is mostly a picture of the 2015/16 National League.
-    # Nothing published depends on it today. It is written down here so that
-    # the day something does, this is already known rather than discovered.
+    # hidden, unscored) corner model does. See CORNER_UNWEIGHTED below for what
+    # that model does with them, which is a general problem and not an EC one.
     "E2":  {"name": "League One",     "short": "EFL1", "country": "England",  "flag": "england",  "fdorg": None, "tier": 3, "source": "season", "fixtures": "fdco"},
     "E3":  {"name": "League Two",     "short": "EFL2", "country": "England",  "flag": "england",  "fdorg": None, "tier": 4, "source": "season", "fixtures": "fdco"},
     "EC":  {"name": "National League", "short": "NL",  "country": "England",  "flag": "england",  "fdorg": None, "tier": 5, "source": "season", "fixtures": "fdco"},
@@ -429,6 +423,33 @@ ASIAN_HANDICAP_LINES = tuple(x / 4 for x in range(-12, 13))
 CORNER_TOTAL_LINES = (6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5)
 CORNER_MIN_MATCHES = 100
 CORNER_MAX = 30
+
+# KNOWN WORK, not yet done: the corner model has no time weighting at all.
+#
+# `dixon_coles.fit_from_frame` decays every match at XI (0.002/day, a 347-day
+# half-life), because a team's strength two years ago is weak evidence about
+# its strength on Saturday. `corners.fit_from_frame` takes a plain mean over
+# whatever rows it is given: a corner count from 2015/16 carries exactly the
+# same weight as one from last week, in EVERY division, including the eleven
+# that have been sealing corner distributions since 28 August 2026.
+#
+# This is a property of the corner model, not of any division's data. The
+# National League is only where it became visible, because EC is the one file
+# with a ten-season hole in HC/AC (see the LEAGUES comment above): its 636
+# usable rows are 552 from 2015/16 plus the current season, so the missing
+# decay produces a model of a division as it was a decade ago instead of a
+# subtly stale one. Every other division hides the same defect behind
+# continuous coverage.
+#
+# Nothing published depends on it. Corners are in SEALED_HIDDEN_MARKETS: not
+# scored, not shown, and excluded from every figure on the site. But the
+# distribution IS sealed into every entry, and the ledger is append-only, so
+# the record being accumulated is of an unweighted model. The fix is to pass
+# ref_date and XI into corners.fit_from_frame and weight the Poisson terms the
+# way dixon_coles does, then re-examine CORNER_MIN_MATCHES, which counts raw
+# rows and would need to count effective ones. That is a change to what gets
+# sealed and belongs in its own commit with its own before/after measurement.
+CORNER_UNWEIGHTED = True
 
 # --- the prior --------------------------------------------------------------
 # Walk-forward backtest of this exact model, reproducible from

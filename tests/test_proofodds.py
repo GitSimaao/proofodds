@@ -1060,22 +1060,33 @@ def test_a_division_that_cannot_be_fitted_is_recorded_not_hidden(
 def test_the_feed_spelling_is_sealed_alongside_the_graded_one(
         ledger_in, stub_models, tmp_path):
     """
-    Sealing the raw name is what makes a naming mistake recoverable. Without
-    it, a club we could not place in August is a prediction nobody can ever
-    score; with it, one line in OVERRIDES grades every one of them, and no
-    ledger file is touched.
+    A feed spelling that DID resolve is still sealed beside the canonical one.
+
+    This test used to seal an UNRESOLVED name and assert `name_provisional`,
+    on the argument that sealing the raw spelling makes a naming mistake
+    recoverable: one line in data.OVERRIDES and grade.py's read-time
+    canonicalisation rescues every affected row without touching a file. That
+    argument is sound and the mechanism still works — it is why `home_raw` is
+    sealed at all, and why the rescue path is tested below.
+
+    It is no longer how an unresolved name is HANDLED. Recovery there depends
+    on a person reading an error at 00:07 and acting on it; holding the
+    division depends on nobody doing anything. In an append-only chain the
+    second is the one to rely on, so an unresolved name now stops that
+    division's seal and this test covers the case that still seals: the feed
+    says "Arsenal FC", resolve() places it, and both spellings are recorded.
     """
     from proofodds.fixtures import Fixture
     now = dt.datetime(2026, 8, 26, 6, 0, tzinfo=dt.timezone.utc)
     stub_models.publish([
-        Fixture(now + dt.timedelta(days=2), "Newtown", "Arsenal", league="E0",
-                home_raw="Newtown Rovers FC", away_raw="Arsenal",
-                resolved=False),
+        Fixture(now + dt.timedelta(days=2), "Arsenal", "Chelsea", league="E0",
+                home_raw="Arsenal FC", away_raw="Chelsea",
+                resolved=True),
     ], now=now)
 
     row = json.loads(sorted(tmp_path.glob("*.json"))[0].read_text())["predictions"][0]
-    assert row["home_raw"] == "Newtown Rovers FC"
-    assert row["name_provisional"] is True
+    assert row["home_raw"] == "Arsenal FC"
+    assert not row.get("name_provisional")
     # Stored only when it differs — an entry should carry information, not noise
     assert "away_raw" not in row
 
@@ -2798,3 +2809,89 @@ def test_no_entry_predates_the_split_and_names_a_new_division(ledger_in):
         named |= {row.get("league", entry.get("league", "E0"))
                   for row in entry.get("predictions", [])}
         assert not named & extended, f"{path.name} names {sorted(named & extended)}"
+
+
+# --------------------------------------------------------------------------- #
+#  An unresolved club name must stop a seal, not add a line to a log
+# --------------------------------------------------------------------------- #
+def _fx(league, home, away, when, resolved=True):
+    from proofodds.fixtures import Fixture
+    return Fixture(kickoff=when, league=league, home=home, away=away,
+                   home_raw=home, away_raw=away, resolved=resolved)
+
+
+def test_an_unresolved_name_stops_that_divisions_seal(ledger_in):
+    """
+    fixtures._name does not drop a fixture whose name resolve() refused — it
+    seals it under a guess. The grader joins on names, so such a prediction is
+    sealed forever and gradeable never, in a chain that is append-only. Six
+    rows already in the chain got there exactly this way.
+
+    Refusing is recoverable (the division seals tomorrow, one day of forecasts
+    lost). Publishing an ungradeable prediction is not recoverable at all.
+    """
+    from proofodds import ledger
+
+    now = dt.datetime(2026, 9, 18, 0, 7, tzinfo=dt.timezone.utc)
+    when = now + dt.timedelta(days=2)
+    entry = ledger.build_entry(
+        [_fx("E0", "Arsenal", "Chelsea", when),
+         _fx("E0", "Not A Real Club", "Liverpool", when, resolved=False),
+         _fx("E1", "Millwall", "Watford", when)],
+        now)
+
+    assert entry is not None
+    assert "E0" not in (entry.get("leagues") or [])
+    assert not [r for r in entry["predictions"] if r.get("league") == "E0"]
+    skipped = {s["league"]: s for s in entry.get("skipped", [])}
+    assert "E0" in skipped
+    # The entry has to say what it does not contain, and name the club, or the
+    # next person has to reconstruct it from a journal that has rotated away.
+    assert "Not A Real Club" in skipped["E0"]["reason"]
+    # ...and only the club that actually failed. Liverpool resolves fine and
+    # sending someone to look at it teaches them to ignore the message.
+    assert "Liverpool" not in skipped["E0"]["reason"]
+    assert skipped["E0"]["n"] == 2
+
+
+def test_a_division_with_every_name_bad_seals_nothing_at_all(ledger_in):
+    """Nothing to publish is a valid outcome, and publishes nothing."""
+    from proofodds import ledger
+
+    now = dt.datetime(2026, 9, 18, 0, 7, tzinfo=dt.timezone.utc)
+    when = now + dt.timedelta(days=2)
+    assert ledger.build_entry(
+        [_fx("E0", "Not A Real Club", "Liverpool", when, resolved=False)],
+        now) is None
+
+
+def test_one_bad_name_does_not_stop_the_other_divisions(ledger_in):
+    """The blast radius is one division. A run is never all-or-nothing."""
+    from proofodds import ledger
+
+    now = dt.datetime(2026, 9, 18, 0, 7, tzinfo=dt.timezone.utc)
+    when = now + dt.timedelta(days=2)
+    entry = ledger.build_entry(
+        [_fx("E0", "Not A Real Club", "Liverpool", when, resolved=False),
+         _fx("E1", "Millwall", "Watford", when)],
+        now)
+
+    assert entry is not None
+    assert "E1" in entry["leagues"]
+    assert [r for r in entry["predictions"] if r["league"] == "E1"]
+    assert "E0" not in entry["leagues"]
+
+
+def test_a_fully_resolved_division_is_unaffected_by_the_guard(ledger_in):
+    """The guard must cost nothing when every name resolves, which is the
+    normal case on every run."""
+    from proofodds import ledger
+
+    now = dt.datetime(2026, 9, 18, 0, 7, tzinfo=dt.timezone.utc)
+    when = now + dt.timedelta(days=2)
+    entry = ledger.build_entry([_fx("E0", "Arsenal", "Chelsea", when)], now)
+
+    assert entry is not None
+    assert "E0" in entry["leagues"]
+    assert len(entry["predictions"]) == 1
+    assert not entry.get("skipped")

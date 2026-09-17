@@ -299,6 +299,17 @@ for grading and rebuilding after matches finish, not for publishing.
 
 ---
 
+## Known work
+
+**The corner model has no time weighting.** `dixon_coles.fit_from_frame` decays every
+match at `XI` (0.002/day, a 347-day half-life). `corners.fit_from_frame` takes a plain
+mean: a corner count from 2015/16 weighs the same as one from last week, in every
+division. Nothing published depends on it — corners are sealed, hidden and unscored —
+but the sealed record is of an unweighted model, and the ledger is append-only. See
+`CORNER_UNWEIGHTED` in `proofodds/config.py`.
+
+---
+
 ## Adding a division
 
 Two feeds, two spellings, one join. Results come from football-data.co.uk, which

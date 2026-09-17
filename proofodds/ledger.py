@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config, corners, dixon_coles as dc
-from .data import load_matches, sealed_name
+from .data import load_matches, sealed_name, resolve
 from .fixtures import Fixture
 
 log = logging.getLogger(__name__)
@@ -270,6 +270,46 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime,
 
     for league in sorted(by_league):
         block = by_league[league]
+
+        # An unresolved club name stops this division's seal. It does not stop
+        # the run, and it does not stop any other division.
+        #
+        # fixtures._name does not drop a fixture whose name data.resolve()
+        # refused: it seals it under display_from_feed()'s guess and appends a
+        # line to a list that is logged and then forgotten. The grader joins on
+        # names, so that prediction is sealed forever and gradeable never — and
+        # the ledger is append-only, so there is no version of tomorrow in
+        # which it gets fixed. Six such rows are already in the chain, every
+        # one of them from the football-data.org fixture feed, whose spellings
+        # are not the results files' spellings.
+        #
+        # A log line is the wrong instrument for that. It fires at 00:07 into a
+        # journal, three hours later it fires again, and the cost of missing it
+        # is permanent. Refusing to seal is recoverable: the division waits for
+        # an entry in data.OVERRIDES and seals tomorrow, having lost one day of
+        # forecasts. Publishing an ungradeable prediction is not recoverable at
+        # all. Between a recoverable failure and an unrecoverable one this is
+        # not a close decision.
+        unresolved = [fx for fx in block if not fx.resolved]
+        if unresolved:
+            # Name the clubs that actually failed, not both sides of every bad
+            # fixture. A Fixture carries one `resolved` flag for the pair, so
+            # "Not A Real Club v Liverpool" would otherwise report Liverpool as
+            # a problem — and an operator at midnight who is sent to look at a
+            # name that is fine learns to distrust the message.
+            names = sorted({raw for fx in unresolved
+                            for raw in (fx.home_raw or fx.home,
+                                        fx.away_raw or fx.away)
+                            if resolve(raw, league)[0] is None})
+            log.error("%s: %d club name(s) did not resolve — NOT SEALING this "
+                      "division's %d fixture(s). Add them to data.OVERRIDES "
+                      "and re-run: %s",
+                      league, len(unresolved), len(block), ", ".join(names))
+            skipped.append({"league": league, "n": len(block),
+                            "reason": "unresolved club name(s): "
+                                      + ", ".join(names)})
+            continue
+
         needed = sorted({f.home for f in block} | {f.away for f in block})
         try:
             model, teams, past = _model_for(now, league, extra_teams=needed)
