@@ -59,7 +59,10 @@
       with the market on the <a href="/scorecard/">scorecard</a> and can be shown
       to lose. <strong>forecast only</strong> means no free closing benchmark
       exists for it, so it is measured against guessing and is never presented as
-      an edge claim. Both are sealed before kickoff and neither is ever rewritten.</p>
+      an edge claim. <strong>sealed, not scored</strong> is weaker still: nothing on
+      this site puts a number beside the correct-score view yet, so it is shown as
+      context and is evidence of nothing until something does. All three are sealed
+      before kickoff and none of them is ever rewritten.</p>
 
       {{ match.bar|safe }}
       <div class="match-probs">
@@ -122,25 +125,65 @@
       </section>
       {% endif %}
 
-      {% if match.top_scorelines %}
-      <section class="scorelines" aria-labelledby="scorelines-title">
+      {% if match.score_matrix %}
+      <section class="scorelines score-matrix" aria-labelledby="scorelines-title">
         <div class="scorelines-heading">
           <div>
-            <p class="eyebrow">Scoreline projection</p>
-            <h3 id="scorelines-title">Top 3 correct scores</h3>
+            <p class="eyebrow">Scoreline distribution</p>
+            {# The tag is the muted one, and deliberately not the words
+               "forecast only": that tag means measured against guessing, which
+               is BTTS. Nothing scores this one at all, which is the third tier
+               the method page spells out. #}
+            <h3 id="scorelines-title">Correct score <span class="mkt-tag is-forecast">sealed, not scored</span></h3>
           </div>
-          <span>Indicative only · not graded</span>
+          <span>Every exact score · tail included</span>
         </div>
-        <div class="scoreline-grid">
-          {% for score in match.top_scorelines %}
-          <div class="scoreline">
-            <span class="scoreline-rank">0{{ loop.index }}</span>
-            <strong>{{ score.label }}</strong>
-            <span>{{ '%.1f'|format(score.p * 100) }}%</span>
-          </div>
+        <p class="grid-axis-note">
+          <span>{{ match.home }} goals <span aria-hidden="true">&darr;</span></span>
+          <span>{{ match.away }} goals <span aria-hidden="true">&rarr;</span></span>
+        </p>
+        <div class="scroll">
+          <table class="score-table">
+            <caption class="sr-only">Chance of each exact score. Rows are goals
+            scored by {{ match.home }}, columns goals scored by {{ match.away }}.
+            Scores above {{ match.score_matrix.max_goals }} goals are in the three
+            buckets below the table.</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="grid-axis"><span class="sr-only">Goals</span></th>
+                {% for label in match.score_matrix.labels %}
+                <th scope="col">{{ label }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in match.score_matrix.rows %}
+              <tr>
+                <th scope="row">{{ row.label }}</th>
+                {% for cell in row.cells %}
+                <td class="score-cell{{ ' is-peak' if cell.is_peak }}" style="--heat: {{ cell.heat }}">{{ cell.text }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <ul class="score-tail">
+          {% for bucket in match.score_matrix.buckets %}
+          <li>
+            <span>{{ match.home }} {{ bucket.home }} <span class="dot" aria-hidden="true">·</span> {{ match.away }} {{ bucket.away }}</span>
+            <strong>{{ bucket.text }}</strong>
+          </li>
           {% endfor %}
-        </div>
-        <p class="scorelines-note">Reconstructed from the expected goals and league low-score correction stored with the sealed prediction. Shown for curiosity; it is not part of the scorecard.</p>
+        </ul>
+        <p class="scorelines-note">The {{ match.score_matrix.n_cells }} cells
+        and the three buckets account for the whole distribution: every result the
+        match can have is in exactly one of them, so nothing is left in an "any other
+        score" line. The printed figures are tenths of a percent and cells below a
+        tenth are shown as a floor rather than as zero, so what you read does not
+        literally add to 100 — the numbers underneath it do. Reconstructed from the
+        expected goals and league low-score correction stored with the sealed
+        prediction. Shown for curiosity; it is not part of the scorecard.</p>
       </section>
       {% endif %}
 

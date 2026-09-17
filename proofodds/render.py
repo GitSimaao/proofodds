@@ -76,9 +76,9 @@ def environment() -> Environment:
 
 
 # --------------------------------------------------------------------------- #
-def percent_split(values) -> list[int]:
+def percent_split(values, total: int = 100) -> list[int]:
     """
-    Whole percentages that always sum to 100, by largest remainder.
+    Whole units that always sum to `total`, by largest remainder.
 
     Rounding three probabilities separately does not: 0.7251, 0.1477 and
     0.1272 become 73, 15 and 13, which is 101. That was on the front page,
@@ -90,11 +90,17 @@ def percent_split(values) -> list[int]:
     is 99.9 — and a tenth of a percent claims a precision a goals model with
     no lineups does not have. The fair odds beside each figure carry the
     precision for anyone who wants it.
+
+    `total` is the number of units the values are split into, and 100 — whole
+    percentages — is only the common case. The correct-score matrix passes
+    1000, because integer percentages would print half of its 39 cells as 0%
+    and rounding each cell on its own would stop them adding to their own
+    total. Tenths of a percent, allocated by the same rule, do neither.
     """
-    scaled = [float(v) * 100 for v in values]
+    scaled = [float(v) * total for v in values]
     out = [int(x) for x in scaled]
     for i in sorted(range(len(scaled)), key=lambda i: scaled[i] - out[i],
-                    reverse=True)[:100 - sum(out)]:
+                    reverse=True)[:total - sum(out)]:
         out[i] += 1
     return out
 
@@ -136,35 +142,108 @@ def club_mark(name: str, league: str = "") -> dict:
     return {"src": source, "initials": initials, "tone": tone}
 
 
-def top_scorelines(xg_home, xg_away, rho=0.0, *, limit: int = 3,
-                   max_goals: int = 10) -> list[dict]:
-    """Reconstruct the most likely scores from the sealed model inputs.
+def _tenths_text(tenths: int) -> str:
+    """A tenth-of-a-percent figure, or the honest floor for one below it.
 
-    This is a display-only view, not a third graded market.  The calculation
-    deliberately mirrors the Dixon-Coles score grid used when the prediction
-    was produced: two Poisson distributions plus its four-cell low-score
-    correction.  Entries seal xG and the division's rho, so the view remains
-    deterministic without changing a byte of the public record.
+    A cell that rounds to nothing is not a cell that cannot happen. Printing
+    0.0% for 1-in-3000 says the model ruled it out, which it did not, so the
+    floor is stated as a floor. It is also why the printed numbers do not add
+    to 100.0 and the caption does not claim they do — the tenths underneath
+    them do.
     """
-    try:
-        lam, mu = float(xg_home), float(xg_away)
-        rho = 0.0 if rho is None else float(rho)
-    except (TypeError, ValueError):
-        return []
-    if not all(math.isfinite(value) for value in (lam, mu, rho)) \
-            or lam < 0 or mu < 0 or limit <= 0 or max_goals < 0:
-        return []
+    return f"{tenths / 10:.1f}%" if tenths else "<0.1%"
 
-    grid = dixon_coles.score_matrix_from_xg(lam, mu, rho, max_goals)
-    cells = [(float(grid[home_goals, away_goals]), home_goals, away_goals)
-             for home_goals in range(max_goals + 1)
-             for away_goals in range(max_goals + 1)]
-    ranked = sorted(cells, key=lambda cell: (-cell[0], cell[1], cell[2]))[:limit]
-    return [{"home_goals": home_goals,
-             "away_goals": away_goals,
-             "label": f"{home_goals}\u2013{away_goals}",
-             "p": probability}
-            for probability, home_goals, away_goals in ranked]
+
+def score_matrix(xg_home, xg_away, rho,
+                 max_goals: int = config.SCORE_GRID_MAX) -> dict | None:
+    """
+    The whole sealed scoreline distribution, as a printable partition.
+
+    The card used to show three correct scores. Three scores say where the
+    mass peaks and nothing about where the rest of it is, which on a 3-1
+    forecast is most of it. So the grid is printed whole: every exact score
+    from 0-0 to `max_goals`-`max_goals`, plus three buckets that catch each
+    way the match can leave the grid. The 36 cells and 3 buckets are a
+    partition of the same distribution the result, the totals, BTTS and the
+    handicap on this card are all sums of — they add to one by construction,
+    with nothing dropped and no "any other score" left over.
+
+    Reconstructed from the sealed `xg_home`, `xg_away` and the division's
+    `model_rho`, exactly as the entry sealed them. Nothing is fetched and
+    nothing sealed moves. An entry that predates one of those three fields
+    returns None: rho is the low-score correction, and pretending it was zero
+    would print 36 numbers the sealed model never produced.
+    """
+    if xg_home is None or xg_away is None or rho is None:
+        return None
+    try:
+        lam, mu, rho = float(xg_home), float(xg_away), float(rho)
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(value) for value in (lam, mu, rho)) \
+            or lam < 0 or mu < 0 or max_goals < 1:
+        return None
+
+    grid = dixon_coles.score_matrix_from_xg(lam, mu, rho)
+    size = max_goals + 1
+    exact = [[float(grid[home_goals, away_goals]) for away_goals in range(size)]
+             for home_goals in range(size)]
+    tails = [float(grid[size:, :size].sum()),      # home 6+, away inside
+             float(grid[:size, size:].sum()),      # away 6+, home inside
+             float(grid[size:, size:].sum())]      # both 6+
+    parts = [p for row in exact for p in row] + tails
+
+    # A negative cell is not a small display problem. tau() multiplies four
+    # cells of the grid and a rho outside its sane range drives one of them
+    # below zero, at which point the "distribution" is not one and no amount
+    # of rounding makes the table honest. Refuse to render it.
+    if min(parts) < 0:
+        raise ValueError(
+            f"score matrix has negative mass for xg={lam},{mu} rho={rho}: "
+            f"min cell {min(parts)!r}")
+    if abs(sum(parts) - 1.0) > 1e-9:
+        raise ValueError(
+            f"score matrix partition sums to {sum(parts)!r}, not 1")
+
+    # One rounding pass over all 39 values at once, in tenths. Rounding them
+    # separately would leave the printed table not adding to its own total.
+    tenths = percent_split(parts, 1000)
+    peak = max(parts[:size * size])
+    rows = []
+    for home_goals in range(size):
+        cells = []
+        for away_goals in range(size):
+            p = exact[home_goals][away_goals]
+            cells.append({
+                "home_goals": home_goals,
+                "away_goals": away_goals,
+                "label": f"{home_goals}\u2013{away_goals}",
+                "p": p,
+                "tenths": tenths[home_goals * size + away_goals],
+                "text": _tenths_text(tenths[home_goals * size + away_goals]),
+                # Square-rooted: the raw ratio leaves everything but the
+                # favourite white, and a 2% scoreline is a real result.
+                "heat": round(math.sqrt(p / peak), 3) if peak > 0 else 0.0,
+                "is_peak": p == peak,
+            })
+        rows.append({"label": str(home_goals), "cells": cells})
+
+    bucket_labels = (("home", f"{size}+", f"0\u2013{max_goals}"),
+                     ("away", f"0\u2013{max_goals}", f"{size}+"),
+                     ("both", f"{size}+", f"{size}+"))
+    buckets = [{"key": key, "home": home, "away": away, "p": p,
+                "tenths": t, "text": _tenths_text(t)}
+               for (key, home, away), p, t
+               in zip(bucket_labels, tails, tenths[size * size:])]
+
+    return {
+        "max_goals": max_goals,
+        "labels": [str(n) for n in range(size)],
+        "rows": rows,
+        "n_cells": size * size,
+        "buckets": buckets,
+        "tenths_total": sum(tenths),
+    }
 
 
 def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
@@ -236,7 +315,7 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "pct_btts_no": pct_btts[1] if pct_btts else None,
         "corners": corner_data,
         "corner_main": corner_main,
-        "top_scorelines": top_scorelines(
+        "score_matrix": score_matrix(
             row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
         "home_mark": club_mark(home, league),
         "away_mark": club_mark(away, league),

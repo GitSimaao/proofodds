@@ -747,19 +747,54 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   color: var(--ink-3); font: 500 10.5px/1.4 "IBM Plex Mono", monospace;
   text-align: right;
 }
-.scoreline-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
-.scoreline {
-  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 10px;
-  min-width: 0; padding: 13px 14px; border: 1px solid var(--rule);
-  border-radius: 11px; background: var(--surface-2);
-}
-.scoreline-rank {
-  grid-row: 1 / 3; color: var(--ink-3);
-  font: 500 10px/1 "IBM Plex Mono", monospace;
-}
-.scoreline strong { font: 600 23px/1 "IBM Plex Mono", monospace; }
-.scoreline > span:last-child { color: var(--ink-2); font: 500 11px/1 "IBM Plex Mono", monospace; }
 .scorelines-note { margin: 11px 0 0; color: var(--ink-3); font-size: 11.5px; line-height: 1.5; }
+
+/* The correct-score matrix. One token carries the whole heatmap: this is the
+   model's own mass, so it is the model's own blue at varying strength, not a
+   second colour ramp and not the green that means "ahead of the market"
+   everywhere else on this site. The global table rules are written for the
+   ledger's wide record tables, so the narrow numeric grid overrides them
+   rather than inheriting a 560px floor it does not need. */
+.score-table { min-width: 288px; table-layout: fixed; }
+.score-table th, .score-table td {
+  padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--rule);
+  font: 500 12px/1.1 "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+}
+.score-table tbody tr:last-child th, .score-table tbody tr:last-child td { border-bottom: none; }
+.score-table thead th { padding: 9px 4px; text-align: center; background: var(--surface-2); }
+.score-table tbody th {
+  width: 46px; color: var(--ink-3); background: var(--surface-2);
+  font-size: 10.5px; letter-spacing: .08em;
+}
+.score-table th.grid-axis { width: 46px; }
+/* Which axis is which, said above the table in full. It used to live in the
+   corner cell, where 46 pixels turned "Getafe" into "Get…" over "Bet…". */
+.grid-axis-note {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 9px;
+  color: var(--ink-3); font: 500 11px/1.4 "IBM Plex Mono", monospace;
+}
+.score-cell { color: var(--ink); background: var(--surface); }
+.score-cell { background: color-mix(in srgb, var(--c-model) calc(var(--heat, 0) * 34%), var(--surface)); }
+/* The likeliest score, so the eye lands somewhere before it starts reading. */
+.score-cell.is-peak {
+  font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--c-model);
+  background: color-mix(in srgb, var(--c-model) 34%, var(--surface));
+}
+.score-tail {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px;
+  margin: 11px 0 0; padding: 0; list-style: none;
+}
+.score-tail li {
+  display: flex; flex-direction: column; gap: 5px; min-width: 0;
+  padding: 11px 13px; border: 1px solid var(--rule); border-radius: 11px;
+  background: var(--surface-2);
+}
+.score-tail li > span {
+  color: var(--ink-2); font: 500 11px/1.35 "IBM Plex Mono", monospace;
+  overflow-wrap: anywhere;
+}
+.score-tail .dot { color: var(--ink-3); }
+.score-tail strong { font: 600 18px/1 "IBM Plex Mono", monospace; }
 .forecast-caveats { margin-top: 20px; padding: 14px 16px; border-radius: 10px; background: var(--c-behind-bg); color: var(--c-behind); }
 .forecast-caveats p { margin: 0; font-size: 13px; line-height: 1.5; }
 .forecast-caveats p + p { margin-top: 9px; }
@@ -899,6 +934,9 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   .match-prob { padding: 13px 11px; }
   .forecast-secondary { grid-template-columns: 1fr; }
   .scorelines-heading { align-items: start; }
+  .score-tail { grid-template-columns: 1fr; gap: 6px; }
+  .score-tail li { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .score-tail strong { font-size: 15px; }
 }
 
 @media (max-width: 400px) {
@@ -920,8 +958,8 @@ td .hash { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(
   .match-prob { padding: 11px 7px; }
   .match-prob strong { font-size: 22px; }
   .match-prob .fair { font-size: 9.5px; }
-  .scoreline { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 11px; }
-  .scoreline strong { font-size: 21px; }
+  .score-table th, .score-table td { padding: 7px 2px; font-size: 11px; }
+  .score-table tbody th, .score-table th.grid-axis { width: 38px; }
   .scorelines-heading { display: block; }
   .scorelines-heading > span { display: block; margin-top: 5px; text-align: left; }
 }

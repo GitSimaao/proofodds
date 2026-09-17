@@ -196,6 +196,17 @@ SCORED_BY_SOURCE = {
 # the model can produce a probability for it.
 FORECAST_MARKETS = ("BTTS",)
 
+# How far the correct-score matrix on a match card prints exact cells before
+# it folds the rest into three tail buckets. Five is not a rounding of taste:
+# at a typical 1.5 v 1.2 expected goals, stopping at three leaves 9.7% of the
+# distribution outside the printed grid and stopping at five leaves 0.6% — but
+# the Eredivisie averages over three goals a match, and on a real N1 fixture
+# (2.04 v 1.77) a cut at four still leaves 8.9% outside, against 2.8% at five.
+# Five is the first cut that holds in both. The buckets mean
+# nothing is lost either way; the constant decides how much of the tail a
+# reader can see the shape of rather than only its total.
+SCORE_GRID_MAX = 5
+
 # Sealed into every entry, shown on the site, and not scored by anything yet.
 # Kept apart from FORECAST_MARKETS on purpose: these are a promise of future
 # evidence, not evidence, and the method page has to say which is which.

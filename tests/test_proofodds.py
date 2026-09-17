@@ -1684,19 +1684,148 @@ def test_the_po_mark_is_used_consistently(tmp_path, monkeypatch):
     assert manifest["icons"][0]["src"] == "/logo.svg"
 
 
-def test_scoreline_view_mirrors_the_low_score_correction():
+def test_the_score_matrix_is_a_complete_partition_of_the_distribution():
+    """
+    The card prints 36 exact scores and three tail buckets. That is only
+    allowed to be called the distribution if it is one: every result the match
+    can have must land in exactly one of the 39, before rounding and after it.
+    A table that quietly drops the tail would let a reader add up what is on
+    the page and get a number the rest of the card contradicts.
+    """
     from proofodds import render
 
-    independent = render.top_scorelines(1.0, 1.0, 0.0, limit=121)
-    corrected = render.top_scorelines(1.0, 1.0, -0.1, limit=121)
-    p0 = {row["label"]: row["p"] for row in independent}
-    p1 = {row["label"]: row["p"] for row in corrected}
+    grid = render.score_matrix(1.5, 1.2, -0.08)
+    cells = [cell for row in grid["rows"] for cell in row["cells"]]
+    buckets = grid["buckets"]
 
-    assert len(p1) == 121 and abs(sum(p1.values()) - 1.0) < 1e-12
+    assert len(cells) == 36 and len(buckets) == 3
+    assert grid["n_cells"] == 36
+    assert abs(sum(part["p"] for part in cells + buckets) - 1.0) < 1e-12
+    assert sum(part["tenths"] for part in cells + buckets) == 1000
+    assert grid["tenths_total"] == 1000
+    assert all(part["p"] >= 0 for part in buckets)
+
+    # Each bucket is one figure, not a row of six, and it says which side of
+    # the grid it fell off.
+    assert [(b["key"], b["home"], b["away"]) for b in buckets] == [
+        ("home", "6+", "0\u20135"),
+        ("away", "0\u20135", "6+"),
+        ("both", "6+", "6+")]
+
+    # The likeliest score is marked once, and a cell below a tenth of a percent
+    # reads as a floor rather than as a zero the model never claimed.
+    assert [cell["label"] for cell in cells if cell["is_peak"]] == ["1\u20131"]
+    assert {cell["text"] for cell in cells if cell["tenths"] == 0} == {"<0.1%"}
+    assert grid["rows"][1]["cells"][1]["text"] == "13.1%"
+
+
+def test_the_score_matrix_holds_up_where_the_tail_actually_weighs_something():
+    """
+    Five goals is the cut precisely because a high-scoring division puts real
+    mass outside it. At 2.0 v 2.0 the buckets stop being a rounding note, so
+    this is the case where dropping them would visibly break the table.
+    """
+    from proofodds import render
+
+    grid = render.score_matrix(2.0, 2.0, -0.05)
+    cells = [cell for row in grid["rows"] for cell in row["cells"]]
+    buckets = grid["buckets"]
+
+    assert abs(sum(part["p"] for part in cells + buckets) - 1.0) < 1e-12
+    assert sum(part["tenths"] for part in cells + buckets) == 1000
+    assert sum(bucket["p"] for bucket in buckets) > 0.02
+    assert all(bucket["tenths"] > 0 for bucket in buckets[:2])
+
+
+def test_the_score_matrix_mirrors_the_low_score_correction():
+    """The four cells Dixon-Coles corrects move, and only in the one direction."""
+    from proofodds import render
+
+    independent = render.score_matrix(1.0, 1.0, 0.0)
+    corrected = render.score_matrix(1.0, 1.0, -0.1)
+    p0 = {cell["label"]: cell["p"]
+          for row in independent["rows"] for cell in row["cells"]}
+    p1 = {cell["label"]: cell["p"]
+          for row in corrected["rows"] for cell in row["cells"]}
+
     assert p1["0\u20130"] > p0["0\u20130"]
     assert p1["1\u20131"] > p0["1\u20131"]
     assert p1["1\u20130"] < p0["1\u20130"]
     assert p1["0\u20131"] < p0["0\u20131"]
+
+
+def test_a_negative_cell_refuses_to_render_rather_than_printing_itself(
+        monkeypatch):
+    """
+    `tau()` floors its multiplier, so the model cannot hand us negative mass
+    today. If that ever stops being true the table must fail loudly: a
+    "distribution" with a negative cell is not one, and no rounding rule makes
+    printing it honest.
+    """
+    import numpy as np
+    from proofodds import render
+
+    broken = np.full((11, 11), 1 / 120)
+    broken[0, 0] = -1 / 120
+    monkeypatch.setattr(render.dixon_coles, "score_matrix_from_xg",
+                        lambda *a, **k: broken)
+
+    with pytest.raises(ValueError, match="negative mass"):
+        render.score_matrix(1.4, 1.1, -0.08)
+
+
+def test_an_entry_sealed_without_a_rho_shows_no_matrix_and_raises_nothing(
+        tmp_path, monkeypatch):
+    """
+    Rho is the low-score correction. An entry that never sealed one cannot
+    have its grid reconstructed, and substituting a zero would print 36 exact
+    numbers the sealed model never produced. The card drops the section; it
+    does not guess, and it does not leave an empty box behind.
+    """
+    import pandas as pd
+    from proofodds import ledger, render
+
+    kickoff = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)) \
+        .replace(hour=15, minute=0, second=0, microsecond=0)
+    kickoff_s = kickoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    predictions = tmp_path / "predictions"
+    predictions.mkdir()
+    entry = {
+        "version": 4,
+        "leagues": ["E0"],
+        "published_at": "2026-08-26T06:00:00Z",
+        "prev_hash": ledger.GENESIS,
+        "generator": {},
+        "models": {"E0": {"name": "dixon-coles"}},      # sealed before rho was
+        "predictions": [{
+            "league": "E0", "kickoff": kickoff_s,
+            "home": "Arsenal", "away": "Chelsea",
+            "p_H": 0.5, "p_D": 0.25, "p_A": 0.25,
+            "xg_home": 1.61, "xg_away": 1.08,
+        }],
+    }
+    entry["hash"] = ledger.compute_hash(entry)
+    (predictions / "2026-08-26.json").write_text(json.dumps(entry))
+
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", predictions)
+    monkeypatch.setattr(config, "TIMESTAMPS_DIR", tmp_path / "timestamps")
+    monkeypatch.setattr(render.grade, "graded_frame", lambda: pd.DataFrame())
+
+    rows = ledger.all_predictions()
+    assert rows[0].get("model_rho") is None
+    assert render.prediction_view(rows[0])["score_matrix"] is None
+
+    out = tmp_path / "site"
+    render.build(out)
+    page = (out / "matches" / str(kickoff.date())
+            / "e0-arsenal-v-chelsea" / "index.html")
+
+    assert page.exists()
+    html = page.read_text()
+    assert "Arsenal vs Chelsea" in html
+    assert "score-table" not in html
+    assert "Scoreline distribution" not in html
 
 
 def test_the_build_creates_a_permanent_page_for_each_match(
@@ -1751,8 +1880,11 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     assert entry["hash"][:16] in html
     assert "1.85 fair odds" in html
     assert "2.17 fair odds" in html
-    assert "Top 3 correct scores" in html
-    assert "Indicative only" in html
+    assert "Correct score" in html
+    assert '<span class="mkt-tag is-forecast">sealed, not scored</span>' in html
+    assert "account for the whole distribution" in html
+    assert html.count('class="score-cell') == 36
+    assert html.count("<li>") >= 3            # the three tail buckets
     assert "not part of the scorecard" in html
     assert route in (out / "sitemap.xml").read_text()
 
