@@ -2710,3 +2710,91 @@ def test_requests_are_spaced_rather_than_bursted(monkeypatch):
     assert not slept
     budget.throttle()                 # second must wait a full 6s gap
     assert slept and abs(slept[-1] - 6.0) < 1e-9
+
+
+# --------------------------------------------------------------------------- #
+#  What is CONFIGURED must never be able to describe what was PUBLISHED
+# --------------------------------------------------------------------------- #
+def test_published_league_count_ignores_the_configuration(ledger_in, monkeypatch):
+    """
+    Widening PROOFODDS_LEAGUES must not move a single sentence about the past.
+
+    This is the 17 September 2026 fault, written down so it cannot come back.
+    Twelve divisions were added to the configuration at 17:59 and the rendered
+    site immediately claimed twenty-three divisions everywhere — on /method/,
+    on the front page, and on /data/, which says how many divisions the sealed
+    forecasts were spread across. Nothing had been sealed for any of them. The
+    copy was reading len(ENABLED_LEAGUES), so a setting about the future was
+    writing a claim about the past.
+    """
+    from proofodds import ledger
+
+    before = ledger.published_leagues()
+    monkeypatch.setattr(config, "ENABLED_LEAGUES",
+                        list(config.LEAGUES), raising=False)
+    assert ledger.published_leagues() == before
+
+
+def test_published_leagues_are_exactly_those_with_a_sealed_prediction(ledger_in):
+    """The count is derived from the files, not from a list kept alongside them."""
+    from proofodds import ledger
+
+    from_entries = set(ledger.published_leagues())
+    from_predictions = {row["league"] for row in ledger.all_predictions()}
+    assert from_entries == from_predictions
+
+
+def test_no_template_describes_the_site_with_the_configured_count():
+    """
+    `n_leagues` was one name doing three jobs — configured, published and
+    scored — which is how the three quietly became the same number. It is gone
+    on purpose; a template reaching for it should fail the build rather than
+    resurrect the ambiguity.
+    """
+    for path in sorted((config.ROOT / "templates").glob("*.html")):
+        assert "n_leagues" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_the_two_scorecard_groups_partition_every_division():
+    """
+    Every division is in exactly one group, and neither group can be quietly
+    reshaped. A division added later must join neither and get its own line —
+    if this fails because a new code was dropped into one of these tuples,
+    that is the thing it is here to catch, not a test to update.
+    """
+    founding, extended = set(config.FOUNDING_LEAGUES), set(config.EXTENDED_LEAGUES)
+    assert not founding & extended
+    assert founding | extended == set(config.LEAGUES)
+    assert len(config.FOUNDING_LEAGUES) == 11
+    assert len(config.EXTENDED_LEAGUES) == 12
+
+
+DECISION_DATE = "2026-09-17"
+
+
+def test_no_entry_predates_the_split_and_names_a_new_division(ledger_in):
+    """
+    The claim the scorecard and /method/ both make, asserted against the files.
+
+    The split into two groups is only worth anything because it was decided
+    before the new divisions had graded — otherwise it is a partition chosen
+    with the results in hand, whatever anyone intended. That claim is checkable
+    precisely because the ledger is append-only: no entry sealed on or before
+    the decision date can name one of the twelve, and no later run can make one
+    appear there.
+
+    Deliberately NOT written as "nothing in the extended group has published",
+    which stops being true the first time one of them seals and would then be
+    deleted by whoever was on shift — taking the evidence with it.
+    """
+    from proofodds import ledger
+
+    extended = set(config.EXTENDED_LEAGUES)
+    for path in ledger.ledger_files():
+        if path.stem > DECISION_DATE:
+            continue
+        entry = ledger.read(path)
+        named = set(entry.get("leagues") or [])
+        named |= {row.get("league", entry.get("league", "E0"))
+                  for row in entry.get("predictions", [])}
+        assert not named & extended, f"{path.name} names {sorted(named & extended)}"

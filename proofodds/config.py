@@ -84,8 +84,30 @@ LEAGUES = {
     # says so — the model captures about 71% of the closing line's edge over
     # guessing and loses to it with a t of 3.5. If a one-person model has an
     # edge anywhere it is where the market is thin, and this is as thin as a
-    # free, auditable source goes. The same files carry HC/AC, so every one of
-    # these supports the full market set, corners included.
+    # free, auditable source goes.
+    #
+    # Corner counts (HC/AC) are NOT uniform across these files, and an earlier
+    # version of this comment said they were. Measured from the headers of
+    # every season we download, 2015/16 to 2026/27:
+    #
+    #   E2, E3          HC/AC in every season.
+    #   SC1 SC2 SC3 D2  HC/AC from 2017/18 on; absent in 2015/16 and 2016/17.
+    #   I2 SP2 F2 T1 G1
+    #   EC              HC/AC in 2015/16 and 2026/27 ONLY. The ten seasons in
+    #                   between — 2016/17 to 2025/26 — go straight from
+    #                   Referee to HY and carry no HS/AS/HST/AST/HF/AF/HC/AC
+    #                   at all. 636 of EC's 5,934 training matches have a
+    #                   corner count, and 552 of those are from 2015/16.
+    #
+    # The result market never depended on these columns; only the (sealed,
+    # hidden, unscored) corner model does. Note what that means for EC and is
+    # not currently handled: data.py materialises HC/AC as all-NaN for a season
+    # that lacks them, so the `{"HC","AC"}.issubset(...)` guard in ledger.py is
+    # true for EC and the 636 surviving rows clear CORNER_MIN_MATCHES. EC
+    # therefore fits a corner model, and corners.fit_from_frame applies no time
+    # decay, so that model is mostly a picture of the 2015/16 National League.
+    # Nothing published depends on it today. It is written down here so that
+    # the day something does, this is already known rather than discovered.
     "E2":  {"name": "League One",     "short": "EFL1", "country": "England",  "flag": "england",  "fdorg": None, "tier": 3, "source": "season", "fixtures": "fdco"},
     "E3":  {"name": "League Two",     "short": "EFL2", "country": "England",  "flag": "england",  "fdorg": None, "tier": 4, "source": "season", "fixtures": "fdco"},
     "EC":  {"name": "National League", "short": "NL",  "country": "England",  "flag": "england",  "fdorg": None, "tier": 5, "source": "season", "fixtures": "fdco"},
@@ -113,6 +135,67 @@ ENABLED_LEAGUES = [c for c in ENABLED_LEAGUES if c in LEAGUES] or ["E0"]
 
 # Display order for the site, independent of which are enabled.
 LEAGUE_ORDER = list(LEAGUES)
+
+# --- cohorts ----------------------------------------------------------------
+# The eleven divisions that were priced before 17 September 2026, and the
+# twelve added that day. The scorecard reports the pooled figure AND these two
+# groups separately, each with its own interval.
+#
+# Why this exists, and why it exists NOW. The twelve new divisions were added
+# precisely because they are thinner markets — the argument for adding them is
+# that a closing line is easier to beat where fewer people are pricing it. So
+# the pooled headline is going to move when they start grading, and it will
+# move for a reason that has nothing to do with the model getting better or
+# worse. A single pooled number would quietly absorb that.
+#
+# The alternative to splitting is to keep one pooled figure and explain the
+# composition change in prose. That was rejected: a reader comparing this
+# week's headline with last month's screenshot does not read the prose, and
+# "our number improved because we added easier leagues" is exactly the kind of
+# thing this site exists to make impossible to do by accident.
+#
+# The split had to be decided before the first new-division match was graded.
+# After that, any split is indistinguishable from choosing the partition that
+# flatters the result, whatever the intention. At the time this constant was
+# written NOT ONE match in any of the twelve had been graded — not one had even
+# been sealed; the first entry that could contain one is 2026-09-18. The commit
+# that introduces this line carries the timestamp that proves it, and the
+# ledger carries the independent proof: the last entry sealed before this
+# decision is 2026-09-17.json, and its `leagues` list has eleven codes at most.
+#
+# Membership is FROZEN. This is a statement about what was already being
+# measured on 17 September 2026, not a bucket for "big" and "small" leagues. A
+# division added in future joins neither group and gets its own line; it must
+# never be dropped into whichever of these two currently reads better.
+FOUNDING_LEAGUES = ("E0", "E1", "SP1", "I1", "D1", "F1", "P1", "N1",
+                    "B1", "SC0", "BRA")
+EXTENDED_LEAGUES = ("E2", "E3", "EC", "SC1", "SC2", "SC3", "D2", "I2",
+                    "SP2", "F2", "T1", "G1")
+
+COHORTS = (
+    {"key": "founding", "codes": FOUNDING_LEAGUES,
+     "label": "The original eleven",
+     "note": "Priced since 28 August 2026. Top divisions plus the "
+             "Championship — the most heavily traded football in the world."},
+    {"key": "extended", "codes": EXTENDED_LEAGUES,
+     "label": "The twelve added on 17 September 2026",
+     "note": "Second tiers, the English and Scottish lower divisions and two "
+             "more top flights. Thinner markets, which is why they were "
+             "added, and why they are counted separately."},
+)
+
+
+def cohort_of(code: str) -> str:
+    """Which scorecard group a division belongs to, or '' if neither."""
+    if code in FOUNDING_LEAGUES:
+        return "founding"
+    if code in EXTENDED_LEAGUES:
+        return "extended"
+    return ""
+
+
+def cohort_label(key: str) -> str:
+    return next((c["label"] for c in COHORTS if c["key"] == key), key)
 
 
 def league_name(code: str) -> str:

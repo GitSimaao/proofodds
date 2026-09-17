@@ -180,6 +180,62 @@
     </div>
     {% endif %}
 
+    {% if cohorts %}
+    <h3>Two groups, counted apart</h3>
+    <p class="section-note">The headline above pools every division. That is the honest
+    total and it stays, but a pooled log loss moves when the <em>mix</em> of divisions
+    moves, whether or not anything about the model has &mdash; so the pooled line on its
+    own would let a composition change look like a result. On
+    <strong>17 September 2026</strong> twelve thinner divisions were added to the eleven
+    this site had been pricing since 28 August. These rows keep them apart, each with its
+    own interval.</p>
+    <p class="section-note"><strong>This split was decided and published before a single
+    match in the new group had been graded</strong> &mdash; before one had been sealed. The
+    proof is in the <a href="/ledger/">ledger</a>, which nobody can rewrite: the last entry
+    sealed before the decision is <code>2026-09-17</code>, and no entry on or before that
+    date names any of the twelve. Group membership is frozen. A division added later joins
+    neither group and gets its own line, so neither of these can ever be reshaped into the
+    one that reads better.</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th class="num">Divisions</th>
+            <th class="num">Graded</th>
+            <th class="num">ProofOdds</th>
+            <th class="num">Closing line</th>
+            <th class="num">Gap</th>
+            <th class="num">Pending</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cohorts %}
+          <tr>
+            <td>{{ c.label }}<br><small class="muted">{{ c.note }}</small></td>
+            <td class="num">{{ c.n_divisions }}</td>
+            <td class="num">{{ c.n }}</td>
+            {% if c.enough %}
+            <td class="num">{{ '%.4f'|format(c.model) }}</td>
+            <td class="num">{{ '%.4f'|format(c.market) }}</td>
+            <td class="num {{ 'ahead' if c.gap < 0 else 'behind' }}">{{ '%+.4f'|format(c.gap) }}{% if c.se %} <small class="pm">&plusmn;{{ '%.3f'|format(1.96 * c.se) }}</small>{% endif %}</td>
+            {% elif c.n %}
+            <td class="num muted" colspan="3">too few to score &mdash; needs {{ min_league_rows }}</td>
+            {% else %}
+            <td class="num muted" colspan="3">nothing graded in this group yet</td>
+            {% endif %}
+            <td class="num muted">{{ c.pending }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">Which division sits in which group is listed on the
+    <a href="/method/#cohorts">method page</a> and set in <code>config.py</code>, in the
+    repository, where the change is dated like everything else here. A group with no graded
+    matches says so rather than borrowing the other group's number.</p>
+    {% endif %}
+
     {% if leagues|length > 1 %}
     <h3>Division by division</h3>
     <p class="section-note">The same question asked {{ leagues|length }} times. A model that is
@@ -204,7 +260,8 @@
         <tbody>
           {% for l in leagues %}
           <tr>
-            <td><span class="badge">{{ l.league }}</span> {{ l.name }}</td>
+            <td><span class="badge">{{ l.league }}</span> {{ l.name }}{% if l.cohort %}
+              <small class="muted">&middot; {{ 'original eleven' if l.cohort == 'founding' else 'added 17 Sep 2026' }}</small>{% endif %}</td>
             <td class="num">{{ l.n }}</td>
             {% if l.enough %}
             <td class="num">{{ '%.4f'|format(l.model) }}</td>

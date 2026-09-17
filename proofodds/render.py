@@ -457,6 +457,7 @@ def build(out_dir=None) -> None:
     asian = grade.ah_scorecard(graded)
     weeks = grade.by_week(graded)
     leagues = grade.by_league(graded)
+    cohorts = grade.by_cohort(graded)
     calib = grade.calibration(graded)
     chain = ledger.verify_chain()
     anchors = anchor.report()
@@ -507,7 +508,24 @@ def build(out_dir=None) -> None:
         "totals_line": config.TOTALS_LINE,
         "genesis": ledger.GENESIS,
         "leagues": leagues,
-        "n_leagues": len(config.ENABLED_LEAGUES),
+        "cohorts": cohorts,
+        # Three different counts, because the copy needs three different
+        # facts and used to have only one. Anything describing what the site
+        # HAS PUBLISHED reads n_published, which comes out of the sealed
+        # ledger; anything describing the SCORECARD reads n_scored, which
+        # comes out of the table actually on that page; and n_configured is
+        # only for sentences that genuinely mean "set up to run".
+        #
+        # `n_leagues` is deliberately gone rather than redefined. Every use of
+        # it in a template was a claim about what is published, and leaving the
+        # name in place would let the next one be written without a decision
+        # being made. A template that asks for it now fails the build.
+        "n_published": len(ledger.published_leagues()),
+        "n_scored": len([row for row in leagues if row["n"]]),
+        "n_configured": len(config.ENABLED_LEAGUES),
+        # Names for every configured division, so a page can spell out a
+        # cohort's membership without knowing which of them are live.
+        "league_names": {code: config.league_name(code) for code in config.LEAGUES},
         "signup_action": config.SIGNUP_ACTION,
         "contact_email": config.CONTACT_EMAIL,
         "data_controller": config.DATA_CONTROLLER,
@@ -540,7 +558,7 @@ def build(out_dir=None) -> None:
         page="index", canonical="/",
         fixture_days=days,
         shown_codes=shown,
-        n_shown=len(shown) or len(config.ENABLED_LEAGUES),
+        n_shown=len(shown) or len(ledger.published_leagues()),
         league_meta={c: config.LEAGUES[c] for c in config.LEAGUES},
         n_upcoming=sum(len(d["matches"]) for d in days),
         lookahead_days=config.LOOKAHEAD_DAYS,

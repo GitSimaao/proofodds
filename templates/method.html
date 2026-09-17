@@ -131,7 +131,7 @@
       <strong>{{ '%.4f'|format(backtest.market_log_loss) }}</strong> over the
       {{ backtest.division_name }} backtest below. The whole of football knowledge is the
       gap between those two. That second figure moves with the division and the sample:
-      across the {{ n_leagues }} divisions on the live
+      across the {{ n_scored }} divisions with graded matches on the live
       <a href="/scorecard/">scorecard</a> the closing line is currently scoring
       something different again, which is why every page here quotes the number
       belonging to the sample it is talking about rather than one house figure.</p>
@@ -169,6 +169,44 @@
       raw CSVs. Pinnacle's prices are still recorded in the data where they exist, as a
       cross-check, and are never graded against.</p>
 
+      <h2 id="cohorts">Two groups on the scorecard, and when that was decided</h2>
+      <p>The site began on 28 August 2026 pricing eleven divisions. On
+      <strong>17 September 2026</strong> twelve more were added, all from the same
+      source. They were added because they are thinner markets — a closing line ought to
+      be easier to match where fewer people are pricing it, and that is a claim worth
+      testing rather than asserting.</p>
+      <p>It is also a claim that would quietly corrupt the headline. A pooled log loss
+      moves when the mix of divisions moves, so from the first new-division match onwards
+      the pooled figure is a composition change and a performance change added together.
+      The <a href="/scorecard/">scorecard</a> therefore keeps the pooled number — it is the
+      honest total, and quietly dropping it would be its own kind of selection — and shows
+      these two groups beside it, each with its own interval.</p>
+      <p>The timing is part of the claim. A split introduced after results arrive cannot be
+      told apart from a split chosen because of them. This one was written, committed and
+      published <strong>before a single match in the new group had been graded, and before
+      one had been sealed</strong>. The evidence is not our word for it: the ledger is
+      append-only and public, the last entry sealed before the decision is
+      <code>2026-09-17</code>, and no entry dated on or before it names any of the twelve.
+      Anyone can check that with <code>proofodds/verify.py</code> and a clone.</p>
+      <p>Membership is frozen, and that matters more than the split itself. These are not
+      buckets for &ldquo;big&rdquo; and &ldquo;small&rdquo;; they record what was already
+      being measured on 17 September 2026. A division added in future joins neither group
+      and gets its own line, so neither of these can be reshaped later into whichever reads
+      better.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Group</th><th>Divisions</th></tr></thead>
+          <tbody>
+            {% for c in cohorts %}
+            <tr>
+              <td>{{ c.label }}<br><small class="muted">{{ c.note }}</small></td>
+              <td>{% for code in c.codes %}<span class="badge">{{ code }}</span> {{ league_names[code] }}{{ ', ' if not loop.last }}{% endfor %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
       <h2 id="backtest">The backtest — and why it is on this page, not the scorecard</h2>
       <p>Before a single live prediction existed, this exact model was run walk-forward over
       nine seasons of the Premier League. The average closing price is published from
@@ -180,8 +218,12 @@
         It is the <strong>{{ backtest.division_name }} only</strong>, and so are the two
         hyperparameters: the decay rate and the prior width were chosen on
         {{ backtest.division }} seasons 2017/18–2020/21 and then frozen. The other
-        {{ n_leagues - 1 }} divisions on this site run the same model with those settings
-        transferred, and have no walk-forward history of their own. Most of the live
+        {{ n_published - 1 }} divisions that have published a forecast run the same
+        model with those settings transferred, and have no walk-forward history of their
+        own. {% if n_configured > n_published %}({{ n_configured - n_published }} further
+        division{{ 's are' if n_configured - n_published != 1 else ' is' }} configured and
+        ha{{ 've' if n_configured - n_published != 1 else 's' }} not sealed a forecast yet;
+        nothing on this site counts them until they do.){% endif %} Most of the live
         scorecard is therefore made of divisions this backtest says nothing about — the
         Championship alone supplies more of the graded sample than the Premier League
         does. Treat the figures below as a prior for the model's <em>shape</em>, not as a

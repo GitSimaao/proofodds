@@ -1,7 +1,10 @@
 # ProofOdds
 
-Football match probabilities for eleven competitions, **published before kickoff
-and scored afterwards** against the market-average closing line.
+Football match probabilities, **published before kickoff and scored afterwards**
+against the market-average closing line.
+
+**Eleven competitions have published a sealed forecast.** These are the ones every
+figure on the site and in this file is measured over:
 
 | | | |
 |---|---|---|
@@ -9,6 +12,23 @@ and scored afterwards** against the market-average closing line.
 | `E1` Championship | `I1` Serie A | `F1` Ligue 1 |
 | `N1` Eredivisie | `P1` Primeira Liga | `B1` Jupiler Pro League |
 | `SC0` Scottish Premiership | `BRA` Brasileirao Serie A | |
+
+**Twelve more were configured on 17 September 2026 and have not sealed anything yet.**
+They are enabled and will seal from their first run with a fixture; until then they
+contribute nothing to any number here, and nothing in the repository counts them as
+though they had:
+
+| | | |
+|---|---|---|
+| `E2` League One | `E3` League Two | `EC` National League |
+| `SC1` Scottish Championship | `SC2` Scottish League One | `SC3` Scottish League Two |
+| `D2` 2. Bundesliga | `I2` Serie B | `SP2` Segunda Division |
+| `F2` Ligue 2 | `T1` Super Lig | `G1` Super League Greece |
+
+The site derives the count it prints from the ledger, not from the configuration, so
+enabling a division cannot change a sentence about what has already been published.
+The two groups are also reported separately on the scorecard, each with its own
+interval — see [Two groups on the scorecard](#two-groups-on-the-scorecard) below.
 
 Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a quarter-line Asian
 Handicap grid from one fitted model. Three kinds of number, and the site labels which is
@@ -43,9 +63,10 @@ distance between guessing and the closing line. Those figures are a snapshot; th
 ones. Both numbers appear with their width.
 
 That backtest is the Premier League only, and so is the hyperparameter
-tuning; the other twenty-two divisions run those settings transferred, with no
-walk-forward history of their own, which the method page states rather than leaving to
-be found.
+tuning; the other ten divisions that have published run those settings transferred, with
+no walk-forward history of their own, which the method page states rather than leaving to
+be found. The twelve configured on 17 September 2026 will run on the same transferred
+settings when they start.
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
@@ -54,6 +75,30 @@ A season of the Premier League is 380 matches; the margin of error on the model-
 market gap at that sample is wider than the gap itself, so a single-league scorecard
 cannot say anything for years. Eleven divisions provide a broad match sample, which
 brings the answer inside one.
+
+### Two groups on the scorecard
+
+Adding divisions is also a threat to the one number this site exists to publish. A
+pooled log loss moves when the *mix* of divisions moves, whether or not anything about
+the model has. The twelve added on 17 September 2026 are thinner markets — that is the
+reason for adding them — so from their first graded match the pooled headline would be a
+composition change and a performance change added together.
+
+The scorecard therefore keeps the pooled figure, which is the honest total, and shows
+the original eleven and the twelve new ones as separate lines with their own confidence
+intervals. Every per-division row says which group it is in.
+
+**This was decided, committed and published before a single match in the new group had
+been graded — before one had been sealed.** That is checkable rather than asserted: the
+ledger is append-only and public, the last entry sealed before the decision is
+`predictions/2026-09-17.json`, and no entry dated on or before it names any of the
+twelve. `proofodds/verify.py` and a clone are enough to confirm it.
+
+Membership is frozen, which matters more than the split. `FOUNDING_LEAGUES` and
+`EXTENDED_LEAGUES` in `proofodds/config.py` record what was already being measured on
+17 September 2026; they are not buckets for "big" and "small". A division added later
+joins neither and gets its own line, so neither group can be reshaped into whichever one
+reads better.
 
 ---
 
@@ -340,8 +385,8 @@ Phase 0 runs on the VPS plus a domain. Nothing else is required:
 
 | | |
 |---|---|
-| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — currently used for all eleven enabled divisions |
-| Upcoming fixtures | football-data.co.uk `fixtures.csv` for B1/SC0; football-data.org for the other enabled divisions |
+| Results and closing odds | [football-data.co.uk](https://www.football-data.co.uk/) — currently used for all 23 enabled divisions |
+| Upcoming fixtures | football-data.co.uk `fixtures.csv` for the 14 divisions football-data.org's free tier does not carry (B1, SC0 and the twelve added on 17 September 2026); football-data.org for the other nine |
 | External timestamps | OpenTimestamps — free, no account or API key |
 | Live pre-match odds | optional, not needed for grading |
 

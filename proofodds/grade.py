@@ -430,6 +430,11 @@ def by_league(graded: pd.DataFrame) -> list[dict]:
             "name": config.league_name(code),
             "n": int(len(done)),
             "pending": int((~block["graded"]).sum()),
+            # Which scorecard group this division belongs to, carried on the
+            # row so the table can say it next to the number rather than
+            # leaving a reader to match two tables by eye.
+            "cohort": config.cohort_of(code),
+            "cohort_label": config.cohort_label(config.cohort_of(code)),
         }
         if len(done):
             interval = paired_interval(
@@ -453,6 +458,70 @@ def by_league(graded: pd.DataFrame) -> list[dict]:
             row["enough"] = False
         rows.append(row)
     return sorted(rows, key=lambda r: order.get(r["league"], 99))
+
+
+def by_cohort(graded: pd.DataFrame) -> list[dict]:
+    """
+    The headline, split into the groups defined in config.COHORTS.
+
+    The pooled figure on the scorecard answers "how is the model doing". It
+    stops answering that cleanly the moment the set of divisions underneath it
+    changes, because a pooled log loss moves when the mix moves whether or not
+    anything about the model has. Twelve thinner divisions joined on
+    17 September 2026; from the first of them that grades, the pooled line is a
+    composition change and a performance change added together.
+
+    So the pooled line stays — it is the honest total, and dropping it would be
+    its own kind of selection — and these two lines sit beside it so a reader
+    can see which part is which. Each carries its own interval, because the
+    whole point is defeated if the split is shown without the width that says
+    whether the difference between the groups is real.
+
+    Written before any match in the new group had been graded. See the note on
+    config.FOUNDING_LEAGUES for why that timing is part of the claim.
+    """
+    if graded.empty or "graded" not in graded.columns:
+        return []
+    done_all = graded[graded["graded"]]
+    rows = []
+    for spec in config.COHORTS:
+        codes = set(spec["codes"])
+        block = graded[graded["league"].isin(codes)]
+        done = done_all[done_all["league"].isin(codes)]
+        divisions = [c for c in config.LEAGUE_ORDER
+                     if c in codes and (block["league"] == c).any()]
+        row = {
+            "key": spec["key"],
+            "label": spec["label"],
+            "note": spec["note"],
+            "codes": list(spec["codes"]),
+            # Divisions in this group with a sealed prediction in the sample,
+            # not divisions configured into it. A group whose divisions have
+            # not started yet reports zero, and says so.
+            "divisions": divisions,
+            "n_divisions": len(divisions),
+            "n": int(len(done)),
+            "pending": int((~block["graded"]).sum()) if len(block) else 0,
+        }
+        if len(done):
+            diff = (done["model_loss"] - done["market_loss"]).to_numpy()
+            interval = paired_interval(diff)
+            row.update({
+                "model": float(done["model_loss"].mean()),
+                "market": float(done["market_loss"].mean()),
+                "gap": float(diff.mean()),
+                "accuracy": float(done["hit"].mean()) if "hit" in done else None,
+                "se": interval["se"],
+                "ci_low": interval["ci_low"],
+                "ci_high": interval["ci_high"],
+                "t": interval["t"],
+                "separated": interval["separated"],
+                "enough": len(done) >= config.MIN_LEAGUE_ROWS,
+            })
+        else:
+            row["enough"] = False
+        rows.append(row)
+    return rows
 
 
 def calibration(graded: pd.DataFrame, n_bins: int = 10) -> list[dict]:

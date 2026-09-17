@@ -135,6 +135,47 @@ def last_entry() -> dict | None:
     return read(files[-1]) if files else None
 
 
+def published_leagues() -> list[str]:
+    """
+    Divisions that actually have at least one sealed prediction in the chain.
+
+    This is the number the site's copy must use whenever it describes what is
+    PUBLISHED. `len(config.ENABLED_LEAGUES)` describes what is CONFIGURED, and
+    the two are not the same thing for as long as it takes a newly enabled
+    division to reach its first seal — which, on 17 September 2026, was long
+    enough for the site to spend an evening claiming 23 divisions on a
+    scorecard with eleven rows.
+
+    That was not a typo, it was a wiring fault: a sentence about the past was
+    reading a setting about the present, so widening an environment variable
+    silently rewrote what the site said it had already done. Reading it out of
+    the ledger makes the class of error impossible. Adding a division to the
+    configuration now changes exactly one thing — what the next run will try to
+    seal — and changes no sentence about what has already been sealed until a
+    prediction for it is actually in a file.
+
+    Cheap enough to call on every build: it reads the entries render is about
+    to read anyway, and only their `leagues` lists.
+    """
+    codes: set[str] = set()
+    for path in ledger_files():
+        try:
+            entry = read(path)
+        except Exception:
+            continue
+        listed = entry.get("leagues")
+        if listed:
+            codes.update(listed)
+            continue
+        # Schema 1 named the division once, at entry level; older entries
+        # still have to count, and they count for exactly what they contain.
+        default = entry.get("league", "E0")
+        codes.update(row.get("league", default)
+                     for row in entry.get("predictions", []))
+    return [code for code in config.LEAGUE_ORDER if code in codes] + \
+           sorted(codes - set(config.LEAGUE_ORDER))
+
+
 def verify_chain() -> dict:
     """
     Recompute every hash and every link. Returns a report the site renders.
