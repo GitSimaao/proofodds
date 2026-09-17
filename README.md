@@ -23,19 +23,26 @@ football-data.co.uk's `AvgC` columns; the site graded against
 Pinnacle until football-data stopped carrying those columns in January 2026 —
 the method page publishes the measured difference between the two benchmarks,
 at most 0.002 nats in any division, and `scripts/check_benchmark.py` reproduces it).
-Individual match pages also reconstruct the three most likely scorelines from the
-sealed expected goals and league low-score correction. They are labelled as indicative
-and excluded from the scorecard: without a closing-line comparison, they are context,
-not a third benchmarked claim.
+Individual match pages also reconstruct the whole scoreline distribution from the
+sealed expected goals and league low-score correction: every exact score from 0-0 to
+5-5, plus three buckets for each way a match can leave that grid, which together
+partition the distribution and so let a reader price any event the card does not name.
+It is labelled sealed but not scored and excluded from the scorecard: without a
+closing-line comparison it is context, not a third benchmarked claim.
 
 One Dixon-Coles model is fitted per competition, on that competition's matches only. It does
 not beat the closing line — a walk-forward backtest over the seven Premier League
 seasons with a published average close puts it about 0.019 nats per match behind, over
 2,660 matches — and the [method page](https://proofodds.com/method/) says so beside the
-figures. The **live** record is a much smaller sample and the front page says what that
-is worth: the gap there carries a 95% interval that still contains zero, so it cannot yet
-separate the model from the closing line in either direction. Both numbers appear with
-their width. That backtest is the Premier League only, and so is the hyperparameter
+figures. The **live** record is a much smaller sample, and as of 17 September 2026 it has
+separated — against the model, as the backtest said it would. Over the 306 matches
+graded from 28 August it sits 0.039 nats per match behind the close, with a 95%
+interval of 0.017 to 0.062 that no longer contains zero, and captures about 72% of the
+distance between guessing and the closing line. Those figures are a snapshot; the
+[scorecard](https://proofodds.com/scorecard/) is the record and carries the current
+ones. Both numbers appear with their width.
+
+That backtest is the Premier League only, and so is the hyperparameter
 tuning; the other twenty-two divisions run those settings transferred, with no
 walk-forward history of their own, which the method page states rather than leaving to
 be found.
