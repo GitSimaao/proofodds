@@ -1715,7 +1715,15 @@ def test_the_score_matrix_is_a_complete_partition_of_the_distribution():
     # The likeliest score is marked once, and a cell below a tenth of a percent
     # reads as a floor rather than as a zero the model never claimed.
     assert [cell["label"] for cell in cells if cell["is_peak"]] == ["1\u20131"]
+
+    # The caption tells the reader the printed figures add to 100.0, so no
+    # printed figure may be hiding tenths: a cell shown as a floor has to be
+    # one the allocation gave nothing to, or the sentence is false.
     assert {cell["text"] for cell in cells if cell["tenths"] == 0} == {"<0.1%"}
+    assert not [part for part in cells + buckets
+                if part["text"] == "<0.1%" and part["tenths"]]
+    assert sum(part["tenths"] for part in cells + buckets
+               if part["text"] != "<0.1%") == 1000
     assert grid["rows"][1]["cells"][1]["text"] == "13.1%"
 
 
@@ -1883,6 +1891,7 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     assert "Correct score" in html
     assert '<span class="mkt-tag is-forecast">sealed, not scored</span>' in html
     assert "account for the whole distribution" in html
+    assert "add to 100.0" in html
     assert html.count('class="score-cell') == 36
     assert html.count("<li>") >= 3            # the three tail buckets
     assert "not part of the scorecard" in html

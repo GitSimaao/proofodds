@@ -179,9 +179,11 @@
         <p class="scorelines-note">The {{ match.score_matrix.n_cells }} cells
         and the three buckets account for the whole distribution: every result the
         match can have is in exactly one of them, so nothing is left in an "any other
-        score" line. The printed figures are tenths of a percent and cells below a
-        tenth are shown as a floor rather than as zero, so what you read does not
-        literally add to 100 — the numbers underneath it do. Reconstructed from the
+        score" line and the printed figures add to 100.0. They are tenths of a
+        percent, allocated in one pass so they sum exactly, which is also why a cell
+        can sit a tenth from the number you would get dividing it out yourself. A
+        cell the model puts below a tenth of a percent is shown as a floor rather
+        than as 0.0%, because the model did not rule it out. Reconstructed from the
         expected goals and league low-score correction stored with the sealed
         prediction. Shown for curiosity; it is not part of the scorecard.</p>
       </section>
