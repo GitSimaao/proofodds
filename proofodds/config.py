@@ -72,6 +72,32 @@ LEAGUES = {
     "B1":  {"name": "Jupiler Pro League", "short": "JPL", "country": "Belgium", "flag": "belgium", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
     "SC0": {"name": "Scottish Premiership", "short": "SPL", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
     "BRA": {"name": "Brasileirao Serie A", "short": "BRA", "country": "Brazil", "flag": "brazil", "fdorg": "BSA", "tier": 1, "source": "extra", "fixtures": "fdorg"},
+
+    # The rest of what football-data.co.uk's season files cover. None of them
+    # is in football-data.org's free tier, so all twelve take fixtures from
+    # the same CSV that carries their closing prices — one provider for the
+    # name that gets sealed and the name that gets graded, which is the join
+    # that breaks first when the two disagree.
+    #
+    # They are here for a reason worth writing down: the ten divisions above
+    # are the most efficiently priced football in the world, and the scorecard
+    # says so — the model captures about 71% of the closing line's edge over
+    # guessing and loses to it with a t of 3.5. If a one-person model has an
+    # edge anywhere it is where the market is thin, and this is as thin as a
+    # free, auditable source goes. The same files carry HC/AC, so every one of
+    # these supports the full market set, corners included.
+    "E2":  {"name": "League One",     "short": "EFL1", "country": "England",  "flag": "england",  "fdorg": None, "tier": 3, "source": "season", "fixtures": "fdco"},
+    "E3":  {"name": "League Two",     "short": "EFL2", "country": "England",  "flag": "england",  "fdorg": None, "tier": 4, "source": "season", "fixtures": "fdco"},
+    "EC":  {"name": "National League", "short": "NL",  "country": "England",  "flag": "england",  "fdorg": None, "tier": 5, "source": "season", "fixtures": "fdco"},
+    "SC1": {"name": "Scottish Championship", "short": "SC1", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 2, "source": "season", "fixtures": "fdco"},
+    "SC2": {"name": "Scottish League One",   "short": "SC2", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 3, "source": "season", "fixtures": "fdco"},
+    "SC3": {"name": "Scottish League Two",   "short": "SC3", "country": "Scotland", "flag": "scotland", "fdorg": None, "tier": 4, "source": "season", "fixtures": "fdco"},
+    "D2":  {"name": "2. Bundesliga",  "short": "BUN2", "country": "Germany",  "flag": "germany",  "fdorg": None, "tier": 2, "source": "season", "fixtures": "fdco"},
+    "I2":  {"name": "Serie B",        "short": "SB",   "country": "Italy",    "flag": "italy",    "fdorg": None, "tier": 2, "source": "season", "fixtures": "fdco"},
+    "SP2": {"name": "Segunda Division", "short": "LIG2", "country": "Spain",  "flag": "spain",    "fdorg": None, "tier": 2, "source": "season", "fixtures": "fdco"},
+    "F2":  {"name": "Ligue 2",        "short": "L2",   "country": "France",   "flag": "france",   "fdorg": None, "tier": 2, "source": "season", "fixtures": "fdco"},
+    "T1":  {"name": "Super Lig",      "short": "TSL",  "country": "Turkey",   "flag": "turkey",   "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
+    "G1":  {"name": "Super League Greece", "short": "GSL", "country": "Greece", "flag": "greece", "fdorg": None, "tier": 1, "source": "season", "fixtures": "fdco"},
 }
 
 # Which of them are actually live. The default is deliberately just one: a

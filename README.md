@@ -36,8 +36,9 @@ figures. The **live** record is a much smaller sample and the front page says wh
 is worth: the gap there carries a 95% interval that still contains zero, so it cannot yet
 separate the model from the closing line in either direction. Both numbers appear with
 their width. That backtest is the Premier League only, and so is the hyperparameter
-tuning; the other ten divisions run those settings transferred, with no walk-forward
-history of their own, which the method page states rather than leaving to be found.
+tuning; the other twenty-two divisions run those settings transferred, with no
+walk-forward history of their own, which the method page states rather than leaving to
+be found.
 That is the product: not a prediction service, a measurement one. Anyone can publish
 probabilities; almost nobody publishes the score.
 
