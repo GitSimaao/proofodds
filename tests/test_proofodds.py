@@ -3135,3 +3135,170 @@ def test_the_ledger_page_prints_the_reason_not_just_the_codes():
     assert "newest 2026-09-17" in html
     assert html.count("newest 2026-09-17") == 1, "grouped, not repeated per division"
     assert "B1 SC0" in html
+
+
+# --------------------------------------------------------------------------- #
+#  The job's exit code
+#
+#  proofodds-failed@ fires only when daily.py exits non-zero, and main()
+#  returned 0 unconditionally — including on a broken chain, the one event
+#  that should wake everybody up. These tests pin down which conditions are
+#  fatal and, just as importantly, which are not: a quiet day is a normal
+#  outcome, and a job that pages through every international break is a job
+#  whose alarms are muted before the real one arrives.
+# --------------------------------------------------------------------------- #
+def _daily_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "daily_job", config.ROOT / "scripts" / "daily.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _run_daily(monkeypatch, tmp_path, *, upcoming, publish_result,
+               chain_ok=True, seal_exists=False, publish_raises=False):
+    """Drive main() with every side effect stubbed out."""
+    mod = _daily_module()
+    monkeypatch.setattr(sys, "argv", ["daily.py"])
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", tmp_path)
+    monkeypatch.setattr(config, "ENABLED_LEAGUES", ["E0"])
+
+    if seal_exists:
+        today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+        (tmp_path / f"{today}.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(mod.data, "refresh", lambda lg: None)
+    monkeypatch.setattr(mod.guest, "used_competitions", lambda: [])
+    monkeypatch.setattr(mod.fixtures, "upcoming_with_coverage",
+                        lambda lg: (upcoming, {"requested": lg}))
+
+    def _publish(*a, **k):
+        if publish_raises:
+            raise RuntimeError("disk full")
+        return publish_result
+
+    monkeypatch.setattr(mod.ledger, "publish", _publish)
+    monkeypatch.setattr(mod.ledger, "verify_chain", lambda: (
+        {"ok": True, "n_entries": 24, "head": "a" * 64} if chain_ok
+        else {"ok": False, "broken": "2026-09-10.json: hash mismatch"}))
+    monkeypatch.setattr(mod.anchor, "maintain", lambda now=None: [])
+    monkeypatch.setattr(mod, "commit_ledger", lambda *a, **k: None)
+
+    built = []
+    monkeypatch.setattr(mod.render, "publish_site", lambda: built.append(True))
+    return mod.main(), built
+
+
+def test_a_quiet_day_is_not_a_failure(monkeypatch, tmp_path):
+    """
+    No fixtures is a normal outcome and must never page.
+
+    An international break, a winter shutdown and the gap between seasons all
+    look exactly like this. This is the assertion that keeps the alarm worth
+    reading.
+    """
+    code, built = _run_daily(monkeypatch, tmp_path,
+                             upcoming=[], publish_result=None)
+    assert code == 0
+    assert built, "a quiet day still rebuilds the site"
+
+
+def test_fixtures_returned_but_nothing_sealed_is_fatal(monkeypatch, tmp_path):
+    """
+    We were handed matches we could have priced and the chain got none.
+
+    Every division held by the unresolved-name guard looks like this, and so
+    does every model failing to fit. It cannot be repaired later: the ledger
+    is append-only and a prediction published after kickoff is worse than no
+    prediction at all.
+    """
+    from proofodds.fixtures import Fixture
+    kick = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+    code, built = _run_daily(
+        monkeypatch, tmp_path,
+        upcoming=[Fixture(kick, "Arsenal", "Chelsea", league="E0")],
+        publish_result=None)
+    assert code == 1
+    assert built, "a failed seal still grades and rebuilds what it can"
+
+
+def test_a_later_run_of_an_already_sealed_day_is_not_a_failure(
+        monkeypatch, tmp_path):
+    """
+    The timer fires eight times a day and only the 00:07 run seals.
+
+    `publish` returns None for 'already published' exactly as it does for
+    'nothing to publish', so without the on-disk check this would page seven
+    times every single day.
+    """
+    from proofodds.fixtures import Fixture
+    kick = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+    code, _ = _run_daily(
+        monkeypatch, tmp_path,
+        upcoming=[Fixture(kick, "Arsenal", "Chelsea", league="E0")],
+        publish_result=None, seal_exists=True)
+    assert code == 0
+
+
+def test_a_broken_chain_is_fatal(monkeypatch, tmp_path):
+    """
+    The one event that should wake everybody up, and it used to log and exit 0.
+
+    Everything the site claims rests on the chain recomputing.
+    """
+    code, built = _run_daily(monkeypatch, tmp_path, upcoming=[],
+                             publish_result=None, chain_ok=False)
+    assert code == 1
+    assert built, ("the site is still rebuilt: it reports the chain's state "
+                   "honestly, and a page saying 'broken' beats a stale page")
+
+
+def test_a_seal_that_raises_is_fatal(monkeypatch, tmp_path):
+    code, _ = _run_daily(monkeypatch, tmp_path, upcoming=[],
+                         publish_result=None, publish_raises=True)
+    assert code == 1
+
+
+def test_a_normal_run_succeeds(monkeypatch, tmp_path):
+    from proofodds.fixtures import Fixture
+    kick = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+    code, built = _run_daily(
+        monkeypatch, tmp_path,
+        upcoming=[Fixture(kick, "Arsenal", "Chelsea", league="E0")],
+        publish_result=tmp_path / "entry.json")
+    assert code == 0
+    assert built
+
+
+def test_anchoring_failure_is_not_fatal(monkeypatch, tmp_path):
+    """
+    Timestamping is an addition to the record, never a gate on it.
+
+    The entry is sealed on disk before anchoring is attempted; a failed
+    OpenTimestamps call must not turn a successful seal into a paged failure.
+    """
+    from proofodds.fixtures import Fixture
+    mod = _daily_module()
+    monkeypatch.setattr(sys, "argv", ["daily.py"])
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", tmp_path)
+    monkeypatch.setattr(config, "ENABLED_LEAGUES", ["E0"])
+    kick = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+    monkeypatch.setattr(mod.data, "refresh", lambda lg: None)
+    monkeypatch.setattr(mod.guest, "used_competitions", lambda: [])
+    monkeypatch.setattr(mod.fixtures, "upcoming_with_coverage",
+                        lambda lg: ([Fixture(kick, "Arsenal", "Chelsea",
+                                             league="E0")], {}))
+    monkeypatch.setattr(mod.ledger, "publish",
+                        lambda *a, **k: tmp_path / "entry.json")
+    monkeypatch.setattr(mod.ledger, "verify_chain",
+                        lambda: {"ok": True, "n_entries": 1, "head": "a" * 64})
+
+    def _boom(now=None):
+        raise RuntimeError("opentimestamps unreachable")
+
+    monkeypatch.setattr(mod.anchor, "maintain", _boom)
+    monkeypatch.setattr(mod, "commit_ledger", lambda *a, **k: None)
+    monkeypatch.setattr(mod.render, "publish_site", lambda: None)
+
+    assert mod.main() == 0

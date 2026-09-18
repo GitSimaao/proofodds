@@ -18,6 +18,34 @@ Order matters and is deliberate:
 If step 3 fails, nothing is published rather than something being published
 late. A prediction that appears after kickoff is worse than no prediction: it
 quietly poisons the one claim the whole site rests on.
+
+Exit code
+---------
+proofodds-failed@ fires only on a non-zero exit, so the exit code is the
+alarm and the list of what trips it is a real decision, not a detail.
+
+FATAL (exit 1):
+  * the chain does not verify;
+  * fixtures came back and none of them were sealed;
+  * sealing raised.
+
+NOT fatal (exit 0), each for a stated reason:
+  * no fixtures at all — a quiet day. An international break, a winter
+    shutdown and the gap between seasons are indistinguishable from this, and
+    an alarm that fires through all of them gets muted before the real one;
+  * today's entry already on disk — the timer fires eight times and only the
+    00:07 run seals;
+  * some divisions missing while others sealed — partial coverage is the
+    current, disclosed reality; on 18 September that was 14 of 23, and paging
+    on it would page every run;
+  * anchoring failed — a proof is an addition to the record, never a gate;
+  * git commit or push failed — the entry is sealed on disk and the next run
+    pushes it. A network blip must not page. (A push failing for DAYS is a
+    real problem, but it is a different alarm: remote staleness, not this run.)
+
+A fatal condition is recorded and the run continues to the end. The site is
+still graded and rebuilt, because it reports the chain's state honestly and a
+page saying "broken" is more use than yesterday's page saying nothing.
 """
 
 from __future__ import annotations
@@ -90,6 +118,14 @@ def main() -> int:
     leagues = ([c.strip().upper() for c in args.leagues.split(",") if c.strip()]
                or list(config.ENABLED_LEAGUES))
 
+    # Conditions that make this run a FAILURE, i.e. exit non-zero so that
+    # proofodds-failed@ fires. They are collected rather than raised: a broken
+    # chain must still be graded and rebuilt, because the site reports the
+    # chain's state honestly and a page saying "broken" is more use than
+    # yesterday's page saying nothing. The run reports the failure at the end,
+    # having done everything it could still do.
+    failures: list[str] = []
+
     if not args.build_only:
         log.info("refreshing results for %s", ", ".join(leagues))
         data.refresh(leagues)
@@ -118,7 +154,51 @@ def main() -> int:
         upcoming, coverage = fixtures.upcoming_with_coverage(leagues)
 
         now = dt.datetime.now(dt.timezone.utc)
-        path = ledger.publish(upcoming, now=now, coverage=coverage)
+
+        # Sealing is the one step whose failure this job must not survive
+        # quietly. Distinguishing its outcomes needs one fact `publish` cannot
+        # return, because it returns None for three different situations: was
+        # today's entry already on disk before this run?
+        #
+        #   already on disk        -> a later run of the same day. Normal:
+        #                             the timer fires eight times and only the
+        #                             00:07 run seals.
+        #   no fixtures at all     -> a quiet day. NORMAL, NOT AN ERROR. An
+        #                             international break, a winter shutdown
+        #                             and the gap between seasons all look
+        #                             like this, and a job that pages through
+        #                             every one of them is a job whose alarms
+        #                             get muted before the real one arrives.
+        #   fixtures, nothing sealed -> FATAL. We were handed matches we could
+        #                             have priced and the chain got none of
+        #                             them: every division held by the
+        #                             unresolved-name guard, every model
+        #                             unfittable, or every fixture already
+        #                             kicked off. Whatever the cause, today's
+        #                             forecasts do not exist and cannot be
+        #                             made later — the ledger is append-only
+        #                             and a prediction after kickoff is worse
+        #                             than none.
+        entry_path = config.PREDICTIONS_DIR / f"{now.date().isoformat()}.json"
+        sealed_before = entry_path.exists()
+        try:
+            path = ledger.publish(upcoming, now=now, coverage=coverage)
+        except Exception:
+            log.exception("SEALING FAILED — no entry written")
+            path = None
+            failures.append("sealing raised an exception")
+        else:
+            if path is None and not sealed_before:
+                if not upcoming:
+                    log.warning("no fixture in the next %d days — nothing to "
+                                "seal. A quiet day is a normal outcome, not a "
+                                "failure.", config.LOOKAHEAD_DAYS)
+                else:
+                    log.error("SEALING FAILED — %d fixture(s) came back and "
+                              "NONE were sealed; today has no entry",
+                              len(upcoming))
+                    failures.append(
+                        f"{len(upcoming)} fixture(s) returned but none sealed")
 
         # Timestamping is an addition to the record, never a gate on it.
         #
@@ -144,7 +224,12 @@ def main() -> int:
     log.info("verifying chain")
     report = ledger.verify_chain()
     if not report["ok"]:
+        # The single most serious thing this job can discover, and until now
+        # the only consequence was a line in a journal. Everything the site
+        # claims rests on the chain recomputing; if it does not, nothing else
+        # that happened on this run matters.
         log.error("LEDGER CHAIN BROKEN: %s", report["broken"])
+        failures.append(f"chain does not verify: {report['broken']}")
     else:
         log.info("chain ok, %d entries, head %s",
                  report["n_entries"], report["head"][:12])
@@ -153,6 +238,11 @@ def main() -> int:
     # Build into staging and swap, rather than deleting the directory nginx is
     # serving and refilling it page by page.
     render.publish_site()
+
+    if failures:
+        log.error("RUN FAILED — %s", "; ".join(failures))
+        return 1
+
     log.info("done — %s", config.SITE_DIR)
     return 0
 
