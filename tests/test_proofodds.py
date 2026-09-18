@@ -3302,3 +3302,203 @@ def test_anchoring_failure_is_not_fatal(monkeypatch, tmp_path):
     monkeypatch.setattr(mod.render, "publish_site", lambda: None)
 
     assert mod.main() == 0
+
+
+# --------------------------------------------------------------------------- #
+#  Coverage: the matches that never reached the ledger
+#
+#  Every other table starts from the ledger and asks how the predictions did.
+#  This one starts from what was played and asks whether the ledger has it —
+#  the only direction that can see a match we never sealed. A forecast that
+#  does not exist cannot appear in a table of forecasts, so a division whose
+#  feed goes dark contributes fewer rows and the headline never flinches.
+# --------------------------------------------------------------------------- #
+def _results_frame(rows):
+    import pandas as pd
+    return pd.DataFrame(
+        [{"League": lg, "Date": pd.Timestamp(d), "HomeTeam": h,
+          "AwayTeam": a, "FTR": "H"} for lg, d, h, a in rows])
+
+
+def _sealed(rows):
+    import pandas as pd
+    if not rows:
+        return pd.DataFrame(columns=["league", "date", "home", "away"])
+    return pd.DataFrame(
+        [{"league": lg, "date": pd.Timestamp(d), "home": h, "away": a}
+         for lg, d, h, a in rows])
+
+
+def _coverage(monkeypatch, *, results, sealed, since, leagues):
+    from proofodds import grade
+    monkeypatch.setattr(grade, "requested_since", lambda: since)
+    monkeypatch.setattr(grade, "sealed_frame", lambda: _sealed(sealed))
+    monkeypatch.setattr(grade, "load_all_matches",
+                        lambda wanted: _results_frame(results))
+    return {r["league"]: r for r in grade.coverage_by_league(leagues)}
+
+
+def test_a_played_match_with_no_prediction_is_counted_as_never_sealed(
+        monkeypatch):
+    """The figure the scorecard structurally cannot produce."""
+    rows = _coverage(
+        monkeypatch,
+        results=[("SC0", "2026-09-06", "Hearts", "Dundee"),
+                 ("SC0", "2026-09-09", "Rangers", "St Mirren"),
+                 ("SC0", "2026-09-15", "Falkirk", "Hearts")],
+        sealed=[("SC0", "2026-09-06", "Hearts", "Dundee")],
+        since={"SC0": "2026-09-02"}, leagues=["SC0"])
+
+    sc0 = rows["SC0"]
+    assert sc0["played"] == 3 and sc0["sealed"] == 1
+    assert sc0["unsealed"] == 2, "both unsealed matches must be visible"
+    assert sc0["unjoined"] == 0
+    assert sc0["pct"] == pytest.approx(100 * 1 / 3)
+
+
+def test_a_sealed_prediction_whose_name_does_not_join_is_not_reported_as_unsealed(
+        monkeypatch):
+    """
+    Two causes, two fixes, and only one of them is permanent.
+
+    A match we never sealed is gone for good — the ledger is append-only. A
+    match we DID seal whose club name will not join is scored retroactively the
+    moment data.OVERRIDES learns the spelling. Merging them would point the
+    reader at the wrong defect: measured on 18 September, 6 of the 13 played
+    matches with no joined prediction were unjoined names in BRA and N1 —
+    divisions that take fixtures from football-data.org and were never touched
+    by the stale CSV at all.
+    """
+    rows = _coverage(
+        monkeypatch,
+        results=[("BRA", "2026-09-06", "Cruzeiro", "Parana"),
+                 ("BRA", "2026-09-07", "Bahia", "Remo")],
+        # Sealed under a spelling the results file does not use, and old
+        # enough to be past the three-day grace period.
+        sealed=[("BRA", "2026-09-06", "Cruzeiro EC", "Parana"),
+                ("BRA", "2026-09-07", "Bahia", "Remo")],
+        since={"BRA": "2026-09-02"}, leagues=["BRA"])
+
+    bra = rows["BRA"]
+    assert bra["played"] == 2 and bra["sealed"] == 1
+    assert bra["unjoined"] == 1, "the prediction exists; the name does not join"
+    assert bra["unsealed"] == 0, "nothing here is permanently lost"
+    assert bra["missed"] == bra["unsealed"] + bra["unjoined"]
+
+
+def test_a_division_with_no_matches_yet_scores_no_coverage_not_perfect_coverage(
+        monkeypatch):
+    """
+    100% for having done nothing is the most flattering possible reading.
+
+    On 18 September twelve of the twenty-three configured divisions were in
+    exactly this state.
+    """
+    rows = _coverage(
+        monkeypatch,
+        results=[("E0", "2026-09-06", "Arsenal", "Chelsea")],
+        sealed=[("E0", "2026-09-06", "Arsenal", "Chelsea")],
+        since={"E0": "2026-09-02", "T1": "2026-09-18"}, leagues=["E0", "T1"])
+
+    assert rows["E0"]["pct"] == 100
+    assert rows["T1"]["played"] == 0
+    assert rows["T1"]["pct"] is None, "no record is not a perfect record"
+
+
+def test_matches_before_the_division_entered_the_chain_are_not_counted_against_us(
+        monkeypatch):
+    """We are not answerable for matches played before we asked about them."""
+    rows = _coverage(
+        monkeypatch,
+        results=[("B1", "2026-08-30", "Genk", "Gent"),
+                 ("B1", "2026-09-06", "Anderlecht", "Genk")],
+        sealed=[("B1", "2026-09-06", "Anderlecht", "Genk")],
+        since={"B1": "2026-09-03"}, leagues=["B1"])
+
+    assert rows["B1"]["played"] == 1
+    assert rows["B1"]["pct"] == 100
+
+
+def test_the_coverage_summary_separates_configured_from_measured(monkeypatch):
+    """`23 configured` and `11 with a match to seal` are different sentences."""
+    from proofodds import grade
+    rows = list(_coverage(
+        monkeypatch,
+        results=[("E0", "2026-09-06", "Arsenal", "Chelsea"),
+                 ("SC0", "2026-09-06", "Hearts", "Dundee")],
+        sealed=[("E0", "2026-09-06", "Arsenal", "Chelsea")],
+        since={"E0": "2026-09-02", "SC0": "2026-09-02", "T1": "2026-09-18"},
+        leagues=["E0", "SC0", "T1"]).values())
+
+    s = grade.coverage_summary(rows)
+    assert s["n_configured"] == 3
+    assert s["n_with_matches"] == 2, "T1 has nothing to be measured on"
+    assert s["played"] == 2 and s["sealed"] == 1
+    assert s["unsealed"] == 1 and s["n_incomplete"] == 1
+
+
+def test_requested_since_uses_coverage_where_it_exists_and_leagues_where_it_does_not(
+        tmp_path, monkeypatch):
+    """
+    Two eras in one chain.
+
+    Before schema 5 an entry recorded only the divisions that SEALED, so a
+    division asked about and answering nothing left no trace. `coverage`
+    closed that, and the earlier era can only be read through `leagues`.
+    """
+    from proofodds import ledger
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", tmp_path)
+
+    (tmp_path / "2026-09-01.json").write_text(json.dumps({
+        "published_at": "2026-09-01T00:07:00Z", "leagues": ["E0"],
+        "hash": "a" * 64, "prev_hash": "0" * 64, "predictions": []}))
+    (tmp_path / "2026-09-10.json").write_text(json.dumps({
+        "published_at": "2026-09-10T00:07:00Z", "leagues": ["E0"],
+        "coverage": {"requested": ["E0", "SC0"]},
+        "hash": "b" * 64, "prev_hash": "a" * 64, "predictions": []}))
+
+    since = ledger.requested_since()
+    assert since["E0"] == "2026-09-01"
+    # SC0 sealed nothing on the 10th but was asked about, and coverage says so.
+    assert since["SC0"] == "2026-09-10"
+
+
+def test_the_scorecard_page_publishes_the_coverage_it_measured():
+    """The number has to be on the page it qualifies, not in a log."""
+    from proofodds import render
+
+    rows = [
+        {"league": "E0", "name": "Premier League", "cohort": "founding",
+         "since": "2026-08-27", "played": 30, "sealed": 30, "missed": 0,
+         "unjoined": 0, "unsealed": 0, "pct": 100.0, "source": "fdorg"},
+        {"league": "SC0", "name": "Scottish Premiership", "cohort": "founding",
+         "since": "2026-09-02", "played": 17, "sealed": 12, "missed": 5,
+         "unjoined": 0, "unsealed": 5, "pct": 100 * 12 / 17, "source": "fdco"},
+        {"league": "T1", "name": "Super Lig", "cohort": "extended",
+         "since": "2026-09-18", "played": 0, "sealed": 0, "missed": 0,
+         "unjoined": 0, "unsealed": 0, "pct": None, "source": "fdco"},
+    ]
+    html = render.environment().get_template("scorecard.html").render(
+        page="scorecard", site_name="ProofOdds",
+        site_url="https://proofodds.com", repo_url="https://example.invalid",
+        asset_v="t", brand_v="t", built_at="18 Sep 2026",
+        built_iso="2026-09-18T00:00:00Z",
+        uniform_log_loss=config.UNIFORM_LOG_LOSS, min_league_rows=25,
+        backtest=config.BACKTEST, score={"live": False, "n": 0, "pending": 0},
+        totals={"live": False}, btts={"live": False}, asian={"live": False},
+        totals_line=2.5, genesis="0" * 64, leagues=[], cohorts=[],
+        weeks=[], weeks_shown=[], curve_chart="", calibration_chart="",
+        coverage_rows=rows,
+        coverage_played=[r for r in rows if r["played"]],
+        coverage_waiting=[r for r in rows if not r["played"]],
+        coverage_stats=__import__("proofodds.grade", fromlist=["x"])
+                        .coverage_summary(rows),
+        n_published=2, n_scored=2, n_configured=3,
+        league_names={}, signup_action="", contact_email="a@b.c",
+        data_controller="x")
+
+    assert "42 of 47" in html, "the pooled coverage statement"
+    assert "71%" in html, "SC0's own figure, beside the division"
+    # The division with nothing played must not be dressed up as complete.
+    assert "Super Lig" not in html.split('id="coverage"')[1].split("</table>")[0]
+    assert "T1" in html

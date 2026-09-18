@@ -119,6 +119,47 @@
       width were chosen on 2017/18–2020/21 and then frozen, because picking them on the data you
       report is a slower form of the same bias.</p>
 
+      <h2 id="coverage">Which matches make it in &mdash; and which do not</h2>
+      <p>The scorecard measures the predictions we published. It is silent, by construction,
+      about matches we never published a prediction for: a forecast that does not exist cannot
+      appear in a table of forecasts. So a division whose fixture feed goes quiet does not show
+      up as a problem &mdash; it just contributes fewer rows, and the headline gap does not
+      move. For a site whose entire claim is that the bad numbers stay up, that is the most
+      dangerous blind spot available, because it is the one that flatters by omission.</p>
+
+      <p>So the coverage is measured and published. For every division, from the results files
+      themselves: how many matches have been played since that division entered the ledger, and
+      how many of them we sealed a prediction for before kickoff.
+      {% if coverage_stats.played %}Currently <strong>{{ coverage_stats.sealed }} of
+      {{ coverage_stats.played }}</strong>, or {{ '%.1f'|format(coverage_stats.pct) }}%.
+      The per-division breakdown is <a href="/scorecard/#coverage">on the scorecard</a>, beside
+      the numbers it qualifies.{% endif %}</p>
+
+      <p>Two different things can put a played match outside the ledger, and they are counted
+      separately because only one of them is permanent:</p>
+      <ul>
+        <li><strong>Never sealed.</strong> The fixture feed did not offer the match in time.
+        This cannot be repaired &mdash; the ledger is append-only, and a prediction added after
+        kickoff would be worthless and dishonest. The match is gone from the record for good.</li>
+        <li><strong>Sealed, but the club name does not join.</strong> The prediction exists and
+        was published on time; it simply cannot yet be matched to the result, because the
+        fixture feed and the results file spell a club differently. Adding the spelling scores
+        it retroactively, without any entry being altered.</li>
+      </ul>
+
+      <p>Fourteen of the {{ n_configured }} configured divisions take their fixtures from
+      football-data.co.uk&rsquo;s shared <code>fixtures.csv</code>, a file published when its
+      author publishes it. When it goes stale, those divisions seal only the matches it happened
+      to carry. That is a real limitation on the scorecard and not a temporary one, so it is
+      stated here rather than discovered: for those divisions the score is computed over the
+      matches the feed offered, and the coverage column says how many that was.</p>
+
+      <p>Being explicit about the direction of the risk: if the matches we miss are not a random
+      sample of the matches played &mdash; and a feed that posts in batches gives no reason to
+      think they are &mdash; then the gap on the scorecard is measured on a subset selected by
+      somebody else. We cannot correct for that from inside the feed. We can report it, which is
+      what the coverage column does.</p>
+
       <h2>How the score is computed</h2>
       <p>Log loss: take the probability we gave to the outcome that actually happened, apply
       <code>−log(p)</code>, average over matches. Say 90% and be right, you pay 0.105. Say 10%

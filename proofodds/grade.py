@@ -14,6 +14,7 @@ captures, and how much it gives away.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 
 import numpy as np
@@ -22,7 +23,7 @@ import pandas as pd
 from . import config
 from .data import (add_market_probabilities, load_all_matches, log_loss,
                    result_index, sealed_name)
-from .ledger import all_predictions
+from .ledger import all_predictions, requested_since
 
 log = logging.getLogger(__name__)
 
@@ -114,13 +115,15 @@ def _share_bounds(uniform: float, market: float, interval: dict) -> tuple:
             1 - interval["ci_low"] / available)
 
 
-def graded_frame(leagues=None) -> pd.DataFrame:
+def sealed_frame() -> pd.DataFrame:
     """
-    Join published predictions to finished matches, across every division.
+    Every sealed prediction, with its club names canonicalised for joining.
 
-    Only matches that have been played AND have closing odds can be graded —
-    everything else stays in the table with `graded = False` so the site can
-    show what is pending rather than silently dropping it.
+    Extracted from `graded_frame` so that coverage and grading cannot disagree
+    about which sealed prediction corresponds to which played match. Two joins
+    written twice drift, and here a drift would mean the scorecard and the
+    coverage figure printed beside it contradicting each other about the same
+    ledger — on a site whose entire argument is that its numbers are checkable.
     """
     preds = pd.DataFrame(all_predictions())
     if preds.empty:
@@ -147,6 +150,20 @@ def graded_frame(leagues=None) -> pd.DataFrame:
                      in zip(preds["home"], preds["home_raw"], preds["league"])]
     preds["away"] = [_canonical_for(a, r, lg) for a, r, lg
                      in zip(preds["away"], preds["away_raw"], preds["league"])]
+    return preds
+
+
+def graded_frame(leagues=None) -> pd.DataFrame:
+    """
+    Join published predictions to finished matches, across every division.
+
+    Only matches that have been played AND have closing odds can be graded —
+    everything else stays in the table with `graded = False` so the site can
+    show what is pending rather than silently dropping it.
+    """
+    preds = sealed_frame()
+    if preds.empty:
+        return preds
 
     # Load the results for every division that is enabled AND every division
     # that appears in the ledger. Turning a league off must never make its past
@@ -523,6 +540,127 @@ def by_cohort(graded: pd.DataFrame) -> list[dict]:
         rows.append(row)
     return rows
 
+
+
+def coverage_by_league(leagues=None) -> list[dict]:
+    """
+    Of the matches PLAYED in each division since we started asking about it,
+    how many did we actually seal a prediction for.
+
+    This is the figure the scorecard cannot supply. The scorecard reports on
+    matches we sealed; it is silent, by construction, about matches we never
+    sealed at all, because a prediction that does not exist cannot appear in a
+    table of predictions. So a division whose fixture feed goes dark simply
+    contributes less, and the headline gap does not so much as flinch.
+
+    That silence is not survivable for a measurement service. On 18 September
+    the site listed 23 configured divisions and sealed 9, and the two numbers
+    that would have told a reader so — matches played, matches sealed — were
+    both already on disk. The direction of the join is the whole point: every
+    other table starts from the ledger and asks what happened; this one starts
+    from what happened and asks whether the ledger has it.
+
+    Counted from the results files (the played side) and the chain (the sealed
+    side), using `sealed_frame` so the join is the same one grading uses. The
+    window opens at `requested_since`, which is a lower bound — see its
+    docstring — so these figures can only flatter us. Both endpoints are
+    reported so a reader can check the arithmetic rather than trust the ratio.
+    """
+    since = requested_since()
+    wanted = list(dict.fromkeys(list(leagues or config.ENABLED_LEAGUES)
+                                + sorted(since)))
+    wanted = [lg for lg in wanted if lg in since]
+    if not wanted:
+        return []
+
+    preds = sealed_frame()
+    sealed_keys = set() if preds.empty else set(
+        zip(preds["league"], preds["date"], preds["home"], preds["away"]))
+
+    results = load_all_matches(wanted).rename(
+        columns={"HomeTeam": "home", "AwayTeam": "away", "League": "league"})
+    results["date"] = results["Date"].dt.normalize()
+    results = results[results["FTR"].notna()]
+    today = pd.Timestamp(dt.date.today())
+
+    # A played match with no sealed prediction has TWO possible causes and they
+    # need entirely different fixes, so the figure must not merge them:
+    #
+    #   nothing was sealed  — the fixture feed never offered the match. This is
+    #                         the fdco staleness failure, and it is permanent:
+    #                         the ledger is append-only.
+    #   something was sealed but the NAME does not join — the prediction exists
+    #                         and is unscoreable until data.OVERRIDES learns the
+    #                         spelling, at which point it grades retroactively.
+    #
+    # Measured on 18 September this is not a footnote: of 13 played matches with
+    # no joined prediction, 6 are unjoined names in BRA and N1 — divisions that
+    # take fixtures from football-data.org and were never affected by the stale
+    # CSV at all. Reporting those as "not sealed" would have pointed the reader
+    # squarely at the wrong defect.
+    result_keys = set(zip(results["league"], results["date"],
+                          results["home"], results["away"]))
+    cutoff = pd.Timestamp(dt.date.today()) - pd.Timedelta(days=3)
+    unjoined_by_league: dict[str, int] = {}
+    if not preds.empty:
+        for lg, date, home, away in zip(preds["league"], preds["date"],
+                                        preds["home"], preds["away"]):
+            if date < cutoff and (lg, date, home, away) not in result_keys:
+                unjoined_by_league[lg] = unjoined_by_league.get(lg, 0) + 1
+
+    out = []
+    for code in wanted:
+        start = pd.Timestamp(since[code])
+        sub = results[(results["league"] == code)
+                      & (results["date"] >= start)
+                      & (results["date"] <= today)]
+        played = int(len(sub))
+        sealed = int(sum(key in sealed_keys for key in
+                         zip(sub["league"], sub["date"],
+                             sub["home"], sub["away"])))
+        gap = played - sealed
+        unjoined = min(unjoined_by_league.get(code, 0), gap)
+        out.append({
+            "league": code,
+            "name": config.league_name(code),
+            "cohort": config.cohort_of(code),
+            "since": since[code],
+            "played": played,
+            "sealed": sealed,
+            "missed": gap,
+            # The split. `unsealed` is the one that can never be repaired.
+            "unjoined": unjoined,
+            "unsealed": gap - unjoined,
+            # None, not 100%, when nothing has been played yet. A division
+            # added yesterday has no coverage record, and printing a perfect
+            # score for it would be the most flattering possible reading of
+            # having done nothing at all.
+            "pct": (100.0 * sealed / played) if played else None,
+            "source": "fdco" if config.LEAGUES.get(code, {}).get("fixtures") == "fdco"
+                      else "fdorg",
+        })
+    return out
+
+
+def coverage_summary(rows: list[dict]) -> dict:
+    """The same thing pooled, for a one-line statement of the whole position."""
+    played = sum(r["played"] for r in rows)
+    sealed = sum(r["sealed"] for r in rows)
+    scored = [r for r in rows if r["played"]]
+    return {
+        "played": played,
+        "sealed": sealed,
+        "missed": played - sealed,
+        "unjoined": sum(r["unjoined"] for r in rows),
+        "unsealed": sum(r["unsealed"] for r in rows),
+        "pct": (100.0 * sealed / played) if played else None,
+        "n_configured": len(rows),
+        # Divisions that have had a match to seal at all. The gap between this
+        # and n_configured is the sentence the site was not saying.
+        "n_with_matches": len(scored),
+        "n_complete": sum(1 for r in scored if r["missed"] == 0),
+        "n_incomplete": sum(1 for r in scored if r["missed"] > 0),
+    }
 
 def calibration(graded: pd.DataFrame, n_bins: int = 10) -> list[dict]:
     """Of the matches where we said ~30%, did ~30% happen?"""

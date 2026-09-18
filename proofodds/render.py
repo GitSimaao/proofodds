@@ -511,6 +511,13 @@ def build(out_dir=None) -> None:
     leagues = grade.by_league(graded)
     cohorts = grade.by_cohort(graded)
     calib = grade.calibration(graded)
+    # What fraction of the matches that were actually PLAYED we sealed a
+    # prediction for. Every other table on the site starts from the ledger and
+    # asks what happened; this one starts from what happened and asks whether
+    # the ledger has it, which is the only direction that can see a match we
+    # never sealed at all.
+    coverage_rows = grade.coverage_by_league()
+    coverage_stats = grade.coverage_summary(coverage_rows)
     chain = ledger.verify_chain()
     anchors = anchor.report()
     entries = ledger_view(anchors)
@@ -561,6 +568,10 @@ def build(out_dir=None) -> None:
         "genesis": ledger.GENESIS,
         "leagues": leagues,
         "cohorts": cohorts,
+        "coverage_rows": coverage_rows,
+        "coverage_played": [r for r in coverage_rows if r["played"]],
+        "coverage_waiting": [r for r in coverage_rows if not r["played"]],
+        "coverage_stats": coverage_stats,
         # Three different counts, because the copy needs three different
         # facts and used to have only one. Anything describing what the site
         # HAS PUBLISHED reads n_published, which comes out of the sealed

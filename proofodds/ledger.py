@@ -531,6 +531,41 @@ def _same_fixture(a: dt.datetime | None, b: dt.datetime | None) -> bool:
     return abs((a - b).days) <= FIXTURE_MATCH_WINDOW_DAYS
 
 
+def requested_since() -> dict[str, str]:
+    """
+    The first date on which the chain can PROVE each division was asked about.
+
+    Two eras, and the difference matters. From schema 5 onward an entry carries
+    `coverage.requested`, which names every division the run asked about
+    including the ones that returned nothing. Before that the only evidence in
+    an entry is `leagues` — the divisions that actually sealed — so a division
+    being asked for and answering nothing left no trace whatsoever. That gap is
+    precisely what `coverage` was added to close.
+
+    So this returns the earliest date a division appears in EITHER field, and
+    that date is a lower bound on the truth: a division may have been asked
+    about, and missed matches, before the chain first records it. Measuring
+    coverage from here can therefore only flatter us, never the reverse, which
+    is why the pages that print it say what the start date means rather than
+    just printing it.
+    """
+    first: dict[str, str] = {}
+    for path in sorted(config.PREDICTIONS_DIR.glob("*.json")):
+        try:
+            entry = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(entry, dict):
+            continue
+        date = str(entry.get("published_at", ""))[:10] or path.stem
+        seen = set(entry.get("leagues") or [])
+        seen |= set((entry.get("coverage") or {}).get("requested") or [])
+        for code in seen:
+            if code not in first or date < first[code]:
+                first[code] = date
+    return first
+
+
 def all_predictions() -> list[dict]:
     """
     Every prediction ever published, flattened, oldest first.

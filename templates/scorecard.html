@@ -325,6 +325,100 @@
   </div>
 </section>
 
+<section class="band" id="coverage">
+  <div class="shell">
+    <p class="eyebrow">Coverage</p>
+    <h2>What is missing from the table above</h2>
+
+    <p class="section-note">Every other table on this page starts from the ledger and asks
+    how the predictions did. This one starts from the matches that were actually played and
+    asks whether the ledger has them at all &mdash; the only direction that can see a match we
+    never sealed. A prediction that does not exist cannot appear in a table of predictions,
+    so without this section a division whose fixture feed goes dark simply contributes fewer
+    rows and the headline never flinches. Counted from the same results files the grading
+    uses, against the same ledger, joined the same way.</p>
+
+    {% if coverage_stats.played %}
+    <p class="lead"><strong>{{ coverage_stats.sealed }} of {{ coverage_stats.played }}</strong>
+    matches played since each division entered the chain were sealed before kickoff
+    &mdash; {{ '%.1f'|format(coverage_stats.pct) }}%.
+    {% if coverage_stats.unsealed %}<strong>{{ coverage_stats.unsealed }}</strong>
+    {{ 'was' if coverage_stats.unsealed == 1 else 'were' }} never sealed at all, and never
+    can be: the ledger is append-only and a prediction published after kickoff is worse than
+    no prediction.{% endif %}
+    {% if coverage_stats.unjoined %}A further {{ coverage_stats.unjoined }}
+    {{ 'was' if coverage_stats.unjoined == 1 else 'were' }} sealed but carry a club name that
+    does not yet join to the results file &mdash; those are scored retroactively the moment
+    the spelling is added, without anything being rewritten.{% endif %}</p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Division</th>
+            <th>Fixtures from</th>
+            <th>In the chain since</th>
+            <th class="num">Played</th>
+            <th class="num">Sealed</th>
+            <th class="num">Never sealed</th>
+            <th class="num">Name unjoined</th>
+            <th class="num">Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in coverage_played %}
+          <tr>
+            <td><span class="badge">{{ c.league }}</span> {{ c.name }}</td>
+            <td><small class="muted">{{ 'football-data.co.uk' if c.source == 'fdco' else 'football-data.org' }}</small></td>
+            <td><small class="muted">{{ c.since }}</small></td>
+            <td class="num">{{ c.played }}</td>
+            <td class="num">{{ c.sealed }}</td>
+            <td class="num {{ 'behind' if c.unsealed else 'muted' }}">{{ c.unsealed or '—' }}</td>
+            <td class="num {{ 'behind' if c.unjoined else 'muted' }}">{{ c.unjoined or '—' }}</td>
+            <td class="num {{ 'ahead' if c.pct == 100 else 'behind' }}">{{ '%.0f'|format(c.pct) }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="table-note">&ldquo;In the chain since&rdquo; is the first date the ledger can prove
+    the division was being asked about. Before 6 September an entry recorded only the divisions
+    that sealed, not the ones that were asked and answered nothing, so for the older divisions
+    that date is a lower bound &mdash; these percentages can therefore only flatter us, never
+    the reverse.</p>
+    {% endif %}
+
+    {% if coverage_waiting %}
+    <p class="table-note"><strong>{{ coverage_waiting|length }} configured
+    {{ 'division has' if coverage_waiting|length == 1 else 'divisions have' }} had no match to
+    seal yet</strong>, so {{ 'it has' if coverage_waiting|length == 1 else 'they have' }} no
+    coverage record at all &mdash; not a perfect one:
+    {% for c in coverage_waiting %}{{ c.league }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+    {% endif %}
+
+    <div class="pair">
+      <div class="box no">
+        <h4>Three counts, and they are not the same number</h4>
+        <p>{{ n_configured }} divisions are configured. {{ coverage_stats.n_with_matches }}
+        have had a match to seal since entering the chain. {{ n_published }} have a sealed
+        prediction in the ledger, and {{ n_scored }} appear on the scorecard above. A single
+        number covering all four would be the easiest thing on this page to get quietly
+        wrong.</p>
+      </div>
+      <div class="box no">
+        <h4>Why a missing match is worse than a wrong one</h4>
+        <p>A wrong prediction is on the scorecard, costing us. A match we never sealed is on
+        nobody&rsquo;s scorecard &mdash; it neither helps nor hurts the headline, which is
+        exactly what makes it dangerous. If the matches we miss are not a random sample of the
+        matches played, the gap above is measured on a subset somebody else selected. That is
+        why this table exists and why it is on this page rather than a status page nobody
+        reads.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="band"><div class="shell"><p class="eyebrow">New markets</p><h2>BTTS and Asian handicap</h2><div class="pair">
   <div class="box"><h4>BTTS <span class="mkt-tag is-forecast">forecast only</span></h4>{% if btts.live %}<p><strong>{{ '%.4f'|format(btts.model_log_loss) }}</strong> log loss over {{ btts.n }} matches; 0.6931 is a coin flip. There is no free closing BTTS benchmark in this source, so this is forecast validation—not an edge claim.{% if btts.se %} At {{ btts.n }} matches the distance from the coin flip is {{ '%+.4f'|format(btts.model_log_loss - btts.uniform_log_loss) }} &plusmn; {{ '%.4f'|format(1.96 * btts.se) }}, which {{ 'clears' if btts.separated else 'does not clear' }} zero.{% endif %}</p>{% else %}<p>Waiting for the first schema-4 BTTS forecasts to settle.</p>{% endif %}</div>
   <div class="box"><h4>Asian handicap <span class="mkt-tag is-scored">scored vs close</span></h4>{% if asian.live %}<p>Model <strong>{{ '%.4f'|format(asian.model_log_loss) }}</strong> vs close <strong>{{ '%.4f'|format(asian.market_log_loss) }}</strong>, {{ asian.n }} matches. Quarter-line half-wins and half-losses are stake-weighted.{% if asian.se %} The gap is {{ '%+.4f'|format(asian.gap) }} &plusmn; {{ '%.4f'|format(1.96 * asian.se) }}; at {{ asian.n }} matches that is {{ 'a separation' if asian.separated else 'nowhere near a result, whichever way it points' }}.{% endif %}</p>{% else %}<p>Waiting for forecasts whose exact sealed line matches the published closing handicap.</p>{% endif %}</div>
