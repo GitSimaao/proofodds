@@ -41,7 +41,17 @@ log = logging.getLogger(__name__)
 
 # 5 adds `coverage`: which divisions the run was asked for and which of them
 # the fixture feed did not answer for. Entries 1-4 are read exactly as sealed.
-SCHEMA_VERSION = 5
+#
+# 6 adds `coverage.sources`: the state of the shared football-data.co.uk
+# fixtures file at the moment it was read — row count, oldest and newest date,
+# and both per division. Schema 5 recorded that fourteen divisions returned
+# nothing and gave the reason as "no fixture returned and no reason reported",
+# which is what a stale file and an empty weekend both look like from inside an
+# empty list. The reasons in `coverage.missing` now name the staleness; this
+# field is the evidence they were drawn from, so the two can be checked against
+# each other. Entries 1-5 are read exactly as sealed and are not backfilled:
+# what they failed to record is itself part of the record.
+SCHEMA_VERSION = 6
 GENESIS = "0" * 64
 
 # Files whose contents can change the numbers sealed into an entry.  The git

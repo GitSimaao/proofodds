@@ -75,7 +75,7 @@
             <th>Entry hash</th>
             <th>Links to</th>
             <th>Generator</th>
-            <th>Divisions</th>
+            <th>Divisions sealed</th>
             <th>External time</th>
             <th class="num">Raw</th>
           </tr>
@@ -97,11 +97,17 @@
               {% endif %}
             </td>
             <td>
-              {% if e.coverage and e.coverage.missing %}
-                <span class="behind">{{ e.coverage.returned|length - e.coverage.missing|length }}/{{ e.coverage.requested|length }}</span>
-                <br><span class="muted" title="{% for m in e.coverage.missing %}{{ m.league }}: {{ m.reason }}{{ '; ' if not loop.last }}{% endfor %}">no {{ e.coverage.missing|map(attribute='league')|join(', ') }}</span>
-              {% elif e.coverage %}
-                <span class="muted">{{ e.coverage.requested|length }}/{{ e.coverage.requested|length }}</span>
+              {% if e.requested_n %}
+                {% if e.not_covered %}
+                  <span class="behind">{{ e.covered }}/{{ e.requested_n }}</span>
+                  <ul class="gap-reasons">
+                    {% for g in e.not_covered %}
+                      <li><code>{{ g.leagues|join(' ') }}</code> — {{ g.reason }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="muted">{{ e.covered }}/{{ e.requested_n }}</span>
+                {% endif %}
               {% else %}
                 <span class="muted">—</span>
               {% endif %}

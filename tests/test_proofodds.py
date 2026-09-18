@@ -2895,3 +2895,243 @@ def test_a_fully_resolved_division_is_unaffected_by_the_guard(ledger_in):
     assert "E0" in entry["leagues"]
     assert len(entry["predictions"]) == 1
     assert not entry.get("skipped")
+
+
+# --------------------------------------------------------------------------- #
+#  A stale feed is a state, not a silence
+#
+#  football-data.co.uk/fixtures.csv is the fixture source for 14 of the 23
+#  configured divisions. It is a file somebody posts when they post it, and a
+#  stale posting answers 200 with a well-formed CSV whose every row is in the
+#  past. The window check then drops every row and the function returns [],
+#  which is exactly what "no match is scheduled" returns.
+#
+#  That cost thirteen days: SC0 sealed nothing from 6 to 18 September 2026 and
+#  every entry recorded the reason as "no fixture returned and no reason
+#  reported". Six matches — one in B1, five in SC0 — were played in that window
+#  without a sealed prediction, and the job exited 0 every time.
+# --------------------------------------------------------------------------- #
+_FDCO_HEADER = "Div,Date,Time,HomeTeam,AwayTeam\n"
+
+
+def _fdco_response(rows: str):
+    class _Resp:
+        status_code = 200
+        content = (_FDCO_HEADER + rows).encode("utf-8")
+    return _Resp()
+
+
+def _fdco_feed(monkeypatch, rows: str, leagues, days_ahead=8):
+    from proofodds import fixtures as fx
+    monkeypatch.setattr(fx.requests, "get", lambda *a, **k: _fdco_response(rows))
+    feed: dict = {}
+    got = fx.from_football_data_co_uk(days_ahead, leagues, feed=feed)
+    return got, feed
+
+
+def test_a_stale_feed_reports_staleness_and_names_its_newest_date(monkeypatch):
+    """The exact 18 September failure: a 200, rows, none of them today or later."""
+    from proofodds import fixtures as fx
+    monkeypatch.setattr(fx.dt, "date", _FixedDate)
+
+    got, feed = _fdco_feed(monkeypatch, (
+        "SC0,15/09/2026,15:00,Hibernian,Kilmarnock\n"
+        "SC0,17/09/2026,19:45,Falkirk,Hearts\n"
+        "E2,16/09/2026,19:45,Barnsley,Bolton\n"
+    ), ["SC0", "E2", "B1"])
+
+    assert got == []
+    assert feed["rows"] == 3
+    assert feed["newest"] == "2026-09-17"
+    assert feed["oldest"] == "2026-09-15"
+    assert feed["stale"] is True
+
+    reasons = dict(r.split(": ", 1) for r in
+                   fx.fdco_reasons(["SC0", "E2", "B1"], feed, 8))
+    assert set(reasons) == {"SC0", "E2", "B1"}
+    for code, reason in reasons.items():
+        assert "stale" in reason, code
+        # The newest date is the diagnosis. Without it the reason is still a
+        # shrug, just a longer one.
+        assert "2026-09-17" in reason, code
+        assert "no reason reported" not in reason, code
+
+
+def test_a_current_feed_that_omits_a_division_says_so_differently(monkeypatch):
+    """
+    Three different facts, three different reasons.
+
+    "The file is stale", "the file is current but has nothing for Belgium" and
+    "Belgium genuinely has no match this week" are different problems with
+    different fixes, and only the last one is not a fault.
+    """
+    from proofodds import fixtures as fx
+    monkeypatch.setattr(fx.dt, "date", _FixedDate)
+
+    got, feed = _fdco_feed(monkeypatch, (
+        "SC0,20/09/2026,15:00,Hibernian,Kilmarnock\n"   # in window
+        "E2,16/09/2026,19:45,Barnsley,Bolton\n"         # this division is stale
+    ), ["SC0", "E2", "B1"])
+
+    assert [f.league for f in got] == ["SC0"]
+    assert feed["stale"] is False
+    assert feed["newest"] == "2026-09-20"
+
+    reasons = dict(r.split(": ", 1) for r in
+                   fx.fdco_reasons(["SC0", "E2", "B1"], feed, 8))
+    assert "no match in the next 8 days" in reasons["SC0"]
+    assert "stale for this division" in reasons["E2"] and "2026-09-16" in reasons["E2"]
+    assert "carries no row for this division" in reasons["B1"]
+
+
+def test_the_feed_state_is_sealed_next_to_the_reasons_drawn_from_it(monkeypatch):
+    """The entry carries the evidence, not only the conclusion."""
+    from proofodds import fixtures as fx
+    monkeypatch.setattr(fx.dt, "date", _FixedDate)
+    monkeypatch.setattr(config, "FIXTURES_PROVIDER", "auto")
+    monkeypatch.setattr(fx, "from_football_data_org", lambda lg, d: [])
+    monkeypatch.setattr(fx.requests, "get", lambda *a, **k: _fdco_response(
+        "SC0,15/09/2026,15:00,Hibernian,Kilmarnock\n"))
+
+    _, coverage = fx.upcoming_with_coverage(["SC0", "B1"], days_ahead=8)
+
+    feed = coverage["sources"]["football-data.co.uk/fixtures.csv"]
+    assert feed["stale"] is True and feed["newest"] == "2026-09-15"
+    assert feed["rows_by_division"] == {"SC0": 1}
+    for m in coverage["missing"]:
+        assert "stale" in m["reason"] and "2026-09-15" in m["reason"]
+
+
+class _FixedDate(dt.date):
+    """`today` pinned to the day the defect was diagnosed."""
+    @classmethod
+    def today(cls):
+        return cls(2026, 9, 18)
+
+
+# --------------------------------------------------------------------------- #
+#  The ratio counts what was SEALED
+# --------------------------------------------------------------------------- #
+def test_a_guard_held_division_is_never_counted_as_covered():
+    """
+    The numerator is the divisions with a prediction in the file.
+
+    The ledger page used to compute it as `returned - missing`, which counts a
+    division as covered whenever the fixture feed answered for it. A division
+    held by the unresolved-name guard of 1fe41d2 DID return fixtures and sealed
+    none of them: it was absent from `coverage.missing`, so it landed in the
+    numerator while contributing nothing to the entry. The page would have
+    claimed 2/2 coverage on an entry covering one division — in exactly the
+    situation the guard exists for.
+    """
+    from proofodds import render
+
+    entry = {
+        "leagues": ["E1"],
+        "predictions": [{"league": "E1"}],
+        "coverage": {
+            "requested": ["E0", "E1"],
+            "returned": {"E0": 2, "E1": 1},
+            "missing": [],
+        },
+        "skipped": [{"league": "E0", "n": 2,
+                     "reason": "unresolved club name(s): Not A Real Club"}],
+    }
+
+    ratio = render._coverage_ratio(entry)
+    assert ratio["covered"] == 1, "a division that sealed nothing is not covered"
+    assert ratio["requested_n"] == 2
+    assert [g["leagues"] for g in ratio["not_covered"]] == [["E0"]]
+    assert "Not A Real Club" in ratio["not_covered"][0]["reason"]
+
+    # The old expression, kept here as the thing that must stay false.
+    assert (len(entry["coverage"]["returned"])
+            - len(entry["coverage"]["missing"])) != ratio["covered"]
+
+
+def test_the_ledger_page_cannot_render_a_guard_held_division_as_covered():
+    """
+    The same claim, through the template, because that is where it was wrong.
+
+    A unit test on the helper does not stop a template recomputing the ratio
+    from `coverage` itself, which is precisely what the page was doing.
+    """
+    from proofodds import ledger, render
+
+    entry = {
+        "leagues": ["E1"],
+        "predictions": [{"league": "E1"}],
+        "coverage": {"requested": ["E0", "E1"],
+                     "returned": {"E0": 2, "E1": 1}, "missing": []},
+        "skipped": [{"league": "E0", "n": 2,
+                     "reason": "unresolved club name(s): Not A Real Club"}],
+    }
+    row = {
+        "file": "2026-09-18.json", "published_at": "2026-09-18T00:07:00Z",
+        "n": 1, "hash": "c" * 64, "prev_hash": ledger.GENESIS,
+        "generator_commit": "a" * 40, "generator_dirty": False,
+        "generator_source": "d" * 64,
+        "coverage": entry["coverage"],
+        "anchor": {"status": "attested", "blocks": [900123],
+                   "proof": "2026-09-18.json.ots"},
+        **render._coverage_ratio(entry),
+    }
+    html = render.environment().get_template("ledger.html").render(
+        site_name="ProofOdds", site_url="https://proofodds.com",
+        repo_url="https://github.com/GitSimaao/proofodds", asset_v="test",
+        chain={"ok": True, "n_entries": 1, "head": "b" * 64},
+        anchors={"proofs": 1, "continuous_after_start": True,
+                 "proof_entry_start": "2026-09-18", "chain_only_before": 0,
+                 "attested": 1, "pending": 0, "mismatched": 0,
+                 "unclassified": 0},
+        entries=[row], genesis=ledger.GENESIS, coverage_from="2026-09-13")
+
+    assert "1/2" in html
+    assert "2/2" not in html, "the page claimed coverage it does not have"
+    # And the reason is on the page, not hidden in a title attribute.
+    assert "Not A Real Club" in html
+
+
+def test_the_ledger_page_prints_the_reason_not_just_the_codes():
+    """
+    A bare list of codes is what a reader already knows from the count.
+
+    Fourteen divisions failing on one stale file is ONE fact; the reasons are
+    grouped so the page says it once rather than fourteen times.
+    """
+    from proofodds import ledger, render
+
+    stale = ("fixture feed is stale — football-data.co.uk fixtures.csv "
+             "has 30 rows, newest 2026-09-17, nothing on or after 2026-09-18")
+    entry = {
+        "leagues": ["E0"],
+        "coverage": {
+            "requested": ["E0", "B1", "SC0"],
+            "returned": {"E0": 10, "B1": 0, "SC0": 0},
+            "missing": [{"league": "B1", "reason": stale},
+                        {"league": "SC0", "reason": stale}],
+        },
+    }
+    row = {
+        "file": "2026-09-18.json", "published_at": "2026-09-18T00:07:00Z",
+        "n": 10, "hash": "c" * 64, "prev_hash": ledger.GENESIS,
+        "generator_commit": "a" * 40, "generator_dirty": False,
+        "generator_source": "d" * 64, "coverage": entry["coverage"],
+        "anchor": {"status": "attested", "blocks": [900123],
+                   "proof": "2026-09-18.json.ots"},
+        **render._coverage_ratio(entry),
+    }
+    html = render.environment().get_template("ledger.html").render(
+        site_name="ProofOdds", site_url="https://proofodds.com",
+        repo_url="https://github.com/GitSimaao/proofodds", asset_v="test",
+        chain={"ok": True, "n_entries": 1, "head": "b" * 64},
+        anchors={"proofs": 1, "continuous_after_start": True,
+                 "proof_entry_start": "2026-09-18", "chain_only_before": 0,
+                 "attested": 1, "pending": 0, "mismatched": 0,
+                 "unclassified": 0},
+        entries=[row], genesis=ledger.GENESIS, coverage_from="2026-09-13")
+
+    assert "1/3" in html
+    assert "newest 2026-09-17" in html
+    assert html.count("newest 2026-09-17") == 1, "grouped, not repeated per division"
+    assert "B1 SC0" in html

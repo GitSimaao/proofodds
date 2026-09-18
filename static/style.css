@@ -213,6 +213,22 @@ a:focus-visible, button:focus-visible {
 .strip .v.behind { color: var(--c-behind); }
 .strip .v.ahead { color: var(--c-ahead); }
 .strip .v.muted { color: var(--ink-3); }
+
+/* A division that did not seal says why, in the row for the day it did not.
+   The reason is the point of the cell, so it is readable text and not a
+   tooltip: nobody hovers a table to find out that Scotland has been dark for
+   a fortnight. Identical reasons are grouped upstream, so one stale file is
+   one line however many divisions it took down. */
+ul.gap-reasons {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  font-size: 12px; line-height: 1.45; color: var(--ink-3);
+  max-width: 44ch;
+}
+ul.gap-reasons li { margin-top: 3px; }
+ul.gap-reasons code {
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+  color: var(--c-behind);
+}
 .strip .n { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; line-height: 1.35; }
 
 /* ---------------- sections ---------------- */

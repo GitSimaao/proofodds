@@ -429,10 +429,62 @@ def ledger_view(anchor_report=None) -> list[dict]:
             # Schema 5 and later. Absent on older entries, which is itself the
             # honest answer: they cannot say what they did not cover.
             "coverage": entry.get("coverage"),
+            **_coverage_ratio(entry),
             "anchor": by_entry.get(path.name, {
                 "status": "none", "blocks": [], "proof": None}),
         })
     return list(reversed(out))
+
+
+def _coverage_ratio(entry: dict) -> dict:
+    """
+    What fraction of the divisions asked for actually got sealed, and why not.
+
+    The numerator is `entry["leagues"]` — the divisions that have a prediction
+    IN THIS FILE — and never a count derived from the fixture feed. The
+    template used to compute `returned|length - missing|length`, which counts a
+    division as covered whenever the feed answered for it. A division held by
+    the unresolved-name guard DID return fixtures and sealed none of them, so
+    it landed in the numerator while contributing nothing to the entry: the
+    page would have claimed coverage it does not have, in precisely the
+    situation the guard exists to handle. Counting what was sealed cannot drift
+    from the file, because it is read out of the file.
+
+    `not_covered` groups the divisions by identical reason. Fourteen divisions
+    failing for one stale file is one fact, and printing it fourteen times
+    reads as fourteen.
+    """
+    coverage = entry.get("coverage") or {}
+    requested = list(coverage.get("requested") or [])
+    if not requested:
+        return {"covered": None, "requested_n": None, "not_covered": []}
+
+    sealed = set(entry.get("leagues") or [])
+    reasons = {m["league"]: m["reason"]
+               for m in coverage.get("missing") or [] if m.get("league")}
+    for s_ in entry.get("skipped") or []:
+        # A skipped division returned fixtures, so it is absent from
+        # `coverage.missing` and its only account of itself is here.
+        n = s_.get("n")
+        reasons[s_["league"]] = (
+            f"returned {n} fixture(s), sealed none: {s_.get('reason', '')}"
+            if n else s_.get("reason", ""))
+
+    grouped: list[dict] = []
+    for code in requested:
+        if code in sealed:
+            continue
+        reason = reasons.get(code) or "no reason recorded"
+        for g in grouped:
+            if g["reason"] == reason:
+                g["leagues"].append(code)
+                break
+        else:
+            grouped.append({"leagues": [code], "reason": reason})
+
+    return {"covered": sum(1 for c in requested if c in sealed),
+            "requested_n": len(requested),
+            "not_covered": grouped}
 
 
 def sitemap(pages: list[str]) -> str:

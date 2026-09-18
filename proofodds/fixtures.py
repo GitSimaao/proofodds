@@ -319,8 +319,26 @@ def from_csv(days_ahead: int, leagues: list[str]) -> list[Fixture]:
     return out
 
 
-def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixture]:
-    """Public fixture list; times are published in British local time."""
+def from_football_data_co_uk(days_ahead: int, leagues: list[str],
+                             feed: dict | None = None) -> list[Fixture]:
+    """
+    Public fixture list; times are published in British local time.
+
+    `feed`, when a dict is passed for it, is filled in with what the file
+    actually contained: how many rows, the oldest and newest Date anywhere in
+    it, and the row count and newest Date per division — for EVERY division in
+    the file, not only the ones asked for, because "the feed is alive but not
+    for us" and "the feed is stale" are different problems.
+
+    That parameter is the point of this function's rewrite. The file is posted
+    when somebody posts it, and a stale posting still answers 200 with a
+    well-formed CSV; every row then fails `today <= date <= horizon` and the
+    function returns []. An empty list cannot distinguish that from "no match
+    is scheduled", so for thirteen days it did not: SC0 returned nothing from
+    6 September to 18 September and the sealed entries recorded the reason as
+    "no fixture returned and no reason reported". The caller can only tell the
+    two apart if this function says what it saw, so it says it here.
+    """
     resp = requests.get(FDCO_FIXTURES_URL, timeout=20)
     if resp.status_code != 200:
         raise RuntimeError(f"football-data.co.uk fixtures returned {resp.status_code}")
@@ -334,11 +352,38 @@ def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixtur
         # may turn a UTF-8 BOM into the literal Latin-1 characters `ï»¿` and
         # silently rename the first column from `Div` to `ï»¿Div`.
         body = resp.content.decode("latin-1").lstrip("ï»¿")
+
+    n_rows = 0
+    dates: list[dt.date] = []
+    rows_by_div: dict[str, int] = {}
+    newest_by_div: dict[str, dt.date] = {}
+
     for row in csv.DictReader(StringIO(body)):
         league = (row.get("Div") or "").strip().upper()
+        raw_date = (row.get("Date") or "").strip()
+        if not league or not raw_date:
+            # The file ends in blank rows. They are not a division reporting
+            # nothing, so they are not counted as one.
+            continue
+        try:
+            date = dt.datetime.strptime(raw_date, "%d/%m/%Y").date()
+        except ValueError:
+            log.warning("football-data.co.uk fixtures: unparseable Date %r "
+                        "in a %s row — ignoring the row", raw_date, league)
+            continue
+
+        # Census first, filter second. The freshness of the file is a property
+        # of the whole file; measuring it only over the divisions we happen to
+        # publish would miss the case where the file is current for everyone
+        # else and simply has not been updated for us.
+        n_rows += 1
+        dates.append(date)
+        rows_by_div[league] = rows_by_div.get(league, 0) + 1
+        if date > newest_by_div.get(league, dt.date.min):
+            newest_by_div[league] = date
+
         if league not in leagues:
             continue
-        date = dt.datetime.strptime(row["Date"].strip(), "%d/%m/%Y").date()
         if not today <= date <= horizon:
             continue
         raw_time = (row.get("Time") or "").strip()
@@ -348,8 +393,73 @@ def from_football_data_co_uk(days_ahead: int, leagues: list[str]) -> list[Fixtur
         home, ok_h = _name(home_raw, league, unresolved); away, ok_a = _name(away_raw, league, unresolved)
         out.append(Fixture(local.astimezone(dt.timezone.utc), home, away, league,
                            home_raw, away_raw, ok_h and ok_a, bool(raw_time)))
+
+    if feed is not None:
+        feed.update({
+            "url": FDCO_FIXTURES_URL,
+            "checked_at": dt.datetime.now(dt.timezone.utc)
+                            .strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "rows": n_rows,
+            "oldest": min(dates).isoformat() if dates else None,
+            "newest": max(dates).isoformat() if dates else None,
+            "stale": bool(dates) and max(dates) < today,
+            "rows_by_division": dict(sorted(rows_by_div.items())),
+            "newest_by_division": {k: v.isoformat()
+                                   for k, v in sorted(newest_by_div.items())},
+        })
+
     if unresolved:
         log.error("UNRESOLVED CLUB NAME(S) in football-data.co.uk fixtures: %s", "; ".join(unresolved))
+    return out
+
+
+def fdco_reasons(leagues: list[str], feed: dict, days_ahead: int) -> list[str]:
+    """
+    Turn the feed's own state into a reason per division, `CODE: detail`.
+
+    Four different facts, which an empty list flattened into one:
+
+      * the file is empty;
+      * the file is STALE — its newest row predates today, so it cannot carry
+        a fixture for anybody. This is the failure that hid Belgium and
+        Scotland: on 18 September the file held 30 rows, all dated 15 to 17
+        September, and all fourteen fdco divisions reported the same shrug;
+      * the file is current but carries no row for this division at all;
+      * the file is current and carries this division, but nothing inside the
+        publication window — the only one of the four that is genuinely "no
+        match scheduled".
+
+    Reasons are emitted for every division asked for. `upcoming_with_coverage`
+    keeps only those that returned nothing, so a division that did produce
+    fixtures never has one rendered.
+    """
+    today = dt.date.today().isoformat()
+    if not feed:
+        return []
+    if not feed.get("rows"):
+        return [f"{lg}: football-data.co.uk fixtures.csv answered 200 but "
+                f"carried no rows" for lg in leagues]
+
+    newest = feed.get("newest")
+    if feed.get("stale"):
+        return [f"{lg}: fixture feed is stale — football-data.co.uk "
+                f"fixtures.csv has {feed['rows']} rows, newest {newest}, "
+                f"nothing on or after {today}" for lg in leagues]
+
+    per_div = feed.get("newest_by_division") or {}
+    out = []
+    for lg in leagues:
+        div_newest = per_div.get(lg)
+        if not div_newest:
+            out.append(f"{lg}: fixture feed carries no row for this division "
+                       f"— football-data.co.uk fixtures.csv is current to "
+                       f"{newest} for other divisions")
+        elif div_newest < today:
+            out.append(f"{lg}: fixture feed is stale for this division — its "
+                       f"newest row in football-data.co.uk fixtures.csv is "
+                       f"{div_newest}, before {today} (file newest {newest})")
+        else:
+            out.append(f"{lg}: no match in the next {days_ahead} days")
     return out
 
 
@@ -417,12 +527,22 @@ def upcoming_with_coverage(leagues: list[str] | str | None = None,
                 reasons.append(f"{league}: no unplayed match in the window")
             fixtures.extend(got)
 
+    fdco_feed: dict = {}
     if provider == "auto":
         fdco_leagues = [lg for lg in leagues if config.LEAGUES[lg].get("fixtures") == "fdco"]
         if fdco_leagues:
             try:
-                fixtures.extend(from_football_data_co_uk(days_ahead, fdco_leagues))
+                fixtures.extend(from_football_data_co_uk(days_ahead, fdco_leagues,
+                                                         feed=fdco_feed))
                 consulted = True
+                reasons.extend(fdco_reasons(fdco_leagues, fdco_feed, days_ahead))
+                if fdco_feed.get("stale"):
+                    log.warning(
+                        "football-data.co.uk fixtures.csv is STALE: %d rows, "
+                        "newest %s, nothing on or after today — %d division(s) "
+                        "cannot seal from it: %s",
+                        fdco_feed["rows"], fdco_feed["newest"],
+                        len(fdco_leagues), ", ".join(fdco_leagues))
             except Exception as exc:
                 reasons.append(f"football-data.co.uk fixtures: {exc}")
 
@@ -456,6 +576,12 @@ def upcoming_with_coverage(leagues: list[str] | str | None = None,
         "notes": [r for r in reasons
                   if r.partition(":")[0].strip() not in leagues],
     }
+    # The state of the shared fixture file, sealed alongside the reasons drawn
+    # from it. The reasons say what it meant for each division; this says what
+    # was actually there, so a later reader can check the one against the other
+    # without taking our word for it.
+    if fdco_feed:
+        coverage["sources"] = {"football-data.co.uk/fixtures.csv": fdco_feed}
 
     if not fixtures:
         # Say WHICH of several very different situations this is. Blaming the
