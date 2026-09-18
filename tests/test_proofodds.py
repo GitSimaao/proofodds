@@ -1897,8 +1897,14 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     assert "Arsenal vs Chelsea" in html
     assert "/predictions/2026-08-28.json" in html
     assert entry["hash"][:16] in html
-    assert "1.85 fair odds" in html
-    assert "2.17 fair odds" in html
+    # The over/under fair odds used to sit in their own block beside the
+    # expected goals and print "1.85 fair odds". They are now one row of the
+    # goal-total ladder, which prints all six lines, so the figures are still
+    # on the card and the 2.5 row is still the one carrying the scored tag.
+    assert "goals-title" in html and "Goals</h3>" in html
+    assert ">1.85<" in html and ">2.17<" in html
+    assert html.count('class="mkt-tag is-scored">scored vs close') >= 2
+    assert html.count('class="mkt-tag is-forecast">sealed, not scored') >= 5
     assert "Correct score" in html
     assert '<span class="mkt-tag is-forecast">sealed, not scored</span>' in html
     assert "account for the whole distribution" in html
@@ -1906,6 +1912,27 @@ def test_the_build_creates_a_permanent_page_for_each_match(
     assert html.count('class="score-cell') == 36
     assert html.count("<li>") >= 3            # the three tail buckets
     assert "not part of the scorecard" in html
+
+    # The market nav, and the sections it points at. Every anchor the nav
+    # offers must exist on the page: a nav item that scrolls to nothing is
+    # worse than no nav, and it is the failure a one-page card invites.
+    assert 'class="market-nav"' in html
+    import re as _re
+    targets = _re.findall(r'<a href="#([a-z-]+)">', html)
+    assert "result" in targets and "goals" in targets and "score" in targets
+    for target in targets:
+        assert f'id="{target}"' in html, target
+
+    # Every derived market, each its own partition, each tagged.
+    for heading in ("Winning margin", "Goals by team", "Exact total goals",
+                    "Odd or even total", "clean sheet", "win to nil"):
+        assert heading in html, heading
+    # The partition footnote, whitespace-insensitive: the template wraps it.
+    flat = " ".join(html.split())
+    assert "printed figures add to exactly 100.0" in flat
+    # Every market section on the page carries a tag of its own.
+    assert flat.count("mkt-tag") >= len(targets)
+
     assert route in (out / "sitemap.xml").read_text()
 
     home = (out / "index.html").read_text()
@@ -2429,17 +2456,41 @@ def test_every_published_market_is_tagged_on_the_match_card():
     was the only thing that noticed, which is the wrong way round.
     """
     card = (config.TEMPLATE_DIR / "match.html").read_text(encoding="utf-8")
-    shown = ["match.p_H",            # the result
-             "match.p_over25",       # over/under 2.5
-             "match.p_btts_yes",     # both teams to score
-             "match.asian_handicap"] # the handicap grid
+    shown = ["match.p_H",              # the result
+             "match.goal_ladder",      # the whole 0.5-5.5 ladder
+             "match.p_btts_yes",       # both teams to score
+             "match.asian_handicap",   # the handicap grid
+             "match.derived.margin",   # winning margin
+             "match.derived.team_goals",
+             "match.derived.exact_total",
+             "match.derived.odd_even",
+             "match.derived.clean_sheet",
+             "match.derived.win_to_nil",
+             "match.corner_view"]      # corners, where a division qualifies
     for marker in shown:
         assert marker in card, marker
-    assert card.count("mkt-tag") >= len(shown)
+    # The derived markets take their tag from the `partition` macro rather
+    # than repeating it eleven times, so the count spans both files — what
+    # matters is that no market renders without one.
+    # The derived markets take their tag from the `partition` macro rather
+    # than repeating it once per market, so the template text cannot be
+    # counted against the market list. What matters is that the macro every
+    # one of them goes through emits a tag, and that the card emits one for
+    # each market it renders itself. The RENDERED page is counted in
+    # test_the_build_creates_a_permanent_page_for_each_match.
+    macros = (config.TEMPLATE_DIR / "_components.html").read_text(encoding="utf-8")
+    assert '"mkt-tag is-forecast"' in macros
+    assert "partition_note" in macros
+    assert card.count("mkt-tag") >= 6
     assert "match.ou_scored" in card and "match.ah_scored" in card
     assert "mkt-legend" in card
-    # Removed markets must leave no orphan link or heading behind.
+    # Corners are back on the card, but never as a page of their own and never
+    # under the old name. One page per market was considered and rejected.
     assert "/corners/" not in card and "Corners Lab" not in card
+    # The ladder must carry a PER LINE tag, not one tag for the block: only
+    # the 2.5 line has a closing price in the free source, and a block-level
+    # tag would be the card claiming a benchmark for five lines that have none.
+    assert "line.tag_class" in card and "line.tag" in card
 
 
 def test_nothing_is_called_scored_unless_something_scores_it():
@@ -2460,10 +2511,12 @@ def test_nothing_is_called_scored_unless_something_scores_it():
         "write the scorer or move it to SEALED_UNSCORED_MARKETS")
     for market, fn in scorers.items():
         assert callable(fn), market
-    # The three buckets must not overlap, and every label must be nameable.
+    # The buckets must not overlap, and every label must be nameable.
+    # SEALED_HIDDEN_MARKETS is gone: corners were its only member and they are
+    # on the cards as of 18 September 2026, tagged sealed-not-scored.
+    assert not hasattr(config, "SEALED_HIDDEN_MARKETS")
     buckets = (set(config.FORECAST_MARKETS),
-               set(config.SEALED_UNSCORED_MARKETS),
-               set(config.SEALED_HIDDEN_MARKETS))
+               set(config.SEALED_UNSCORED_MARKETS))
     for i, a in enumerate(buckets):
         for b in buckets[i + 1:]:
             assert not (a & b), (a, b)
@@ -3589,3 +3642,323 @@ def _render_ledger_page(**provenance):
                  "unclassified": 0},
         entries=[row], genesis=ledger.GENESIS, coverage_from="2026-09-13",
         **provenance)
+
+
+# --------------------------------------------------------------------------- #
+#  The goal-total ladder, the derived markets and the corner gate
+#
+#  Added 18 September 2026 with the markets themselves. Each of these pins one
+#  claim the cards now make, and the first two are the ones most likely to rot
+#  silently: a tag that quietly widens, and a distribution derived from the
+#  wrong grid.
+# --------------------------------------------------------------------------- #
+def _sealed_rows_with_inputs(limit=40):
+    from proofodds import ledger
+    rows = [r for r in ledger.all_predictions()
+            if r.get("xg_home") is not None and r.get("model_rho") is not None]
+    return rows[-limit:]
+
+
+def test_only_the_2_5_line_is_ever_called_scored():
+    """
+    The failure this pins is one tag inheriting another's authority.
+
+    football-data.co.uk publishes a closing over/under price for the 2.5 line
+    and for no other line, in any division. The ladder prints six lines in one
+    visual block, which is exactly where a reader skims — so the block must
+    never carry one tag, and no line but 2.5 may ever say "scored vs close".
+    """
+    from proofodds import render
+    seen_scored = False
+    for row in _sealed_rows_with_inputs(200):
+        ladder = render.goal_ladder(row, row["league"])
+        assert ladder, row["league"]
+        for line in ladder:
+            if line["scored"]:
+                seen_scored = True
+                assert line["line"] == config.TOTALS_LINE, line
+                assert config.is_scored(row["league"], "OU2.5")
+                assert line["tag"] == "scored vs close"
+            else:
+                assert line["tag"] == "sealed, not scored", line
+    assert seen_scored, "no division scored its 2.5 line — the tag is dead code"
+
+
+def test_a_division_with_no_closing_total_scores_no_goal_line_at_all():
+    """Brazil has a closing 1X2 and nothing else, including at 2.5."""
+    from proofodds import render
+    row = {"league": "BRA", "p_over25": .5, "p_under25": .5,
+           "goal_totals": [{"line": 2.5, "p_over": .5, "p_under": .5}]}
+    assert all(not line["scored"] for line in render.goal_ladder(row, "BRA"))
+
+
+def test_a_sparse_entry_still_shows_the_one_goal_line_it_sealed():
+    """
+    630 predictions were sealed between 28 August and 1 September 2026 with
+    `p_over25` and no `goal_totals`; the ladder only arrived on 2 September.
+    Replacing the old over/under block with the ladder must not take the 2.5
+    line off those cards, and it must not invent the other five either.
+    """
+    from proofodds import render
+    ladder = render.goal_ladder(
+        {"p_over25": 0.54, "p_under25": 0.46}, "E0")
+    assert [line["line"] for line in ladder] == [config.TOTALS_LINE]
+    assert ladder[0]["scored"] is True
+    assert render.goal_ladder({}, "E0") is None
+
+
+def test_derived_markets_reproduce_the_numbers_that_were_sealed():
+    """
+    The strongest check available: the derived markets and the sealed ones are
+    claimed to be sums of the SAME distribution, so summing the derived grid
+    the other way must give back what the entry sealed.
+
+    The tolerance is 5e-5 and it is not a fudge factor: the entry seals
+    `xg_home`, `xg_away` and `rho` rounded to FOUR decimals, and rebuilding the
+    grid from a value that may be 5e-5 off moves a 1X2 probability by up to
+    about 1.3e-5 per input. Measured across all 413 sealed rows that carry the
+    inputs, the worst disagreement is 2.7e-5. Truncating the grid at MAX_GOALS
+    costs 5e-7 by comparison, so rounding is the whole story — and anything
+    materially worse means the card is showing a distribution the sealed model
+    did not produce.
+    """
+    from proofodds import render
+    for row in _sealed_rows_with_inputs():
+        d = render.derived_markets(row["xg_home"], row["xg_away"],
+                                   row["model_rho"], "H", "A")
+        assert d
+        margin = {i["label"]: i["p"] for i in d["margin"]["outcomes"]}
+        p_home = sum(i["p"] for i in d["margin"]["outcomes"] if i["side"] == "home")
+        p_away = sum(i["p"] for i in d["margin"]["outcomes"] if i["side"] == "away")
+        assert abs(p_home - row["p_H"]) < 5e-5
+        assert abs(margin["Draw"] - row["p_D"]) < 5e-5
+        assert abs(p_away - row["p_A"]) < 5e-5
+        if row.get("p_over25") is not None:
+            over = sum(i["p"] for i in d["exact_total"]["outcomes"]
+                       if i["goals"] is None or i["goals"] > 2.5)
+            assert abs(over - row["p_over25"]) < 5e-5
+
+
+def test_derived_markets_come_from_the_full_grid_not_the_printable_one():
+    """
+    `render.score_matrix` is a DISPLAY object: truncated at SCORE_GRID_MAX with
+    three tail buckets. Deriving a total or a margin from it would misplace the
+    tail and nothing on the page would look wrong, which is why this is a test
+    and not a comment.
+
+    So: the derived grid must reach MAX_GOALS, and on a high-scoring fixture
+    the mass above the printable grid must be large enough that deriving from
+    the small one would visibly differ.
+    """
+    from proofodds import dixon_coles, render
+    d = render.derived_markets(3.4, 3.1, -0.03, "H", "A")
+    assert d["max_goals"] == config.MAX_GOALS > config.SCORE_GRID_MAX
+
+    full = dixon_coles.score_matrix_from_xg(3.4, 3.1, -0.03)
+    printable = full[:config.SCORE_GRID_MAX + 1, :config.SCORE_GRID_MAX + 1]
+    assert 1.0 - float(printable.sum()) > 0.05, "pick a rowdier fixture"
+
+    # The 8-or-more bucket must carry the real tail, not the truncated one.
+    tail = [i for i in d["exact_total"]["outcomes"] if i["goals"] is None][0]
+    assert tail["p"] > 0.05
+
+
+def test_every_derived_market_is_a_partition_that_adds_to_one():
+    from proofodds import render
+    for row in _sealed_rows_with_inputs():
+        d = render.derived_markets(row["xg_home"], row["xg_away"],
+                                   row["model_rho"], "H", "A")
+        parts = [d["exact_total"], d["odd_even"], d["margin"],
+                 d["team_goals"]["home"], d["team_goals"]["away"],
+                 d["clean_sheet"]["home"], d["clean_sheet"]["away"],
+                 d["win_to_nil"]["home"], d["win_to_nil"]["away"]]
+        for part in parts:
+            assert abs(sum(o["p"] for o in part["outcomes"]) - 1.0) < 1e-9
+            # Rounded in one pass, so the printed tenths add to their own total.
+            assert part["tenths_total"] == 1000
+            # And `exact` must tell the truth about whether they print that way.
+            assert part["exact"] == all(o["tenths"] > 0 for o in part["outcomes"])
+            assert part["exact"] == all("<" not in o["text"] for o in part["outcomes"])
+
+
+def test_a_partition_that_does_not_add_to_one_is_refused():
+    from proofodds import render
+    with pytest.raises(ValueError):
+        render._partition([{"label": "a", "p": 0.4}, {"label": "b", "p": 0.4}])
+    with pytest.raises(ValueError):
+        render._partition([{"label": "a", "p": 1.4}, {"label": "b", "p": -0.4}])
+
+
+def test_a_clean_sheet_is_the_opponent_failing_to_score():
+    """Easy to write backwards, and silent when you do."""
+    from proofodds import render
+    d = render.derived_markets(3.0, 0.4, 0.0, "H", "A")   # away barely scores
+    home_cs = d["clean_sheet"]["home"]["outcomes"][0]["p"]
+    away_cs = d["clean_sheet"]["away"]["outcomes"][0]["p"]
+    assert home_cs > 0.6 > away_cs
+    # Win to nil is a clean sheet AND a win, so it can never exceed one.
+    assert d["win_to_nil"]["home"]["outcomes"][0]["p"] <= home_cs
+    assert d["win_to_nil"]["away"]["outcomes"][0]["p"] <= away_cs
+
+
+def test_nil_nil_counts_as_an_even_total():
+    from proofodds import render
+    d = render.derived_markets(0.2, 0.2, 0.0, "H", "A")
+    even = d["odd_even"]["outcomes"][0]
+    assert even["label"] == "Even" and even["p"] > 0.6
+
+
+def test_the_market_nav_and_the_sections_are_one_list():
+    """
+    A nav item that scrolls to nothing, or a section with no way to reach it,
+    is the failure a single-page card invites. Both are rendered from one
+    registry, and this is what stops a second list appearing.
+    """
+    from proofodds import ledger, render
+    for row in ledger.all_predictions()[::37]:
+        view = render.prediction_view(row)
+        ids = [s["id"] for s in view["sections"]]
+        assert ids[0] == "result"
+        assert len(ids) == len(set(ids))
+        assert set(ids) == view["section_ids"]
+        assert ("score" in ids) == bool(view["score_matrix"])
+        assert ("corners" in ids) == bool(view["corner_view"])
+        assert ("handicap" in ids) == bool(view["asian_handicap"])
+
+
+# --- corners ---------------------------------------------------------------
+def test_the_corner_fit_decays_old_rows():
+    """
+    Until 18 September 2026 it did not, in any division. `xi=0` must still
+    reproduce the old unweighted fit exactly, so the before/after comparison
+    means something, and a real `xi` must actually move the answer.
+    """
+    import numpy as np
+    import pandas as pd
+    from proofodds import corners
+
+    teams = ["A", "B"]
+    old = pd.DataFrame({
+        "Date": pd.to_datetime(["2016-01-01"] * 60),
+        "HomeTeam": ["A"] * 60, "AwayTeam": ["B"] * 60,
+        "HC": [12.0] * 60, "AC": [2.0] * 60})
+    new = pd.DataFrame({
+        "Date": pd.to_datetime(["2026-09-01"] * 60),
+        "HomeTeam": ["A"] * 60, "AwayTeam": ["B"] * 60,
+        "HC": [3.0] * 60, "AC": [9.0] * 60})
+    frame = pd.concat([old, new], ignore_index=True)
+    ref = np.datetime64("2026-09-18")
+
+    flat = corners.fit_from_frame(frame, teams, 0.6)
+    decayed = corners.fit_from_frame(frame, teams, 0.6, ref_date=ref, xi=config.XI)
+
+    assert flat.n_effective == 120           # xi defaults to 0: nothing decays
+    assert decayed.n_effective < 65          # the 2016 half is worth ~nothing
+    # The unweighted fit splits the difference; the decayed one follows the
+    # recent rows, which say the home side takes FEWER corners.
+    h_flat, _ = flat.expected(0, 1)
+    h_decayed, _ = decayed.expected(0, 1)
+    assert h_flat > 6 > h_decayed
+
+    # And xi=0 is still bit-for-bit the old behaviour.
+    again = corners.fit_from_frame(frame, teams, 0.6, ref_date=ref, xi=0.0)
+    assert again.expected(0, 1) == flat.expected(0, 1)
+
+
+def test_effective_corner_appearances_count_evidence_not_rows():
+    import numpy as np
+    import pandas as pd
+    from proofodds import corners
+    frame = pd.DataFrame({
+        "Date": pd.to_datetime(["2016-01-01"] * 500 + ["2026-09-01"] * 10),
+        "HomeTeam": ["A"] * 510, "AwayTeam": ["B"] * 510,
+        "HC": [5.0] * 510, "AC": [5.0] * 510})
+    ref = np.datetime64("2026-09-18")
+    assert corners.effective_rows(frame, ref, config.XI) < 12    # not 510
+    per_club = corners.effective_appearances(frame, ref, config.XI)
+    assert set(per_club) == {"A", "B"}
+    assert per_club["A"] < 12
+
+
+def test_the_corner_gate_is_a_rule_and_not_a_list_of_leagues():
+    """
+    The gate must be a measurement applied uniformly. A hand-typed list of
+    divisions rots silently and cannot be audited, which is the whole reason
+    CORNER_MIN_MATCHES was replaced rather than raised.
+    """
+    import inspect
+    from proofodds import ledger
+    source = inspect.getsource(ledger._corner_gate)
+    for code in config.LEAGUES:
+        assert f'"{code}"' not in source, f"{code} is named in the gate"
+    assert not hasattr(config, "CORNER_MIN_MATCHES")
+    # The bar scales with the division, because a season does.
+    assert config.corner_bar(24) > config.corner_bar(10)
+    assert config.corner_bar(20) == 19
+
+
+@pytest.mark.needs_data
+def test_the_corner_gate_fails_a_division_whose_history_is_a_decade_old():
+    """
+    EC — the National League — has corner counts in 2015/16 and 2026/27 and in
+    none of the ten seasons between. It passed the old raw-row bar of 100 with
+    648 rows, 552 of them from 2015/16. It must not pass this one.
+    """
+    import numpy as np
+    from proofodds import data, ledger
+    try:
+        matches = data.load_matches("EC")
+    except FileNotFoundError:
+        pytest.skip("EC CSVs not synced in this checkout")
+    today = np.datetime64(dt.date.today())
+    past = matches[matches["Date"].to_numpy(dtype="datetime64[D]") < today]
+    gate = ledger._corner_gate(past, today)
+    assert len(past.dropna(subset=["HC", "AC"])) > 100     # the old bar passed
+    assert not gate["passes"]                              # this one does not
+    assert gate["median"] < gate["bar"]
+
+
+def test_a_card_never_shows_a_corner_block_that_was_fitted_unweighted():
+    """
+    Every corner block sealed between 2 and 18 September 2026 came from a fit
+    with no time decay, and the ledger is append-only so they stay that way.
+    `xi` is the marker the weighted fit writes; without it, no section.
+    """
+    from proofodds import render
+    unweighted = {"corners": {"x_home": 5.0, "x_away": 4.0, "x_total": 9.0,
+                              "dispersion": 0.08,
+                              "totals": [{"line": 9.5, "p_over": .5,
+                                          "p_under": .5}]}}
+    assert render.corner_view(unweighted) is None
+    weighted = {"corners": {**unweighted["corners"], "xi": config.XI}}
+    view = render.corner_view(weighted)
+    assert view and view["xi"] == config.XI
+    assert view["lines"][0]["pct_over"] + view["lines"][0]["pct_under"] == 100
+
+
+def test_corners_are_never_tagged_as_scored_anywhere():
+    """There is no free closing corner price in any division, ever."""
+    card = (config.TEMPLATE_DIR / "match.html").read_text(encoding="utf-8")
+    corner_section = card[card.index('id="corners"'):]
+    corner_section = corner_section[:corner_section.index("</section>")]
+    assert "sealed, not scored" in corner_section
+    assert "scored vs close" not in corner_section
+    assert "CORNERS" not in config.FORECAST_MARKETS
+    assert "CORNERS" in config.SEALED_UNSCORED_MARKETS
+
+
+def test_the_method_page_describes_what_the_cards_actually_show():
+    """
+    The method page and the cards drifting apart is the failure this project
+    cannot afford, so every market the card renders must be named on /method/.
+    """
+    method = (config.TEMPLATE_DIR / "method.html").read_text(encoding="utf-8")
+    flat = " ".join(method.lower().split())
+    for phrase in ("clean sheet", "win to nil", "odd/even", "exact total goals",
+                   "goals by team", "winning margin", "corners"):
+        assert phrase in flat, phrase
+    # The three tiers, and the derived/sealed distinction, both spelled out.
+    assert "sealed, not scored" in flat or "sealed, not yet scored" in flat
+    assert "derived from sealed inputs" in flat
+    assert "#corners" in method and 'id="corners"' in method
+    assert "corner_table" in method       # measured, not a typed list

@@ -43,10 +43,14 @@
           <h4>Sealed, not yet scored</h4>
           <p>Published on the match cards, sealed into the ledger before kickoff, and
           carrying <strong>no score anywhere on this site</strong>: the
-          <strong>goal-total lines other than 2.5</strong> and the
-          <strong>correct-score</strong> view. They are shown as context, they are
-          falsifiable later because they are sealed now, and until a number exists they
-          are evidence of nothing.</p>
+          <strong>goal-total lines other than 2.5</strong>, the
+          <strong>correct-score</strong> view, <strong>corners</strong> in the
+          divisions that qualify, and the markets derived from the same scoreline
+          distribution — <strong>clean sheet</strong>, <strong>win to nil</strong>,
+          <strong>odd/even</strong>, <strong>exact total goals</strong>,
+          <strong>goals by team</strong> and the <strong>winning margin</strong>. They
+          are shown as context, they are falsifiable later because they are sealed now,
+          and until a number exists they are evidence of nothing.</p>
         </div>
       </div>
       <div class="callout">
@@ -57,9 +61,10 @@
         site produced a number for the other three, and a site whose whole argument is
         that it keeps the score it promises to keep had promised a score it was not
         keeping. The third box is that correction. The corners model came out
-        altogether: it still fits and still writes its distribution into every sealed
-        entry, so the record accumulates, but the page and the navigation link are gone
-        until <code>grade.py</code> can put a number beside them.
+        altogether while that was being sorted out; it is back on the match cards as of
+        18 September 2026, in the third box where it belongs, with no separate page and
+        no navigation link of its own — see <a href="#corners">corners</a> below for
+        which divisions show it and why the others do not.
       </div>
       <p>The earlier version of this page said the site would publish nothing without a
       closing line at all. We changed our mind on that and we would rather say so than
@@ -74,13 +79,81 @@
       over/under 2.5 and one main Asian-handicap line. The "new leagues" files — the
       <strong>Brasileirão</strong> among them — carry a closing 1X2 and nothing else. So
       for Brazil only the result is scored against the close; its over/under and handicap
-      are sealed and shown as forecasts, tagged that way on every match card.</p>
+      sit in the third box, tagged <em>sealed, not scored</em> on every match card.</p>
+
+      <p><strong>A correction, 18 September 2026.</strong> Those two markets used to be
+      tagged <em>forecast only</em> on Brazilian cards. That tag means measured against
+      guessing, and it was not true: <code>grade.py</code> needs a closing price to mark
+      an over/under or a handicap as graded at all, so a Brazilian over/under reached no
+      scorecard on this site and was measured against nothing. The second box is for
+      markets something actually scores, and only both-teams-to-score qualifies. The tag
+      now says <em>sealed, not scored</em>, which is what it always was.</p>
 
       <h2>The model</h2>
-      <p>Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder and a
-      quarter-line Asian-handicap grid. All are different sums of the same
-      Dixon–Coles scoreline distribution — not separate fitted models, and not a second
-      set of assumptions.</p>
+      <p>Every match gets the result, BTTS, a 0.5–5.5 goal-total ladder, a
+      quarter-line Asian-handicap grid, the correct-score view, clean sheets, win to nil,
+      odd/even, exact total goals, goals by team and the winning margin. All of them are
+      different sums of the same Dixon–Coles scoreline distribution — not separate
+      fitted models, and not a second set of assumptions. Corners are the one exception
+      on the card and are a genuinely separate model; they are marked as such below.</p>
+
+      <p><strong>Not every entry carries every market, and none was backfilled.</strong>
+      The markets arrived on different days and first publication wins, so a fixture
+      sealed before a market existed carries only what was sealed that day and its card
+      says so. Expected goals go back to 26 August 2026, over/under 2.5 to 28 August,
+      and the full goal-total ladder, the Asian-handicap grid, both-teams-to-score and
+      corners all start on 2 September. The 630 predictions sealed between 28 August and
+      1 September show the 2.5 line alone, because that is the only goals line they
+      sealed — filling in the other five now would mean rewriting a sealed entry, which
+      this site does not do for any reason, including to make a page look tidier.</p>
+
+      <h3 id="derived">Sealed as numbers, and derived from sealed numbers</h3>
+      <p>Both kinds of figure are on every match card and a reader has to be able to tell
+      them apart, so the card says which is which and so does this page.</p>
+      <ul>
+        <li><strong>Sealed directly.</strong> Written into the ledger entry before
+        kickoff and never rewritten: the result, all
+        {{ goal_total_lines|length }} goal-total lines, both teams to score, all 25 Asian
+        handicap lines, <code>xg_home</code>, <code>xg_away</code>, and the corner
+        distribution where a division has one. Open the entry and they are there.</li>
+        <li><strong>Derived from sealed inputs.</strong> Recomputed when the page is
+        built and stored nowhere: the correct-score grid, clean sheet, win to nil,
+        odd/even, exact total goals, goals by team and the winning margin. Each is a
+        different sum of one Dixon–Coles distribution rebuilt from three numbers that
+        <em>are</em> sealed — <code>xg_home</code>, <code>xg_away</code> and the
+        division’s <code>rho</code> — at {{ max_goals }} goals a side.</li>
+      </ul>
+      <p>This is not a loophole in "sealed before kickoff". A deterministic function of
+      three sealed numbers is fixed the moment those numbers are: there is no freedom
+      left in it, nothing is fetched at build time, and anyone with the entry can
+      recompute every one of these figures and get the same answer.</p>
+      <p>The check is easy to run and worth running. Across all 413 sealed predictions
+      that carry the inputs, the derived figures reproduce the sealed ones — the
+      result, the goal-total ladder, both teams to score — to within <strong>3 parts
+      in 100,000</strong>. That residual is not slack in the method: the entry stores
+      <code>xg_home</code>, <code>xg_away</code> and <code>rho</code> rounded to four
+      decimal places, and rebuilding a grid from a value that may be 5×10⁻⁵ off moves a
+      probability by about that much. Truncating the grid at {{ max_goals }} goals a
+      side costs 5×10⁻⁷ by comparison. If you recompute and land further away than
+      that, something is wrong and we would like to hear about it.</p>
+      <p>They are derived rather than sealed for one practical reason: the entry for a
+      single day is already 625&nbsp;KB for 88 predictions, and sealing a dozen more
+      partitions per fixture would multiply that for numbers that carry no information
+      the three sealed inputs do not already carry. The correct-score view has worked
+      this way since it went up; these follow the same precedent rather than inventing a
+      third pattern.</p>
+      <p>Every one of the derived markets is printed as a <strong>partition</strong>:
+      a set of outcomes that is exhaustive and mutually exclusive, adding to one by
+      construction, with nothing left in an "any other result" line. They are rounded in
+      a single pass in tenths of a percent, so the printed figures add to exactly 100.0
+      — and where one outcome falls below a tenth of a percent it is printed as the
+      floor <code>&lt;0.1%</code> rather than as 0.0%, because the model did not rule it
+      out, in which case the printed figures no longer add to 100.0 and the card says so
+      under that market instead of claiming otherwise. The cut points are chosen the same
+      way: exact total goals prints 0 to {{ total_goals_max }} and one
+      "{{ total_goals_max + 1 }} or more" bucket, goals by team prints 0 to
+      {{ team_goals_max }} to match the axes of the correct-score grid, and the buckets
+      mean nothing is dropped either way.</p>
 
       <p>One model is fitted per division, on that division's matches only. Ratings are
       not comparable across countries — a Championship attack rating of 1.1 says nothing
@@ -304,6 +377,94 @@
         and dead rubbers. Publishing that is the point. Anyone selling you certainty is either
         not measuring, or is measuring and not showing you.
       </div>
+
+      <h2 id="corners">Corners — a separate model, and a rule about where it appears</h2>
+      <p>Corners are the one market on a match card that is <em>not</em> a sum of the
+      goals distribution. They have their own model: a team-strength negative binomial
+      fitted only on this division’s final home and away corner counts
+      (<code>HC</code>, <code>AC</code>) from football-data.co.uk. It ingests no odds,
+      because there is no free closing corner price anywhere, in any division. Corners
+      are therefore <strong>sealed, not scored</strong> everywhere they appear and are
+      never an edge claim.</p>
+
+      <div class="callout">
+        <strong>What was wrong with it until 18 September 2026</strong>
+        The corner model applied no time weighting at all, in any division, while the
+        goals model decayed its history at ξ = {{ xi }} per day. A corner count from
+        2015/16 counted exactly as much as one from last week. It now decays at the same
+        ξ, in the fit, in the starting level and in the dispersion estimate. Measured
+        before and after across every division with corner data, expected total corners
+        move by 0.3 to 0.8 per fixture on average. That is why corners stayed off the
+        cards until the weighting was in.
+        <br><br>
+        The ledger is append-only, so the corner blocks sealed between 2 September and
+        18 September 2026 are unweighted and stay exactly as they were sealed. A match card
+        shows a corner section only when the block it is reading came from the weighted
+        fit; older fixtures show no corner section and say why. Nothing was rewritten to
+        make this page true.
+      </div>
+
+      <h3>The rule</h3>
+      <p>A corner model is fitted, sealed and shown in a division only when</p>
+      <p><strong>the median club in the current season carries at least
+      (number of clubs &minus; 1) time-weighted corner appearances</strong>, decayed at
+      the same ξ = {{ xi }} per day.</p>
+      <p>A club plays twice that many matches in a season, so the bar is half a season of
+      recent corner history for the typical club, and it scales with the division because
+      a season does. It replaced a flat threshold of 100 raw rows, which could not see
+      either thing that matters. It could not see a hole in the coverage: the National
+      League’s file carries corner counts in 2015/16 and again in 2026/27 and in none
+      of the ten seasons between, so 648 rows sailed past a bar of 100 while 552 of them
+      described a division that no longer exists. And it could not see division size: 100
+      rows is a fifth of a Championship season and most of a Scottish League Two one.</p>
+      <p>It is deliberately a rule and not a list of leagues. It is measured the same way
+      everywhere, it is re-measured on every run, and a division whose source stops
+      publishing corner counts drops out on its own — no one has to notice.</p>
+
+      <h3>What it passes today</h3>
+      <p>Measured at build time from the same data the ledger gates on, so this table is
+      the rule’s own output rather than a list anyone typed.</p>
+      <div class="market-table">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Division</th>
+              <th scope="col">Rows with corners</th>
+              <th scope="col">Effective</th>
+              <th scope="col">Newest season</th>
+              <th scope="col">Median per club</th>
+              <th scope="col">Bar</th>
+              <th scope="col">Corners shown</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in corner_table %}
+            <tr>
+              <th scope="row">{{ row.name }}</th>
+              {% if row.error %}
+              <td colspan="5">not measurable: {{ row.error }}</td>
+              <td>no</td>
+              {% else %}
+              <td>{{ row.raw }}</td>
+              <td>{{ '%.1f'|format(row.effective) }}</td>
+              <td>{{ row.newest or 'none' }}</td>
+              <td>{{ '%.1f'|format(row.median) }}</td>
+              <td>{{ row.bar }}</td>
+              <td>{{ 'yes' if row.passes else 'no' }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p>The two that fail fail for different reasons. The <strong>Brasileirão</strong>
+      file carries no corner columns at all, so there is nothing to fit. The
+      <strong>National League</strong> has the columns but not recently enough: its
+      median club carries about 8 effective appearances against a bar of 23, because
+      almost all of its corner history is a decade old. A division that fails stops
+      sealing a corner block rather than sealing one nobody should trust — and the
+      blocks it sealed in the past stay in the ledger untouched, because nothing here is
+      ever rewritten.</p>
 
       <h2>What this site will not do</h2>
       <ul>

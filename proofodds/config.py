@@ -310,16 +310,47 @@ FORECAST_MARKETS = ("BTTS",)
 # reader can see the shape of rather than only its total.
 SCORE_GRID_MAX = 5
 
+# Where "exact total goals" stops printing a row per total and folds the rest
+# into one bucket. Chosen the same way SCORE_GRID_MAX was, and measured on the
+# 413 sealed predictions that carry xg and rho: a cut at 6 leaves a mean 3.0%
+# of the distribution in the tail bucket and 19.4% on the rowdiest fixture in
+# the ledger; a cut at 7 leaves 1.1% and 10.3%. One extra row buys half the
+# worst case, so the cut is 7 and the bucket is "8 or more".
+TOTAL_GOALS_MAX = 7
+
+# "Goals by team" deliberately reuses SCORE_GRID_MAX rather than owning a
+# constant. The correct-score grid on the same card has axes 0-5; giving the
+# per-team market the same cut means its figures are the row and column sums
+# of the grid directly above it, and a reader who wants to check one against
+# the other can. Measured on the same 413 rows, 0-5 leaves a mean 1.3% and a
+# worst 16.2% in the "6 or more" bucket.
+TEAM_GOALS_MAX = SCORE_GRID_MAX
+
 # Sealed into every entry, shown on the site, and not scored by anything yet.
 # Kept apart from FORECAST_MARKETS on purpose: these are a promise of future
 # evidence, not evidence, and the method page has to say which is which.
-SEALED_UNSCORED_MARKETS = ("TOTALS_LADDER", "SCORELINES")
+#
+# The six markets after SCORELINES are not sealed as numbers at all. They are
+# deterministic functions of xg_home, xg_away and the division's rho, which
+# ARE sealed, recomputed at render time exactly as the correct-score view has
+# always been. That distinction is not a footnote: the method page and every
+# card carry it, because a reader has to be able to tell which figures came
+# out of the sealed file and which they would have to recompute to check.
+SEALED_UNSCORED_MARKETS = (
+    "TOTALS_LADDER", "SCORELINES", "CORNERS",
+    "CLEAN_SHEET", "WIN_TO_NIL", "ODD_EVEN",
+    "EXACT_TOTAL", "TEAM_GOALS", "MARGIN",
+)
 
-# Sealed into every entry and not shown at all. The corner model still fits and
-# still writes its distribution into the ledger on every run, so the record
-# accumulates; the page and the nav item came down because a market nobody
-# scores should not have a section implying somebody does.
-SEALED_HIDDEN_MARKETS = ("CORNERS",)
+# Markets whose figures a card recomputes from sealed inputs rather than
+# reading out of the entry. Everything here is a sum of the same fitted
+# scoreline distribution the result, the ladder, BTTS and the handicap are
+# sums of — no second model, no second fit, and nothing fetched at render
+# time. `SEALED_DIRECT_MARKETS` is the complement, and the card labels both.
+DERIVED_FROM_SEALED_MARKETS = (
+    "SCORELINES", "CLEAN_SHEET", "WIN_TO_NIL",
+    "ODD_EVEN", "EXACT_TOTAL", "TEAM_GOALS", "MARGIN",
+)
 
 MARKET_LABELS = {
     "1X2": "Result",
@@ -327,8 +358,14 @@ MARKET_LABELS = {
     "AH": "Asian handicap",
     "BTTS": "Both teams to score",
     "TOTALS_LADDER": "Goal totals other than 2.5",
-    "CORNERS": "Corners Lab",
+    "CORNERS": "Corners",
     "SCORELINES": "Correct score",
+    "CLEAN_SHEET": "Clean sheet",
+    "WIN_TO_NIL": "Win to nil",
+    "ODD_EVEN": "Odd or even total goals",
+    "EXACT_TOTAL": "Exact total goals",
+    "TEAM_GOALS": "Goals by team",
+    "MARGIN": "Winning margin",
 }
 
 
@@ -421,35 +458,59 @@ TOTALS_LINE = 2.5
 GOAL_TOTAL_LINES = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5)
 ASIAN_HANDICAP_LINES = tuple(x / 4 for x in range(-12, 13))
 CORNER_TOTAL_LINES = (6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5)
-CORNER_MIN_MATCHES = 100
 CORNER_MAX = 30
 
-# KNOWN WORK, not yet done: the corner model has no time weighting at all.
+# When a division may fit, seal and show a corner model.
 #
-# `dixon_coles.fit_from_frame` decays every match at XI (0.002/day, a 347-day
-# half-life), because a team's strength two years ago is weak evidence about
-# its strength on Saturday. `corners.fit_from_frame` takes a plain mean over
-# whatever rows it is given: a corner count from 2015/16 carries exactly the
-# same weight as one from last week, in EVERY division, including the eleven
-# that have been sealing corner distributions since 28 August 2026.
+# The old gate was CORNER_MIN_MATCHES = 100 counted on RAW rows, and it was
+# wrong in the way a raw count is always wrong here: the National League's file
+# carries HC/AC in 2015/16 and again in 2026/27 and in none of the ten seasons
+# between, so 648 rows sailed past a bar of 100 while 552 of them described a
+# division that no longer exists. A row count cannot see that. It also cannot
+# see division size: 100 rows is a fifth of a season in the Championship and
+# most of one in the Scottish League Two.
 #
-# This is a property of the corner model, not of any division's data. The
-# National League is only where it became visible, because EC is the one file
-# with a ten-season hole in HC/AC (see the LEAGUES comment above): its 636
-# usable rows are 552 from 2015/16 plus the current season, so the missing
-# decay produces a model of a division as it was a decade ago instead of a
-# subtly stale one. Every other division hides the same defect behind
-# continuous coverage.
+# So the gate is a rule about the clubs being priced, not about the file:
 #
-# Nothing published depends on it. Corners are in SEALED_HIDDEN_MARKETS: not
-# scored, not shown, and excluded from every figure on the site. But the
-# distribution IS sealed into every entry, and the ledger is append-only, so
-# the record being accumulated is of an unweighted model. The fix is to pass
-# ref_date and XI into corners.fit_from_frame and weight the Poisson terms the
-# way dixon_coles does, then re-examine CORNER_MIN_MATCHES, which counts raw
-# rows and would need to count effective ones. That is a change to what gets
-# sealed and belongs in its own commit with its own before/after measurement.
-CORNER_UNWEIGHTED = True
+#   the MEDIAN club in the current season must carry at least (n_clubs - 1)
+#   time-weighted corner appearances, decayed at XI exactly as the goals model
+#   decays its own history.
+#
+# A club plays 2*(n_clubs - 1) matches in a season, so the bar is half a season
+# of recent corner history for the typical club, and it scales with the
+# division because a season does. It needs no list of leagues, it is measured
+# identically everywhere, and it re-measures itself every run — a division
+# whose source stops publishing HC/AC falls out on its own, and one that starts
+# publishing walks in on its own once it has the history.
+#
+# Measured 18 September 2026 across all 23 enabled divisions: 21 pass, EC fails
+# at 7.7 against a bar of 23, BRA fails with no HC/AC at all. The tightest pass
+# is I2 at 27.9 against 19, so the rule is not sitting on a knife edge.
+def corner_bar(n_clubs: int) -> int:
+    """Effective corner appearances the median club must carry."""
+    return max(int(n_clubs) - 1, 1)
+
+# DONE 18 September 2026. Kept as a record of what the sealed entries between
+# 2 September and 18 September 2026 contain, because the ledger is append-only
+# and those entries cannot be corrected.
+#
+# `corners.fit_from_frame` used to take a plain mean over whatever rows it was
+# given: a corner count from 2015/16 carried exactly the same weight as one
+# from last week, in EVERY division, while `dixon_coles.fit_from_frame` decayed
+# its own history at XI. It now takes `ref_date` and `xi` and weights every
+# Poisson term, its starting level and its dispersion estimate the same way,
+# and `ledger` passes XI. Measured before and after on all 22 divisions with
+# HC/AC: expected total corners move by a mean of 0.3 to 0.8 per fixture and by
+# up to 3.9 in EC, whose dispersion falls from 0.0515 to the 0.02 floor once
+# 2015/16 stops voting. Not cosmetic, which is why corners stayed off the cards
+# until it was done.
+#
+# What could NOT be fixed: every corner block sealed before this date was fitted
+# unweighted, and no sealed entry is ever rewritten. A card therefore shows
+# corners only when the block it is reading carries `"xi"`, which only the
+# weighted fit writes. Older fixtures show no corner section and the card's
+# sparse-markets note says why.
+CORNER_UNWEIGHTED = False
 
 # --- the prior --------------------------------------------------------------
 # Walk-forward backtest of this exact model, reproducible from

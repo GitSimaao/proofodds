@@ -245,6 +245,37 @@ def _model_for(now: dt.datetime, league: str = "E0", extra_teams=()):
     return model, teams, past
 
 
+def _corner_gate(past, cutoff) -> dict:
+    """
+    Whether this division has enough RECENT corner history to model at all.
+
+    The property, measured the same way in every division: the median club in
+    the current season must carry at least `config.corner_bar(n_clubs)`
+    time-weighted corner appearances, decayed at XI. A club plays twice that
+    many matches in a season, so the bar is half a season of recent corner
+    history for the typical club — see the long note in `config`.
+
+    A raw row count, which is what this replaced, cannot see either half of
+    that. It cannot see a ten-season hole in HC/AC, because rows from 2015/16
+    count the same as rows from last week; and it cannot see division size,
+    because 100 rows is a fifth of a Championship season and most of a Scottish
+    League Two one.
+    """
+    if not {"HC", "AC"}.issubset(past.columns) or past.empty:
+        return {"passes": False, "median": 0.0, "bar": 1, "n_clubs": 0,
+                "n_effective": 0.0}
+    seasons = sorted(set(past["Season"]))
+    current = past[past["Season"] == seasons[-1]]
+    clubs = sorted(set(current["HomeTeam"]) | set(current["AwayTeam"]))
+    appearances = corners.effective_appearances(past, cutoff, config.XI)
+    per_club = sorted(appearances.get(club, 0.0) for club in clubs)
+    median = float(np.median(per_club)) if per_club else 0.0
+    bar = config.corner_bar(len(clubs))
+    return {"passes": median >= bar, "median": median, "bar": bar,
+            "n_clubs": len(clubs),
+            "n_effective": corners.effective_rows(past, cutoff, config.XI)}
+
+
 def build_entry(fixtures: list[Fixture], now: dt.datetime,
                 coverage: dict | None = None) -> dict | None:
     """
@@ -333,14 +364,20 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime,
         index = {t: i for i, t in enumerate(teams)}
         corner_model = None
         corner_reason = None
-        corner_rows = past.dropna(subset=["HC", "AC"]) if {"HC", "AC"}.issubset(past.columns) else past.iloc[0:0]
-        if len(corner_rows) >= config.CORNER_MIN_MATCHES:
+        corner_gate = _corner_gate(past, np.datetime64(now.date()))
+        corner_rows = (past.dropna(subset=["HC", "AC"])
+                       if {"HC", "AC"}.issubset(past.columns) else past.iloc[0:0])
+        if corner_gate["passes"]:
             try:
-                corner_model = corners.fit_from_frame(corner_rows, teams, config.PRIOR_SD)
+                corner_model = corners.fit_from_frame(
+                    corner_rows, teams, config.PRIOR_SD,
+                    ref_date=np.datetime64(now.date()), xi=config.XI)
             except Exception as exc:
                 corner_reason = str(exc)[:160]
         else:
-            corner_reason = f"HC/AC unavailable or fewer than {config.CORNER_MIN_MATCHES} matches"
+            corner_reason = (
+                f"the median club carries {corner_gate['median']:.1f} effective "
+                f"corner appearances, below the bar of {corner_gate['bar']}")
 
         # How much each club actually contributes to the fit — the TIME-WEIGHTED
         # count, not the raw one. A club that played 76 matches ten years ago has
@@ -456,8 +493,18 @@ def build_entry(fixtures: list[Fixture], now: dt.datetime,
             "totals_line": config.TOTALS_LINE,
             "markets": ["1X2", "BTTS", "goal totals", "Asian handicap"],
         }
-        models[league]["corners"] = ({"name": "team-strength negative-binomial",
-            "inputs": ["HC", "AC"], "n_train": corner_model.n_train,
+        # `xi` is the field a card looks for before it shows a corner section.
+        # Corner blocks sealed before 18 September 2026 were fitted with no time
+        # weighting at all and carry no `xi`; they stay in the ledger exactly as
+        # they were sealed, and they stay off the cards. See CORNER_UNWEIGHTED.
+        models[league]["corners"] = ({
+            "name": "team-strength negative-binomial",
+            "inputs": ["HC", "AC"],
+            "n_train": corner_model.n_train,
+            "n_effective": round(corner_model.n_effective, 1),
+            "xi": config.XI,
+            "median_effective_per_club": round(corner_gate["median"], 1),
+            "bar": corner_gate["bar"],
             "dispersion": round(corner_model.dispersion, 4)} if corner_model else
             {"available": False, "reason": corner_reason})
 

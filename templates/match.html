@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_components.html" import club_mark, league_flag %}
+{% from "_components.html" import club_mark, league_flag, partition, partition_note %}
 {% block title %}{{ match.home }} vs {{ match.away }} — {{ site_name }}{% endblock %}
 {% block description %}Sealed {{ match.league_name }} probabilities for {{ match.home }} vs {{ match.away }}, published before kickoff and preserved in the public ProofOdds ledger.{% endblock %}
 {% block og_title %}{{ match.home }} vs {{ match.away }} — sealed probabilities{% endblock %}
@@ -44,13 +44,30 @@
   </div>
 </section>
 
+{# One page, every market, anchored. A page per market was considered and
+   rejected: the tags only do their job when the strong claim and the weak one
+   are on the same screen, separate pages would imply separate models when
+   every market here is a different sum of ONE fitted scoreline distribution,
+   and it would take the site past 3,000 pages without one extra reader. The
+   nav is built from match.sections, the same list the sections below are
+   rendered from, so it can never point at something that is not there. #}
+<nav class="market-nav" aria-label="Markets on this card">
+  <div class="shell">
+    <ul>
+      {% for section in match.sections %}
+      <li><a href="#{{ section.id }}">{{ section.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</nav>
+
 <section class="band match-content">
   <div class="shell match-layout">
     <div class="forecast-panel">
-      <div class="panel-heading">
+      <div class="panel-heading" id="result">
         <div>
           <p class="eyebrow">Dixon-Coles forecast</p>
-          <h2>Match probabilities <span class="mkt-tag is-scored">scored vs close</span></h2>
+          <h2>Match probabilities <span class="mkt-tag {{ 'is-scored' if match.result_scored else 'is-forecast' }}">{{ 'scored vs close' if match.result_scored else 'sealed, not scored' }}</span></h2>
         </div>
         <span class="fair-note">Fair odds · no margin</span>
       </div>
@@ -59,10 +76,13 @@
       with the market on the <a href="/scorecard/">scorecard</a> and can be shown
       to lose. <strong>forecast only</strong> means no free closing benchmark
       exists for it, so it is measured against guessing and is never presented as
-      an edge claim. <strong>sealed, not scored</strong> is weaker still: nothing on
-      this site puts a number beside the correct-score view yet, so it is shown as
-      context and is evidence of nothing until something does. All three are sealed
-      before kickoff and none of them is ever rewritten.</p>
+      an edge claim. <strong>sealed, not scored</strong> is weaker still: nothing
+      on this site puts a number beside it yet, so it is shown as context and is
+      evidence of nothing until something does. Every market on this card carries
+      one of the three, and they differ line by line — the 2.5 goals line is
+      scored against the close where this division's source carries it and the
+      other lines are not. All three are sealed before kickoff and none of them is ever
+      rewritten.</p>
 
       {{ match.bar|safe }}
       <div class="match-probs">
@@ -83,50 +103,168 @@
         </div>
       </div>
 
-      {% if (match.xg_home is not none and match.xg_away is not none) or match.p_over25 is not none %}
-      <div class="forecast-secondary">
-        {% if match.xg_home is not none and match.xg_away is not none %}
-        <div>
-          <span class="metric-label">Expected goals</span>
-          <strong>{{ '%.2f'|format(match.xg_home) }} <span>–</span> {{ '%.2f'|format(match.xg_away) }}</strong>
-          <small>{{ match.home }} · {{ match.away }}</small>
+      {% if 'goals' in match.section_ids %}
+      {# TASK: the whole sealed ladder, with the expected goals beside it, as
+         ONE goals section — and two different tags inside it, because only the
+         2.5 line has a closing price anywhere in the free source. #}
+      <section class="scorelines market-section" id="goals" aria-labelledby="goals-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Total goals</p>
+            <h3 id="goals-title">Goals</h3>
+          </div>
+          <span>Fair odds · no margin</span>
         </div>
-        {% endif %}
-        {% if match.p_over25 is not none and match.p_under25 is not none %}
-        <div class="totals-market">
-          <span class="metric-label">Total goals {{ totals_line }}
-            <span class="mkt-tag {{ 'is-scored' if match.ou_scored else 'is-forecast' }}">{{ 'scored vs close' if match.ou_scored else 'forecast only' }}</span>
-          </span>
-          <div class="totals-options">
-            <div>
-              <span>Over</span>
-              <strong>{{ match.pct_over }}%</strong>
-              <small>{{ '%.2f'|format(1 / match.p_over25) }} fair odds</small>
-            </div>
-            <div>
-              <span>Under</span>
-              <strong>{{ match.pct_under }}%</strong>
-              <small>{{ '%.2f'|format(1 / match.p_under25) }} fair odds</small>
-            </div>
+
+        {% if match.xg_home is not none and match.xg_away is not none %}
+        <div class="forecast-secondary">
+          <div>
+            <span class="metric-label">Expected goals</span>
+            <strong>{{ '%.2f'|format(match.xg_home) }} <span>–</span> {{ '%.2f'|format(match.xg_away) }}</strong>
+            <small>{{ match.home }} · {{ match.away }}</small>
+          </div>
+          <div>
+            <span class="metric-label">Expected total</span>
+            <strong>{{ '%.2f'|format(match.xg_home + match.xg_away) }}</strong>
+            <small>Sealed with the prediction</small>
           </div>
         </div>
         {% endif %}
-      </div>
-      {% endif %}
 
-      {% if match.p_btts_yes is not none %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Both teams to score</p><h3>BTTS <span class="mkt-tag is-forecast">forecast only</span></h3></div><span>Dixon–Coles</span></div>
-        <div class="match-probs"><div class="match-prob"><span class="lbl">Yes</span><strong>{{ match.pct_btts_yes }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_yes) }} fair odds</span></div><div class="match-prob"><span class="lbl">No</span><strong>{{ match.pct_btts_no }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_no) }} fair odds</span></div></div>
+        {% if match.goal_ladder %}
+        <div class="market-table ladder-table">
+          <table>
+            <caption class="sr-only">Every goal-total line sealed with this
+            prediction, and what scores each one.</caption>
+            <thead>
+              <tr><th scope="col">Line</th><th scope="col">Over</th><th scope="col">Under</th><th scope="col">Scored against</th></tr>
+            </thead>
+            <tbody>
+              {% for line in match.goal_ladder %}
+              <tr{% if line.is_main %} class="is-main"{% endif %}>
+                <th scope="row">{{ line.label }}</th>
+                <td>{{ line.pct_over }}% <span class="muted">{{ '%.2f'|format(line.fair_over) }}</span></td>
+                <td>{{ line.pct_under }}% <span class="muted">{{ '%.2f'|format(line.fair_under) }}</span></td>
+                <td class="ladder-tag"><span class="mkt-tag {{ line.tag_class }}">{{ line.tag }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="scorelines-note">{% if match.goal_ladder|length > 1 %}All
+        {{ match.goal_ladder|length }} lines have been sealed in every prediction
+        since 2 September 2026{% else %}This fixture was sealed before the full
+        ladder existed, so it carries the 2.5 line and no other{% endif %} and
+        {{ 'they are' if match.goal_ladder|length > 1 else 'it is' }} read straight out of
+        <a href="{{ match.entry_url }}">{{ match.entry_file }}</a> — nothing on
+        this table is recomputed. The tags are not the same for all six and that
+        is the point: football-data.co.uk publishes a closing price for the 2.5
+        line and for no other, so
+        {% if match.ou_scored %}2.5 is compared with the market on the
+        <a href="/scorecard/">scorecard</a> and the other five are compared with
+        nothing.{% else %}this division's source carries no closing goals price at
+        all and none of the six is compared with anything.{% endif %}
+        A line with no benchmark is not a weaker edge claim; it is not an edge
+        claim.</p>
+        {% endif %}
+
+        {% if match.derived %}
+        <div class="partition-grid">
+          {{ partition(match.derived.exact_total, 'Exact total goals') }}
+          {{ partition(match.derived.odd_even, 'Odd or even total') }}
+        </div>
+        {% endif %}
       </section>
       {% endif %}
-      {% if match.asian_handicap %}
-      <section class="scorelines"><div class="scorelines-heading"><div><p class="eyebrow">Quarter-line grid</p><h3>Asian handicap <span class="mkt-tag {{ 'is-scored' if match.ah_scored else 'is-forecast' }}">{{ 'scored vs close' if match.ah_scored else 'forecast only' }}</span></h3></div><span>Fair odds · pushes excluded</span></div>
+
+      {% if 'btts' in match.section_ids %}
+      <section class="scorelines market-section" id="btts" aria-labelledby="btts-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Who scores</p>
+            <h3 id="btts-title">Both teams to score, clean sheets, win to nil</h3>
+          </div>
+          <span>Dixon–Coles</span>
+        </div>
+        {% if match.p_btts_yes is not none %}
+        <h4>BTTS <span class="mkt-tag is-forecast">forecast only</span></h4>
+        <div class="match-probs">
+          <div class="match-prob"><span class="lbl">Yes</span><strong>{{ match.pct_btts_yes }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_yes) }} fair odds</span></div>
+          <div class="match-prob"><span class="lbl">No</span><strong>{{ match.pct_btts_no }}%</strong><span class="fair">{{ '%.2f'|format(1/match.p_btts_no) }} fair odds</span></div>
+        </div>
+        {% endif %}
+        {% if match.derived %}
+        <div class="partition-grid">
+          {{ partition(match.derived.clean_sheet.home, match.home + ' clean sheet') }}
+          {{ partition(match.derived.clean_sheet.away, match.away + ' clean sheet') }}
+          {{ partition(match.derived.win_to_nil.home, match.home + ' win to nil') }}
+          {{ partition(match.derived.win_to_nil.away, match.away + ' win to nil') }}
+        </div>
+        <p class="scorelines-note">A clean sheet is the opponent failing to
+        score, so {{ match.home }}'s clean sheet is the column of the grid below
+        at nil; a win to nil is that and a win. BTTS is sealed as a number in the
+        entry and is measured against guessing on the
+        <a href="/scorecard/">scorecard</a>. The four beside it are not sealed as
+        numbers and nothing scores them — they are recomputed here from the
+        sealed expected goals and the division's sealed low-score correction.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if 'handicap' in match.section_ids %}
+      <section class="scorelines market-section" id="handicap" aria-labelledby="handicap-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Quarter-line grid</p>
+            <h3 id="handicap-title">Asian handicap <span class="mkt-tag {{ 'is-scored' if match.ah_scored else 'is-forecast' }}">{{ 'scored vs close' if match.ah_scored else 'sealed, not scored' }}</span></h3>
+          </div>
+          <span>Fair odds · pushes excluded</span>
+        </div>
         <div class="market-table"><table><thead><tr><th>Home line</th><th>{{ match.home }}</th><th>{{ match.away }}</th></tr></thead><tbody>{% for ah in match.asian_handicap %}<tr><td>{{ '%+.2f'|format(ah.line) }}</td><td>{{ '%.2f'|format(ah.fair_home) }}</td><td>{{ '%.2f'|format(ah.fair_away) }}</td></tr>{% endfor %}</tbody></table></div>
+        <p class="scorelines-note">All {{ match.asian_handicap|length }} lines are
+        sealed in the entry.
+        {% if match.ah_scored %}The source publishes one closing handicap price,
+        at its own main line, and that is the only one of these compared with the
+        market.{% else %}This division's source publishes no closing handicap
+        price, so none of these is compared with anything.{% endif %}</p>
       </section>
       {% endif %}
 
-      {% if match.score_matrix %}
-      <section class="scorelines score-matrix" aria-labelledby="scorelines-title">
+      {% if 'margin' in match.section_ids %}
+      <section class="scorelines market-section" id="margin" aria-labelledby="margin-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">By how much</p>
+            <h3 id="margin-title">Winning margin <span class="mkt-tag is-forecast">sealed, not scored</span></h3>
+          </div>
+          <span>Recomputed from sealed inputs</span>
+        </div>
+        {{ partition(match.derived.margin, none) }}
+      </section>
+      {% endif %}
+
+      {% if 'teams' in match.section_ids %}
+      <section class="scorelines market-section" id="teams" aria-labelledby="teams-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Each side separately</p>
+            <h3 id="teams-title">Goals by team <span class="mkt-tag is-forecast">sealed, not scored</span></h3>
+          </div>
+          <span>Recomputed from sealed inputs</span>
+        </div>
+        <div class="partition-grid">
+          {{ partition(match.derived.team_goals.home, match.home) }}
+          {{ partition(match.derived.team_goals.away, match.away) }}
+        </div>
+        <p class="scorelines-note">These are the row and column totals of the
+        correct-score grid below, which is why they stop at the same
+        {{ match.derived.team_cut }} goals it does and fold the rest into one
+        bucket — a reader who wants to check one against the other can.</p>
+      </section>
+      {% endif %}
+
+      {% if 'score' in match.section_ids %}
+      <section class="scorelines score-matrix market-section" id="score" aria-labelledby="scorelines-title">
         <div class="scorelines-heading">
           <div>
             <p class="eyebrow">Scoreline distribution</p>
@@ -189,6 +327,58 @@
       </section>
       {% endif %}
 
+      {% if 'corners' in match.section_ids %}
+      <section class="scorelines market-section" id="corners" aria-labelledby="corners-title">
+        <div class="scorelines-heading">
+          <div>
+            <p class="eyebrow">Separate model</p>
+            <h3 id="corners-title">Corners <span class="mkt-tag is-forecast">sealed, not scored</span></h3>
+          </div>
+          <span>Fair odds · no margin</span>
+        </div>
+        <div class="forecast-secondary">
+          <div>
+            <span class="metric-label">Expected corners</span>
+            <strong>{{ '%.1f'|format(match.corner_view.x_home) }} <span>–</span> {{ '%.1f'|format(match.corner_view.x_away) }}</strong>
+            <small>{{ match.home }} · {{ match.away }}</small>
+          </div>
+          <div>
+            <span class="metric-label">Expected total</span>
+            <strong>{{ '%.1f'|format(match.corner_view.x_total) }}</strong>
+            <small>Sealed with the prediction</small>
+          </div>
+        </div>
+        <div class="market-table">
+          <table>
+            <caption class="sr-only">Corner total lines sealed with this prediction.</caption>
+            <thead><tr><th scope="col">Line</th><th scope="col">Over</th><th scope="col">Under</th></tr></thead>
+            <tbody>
+              {% for line in match.corner_view.lines %}
+              <tr>
+                <th scope="row">{{ line.label }}</th>
+                <td>{{ line.pct_over }}% <span class="muted">{{ '%.2f'|format(line.fair_over) }}</span></td>
+                <td>{{ line.pct_under }}% <span class="muted">{{ '%.2f'|format(line.fair_under) }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="scorelines-note">A separate negative-binomial model, fitted
+        only on this division's final home and away corner counts and decayed at
+        the same {{ match.corner_view.xi }} per day the goals model uses. It is
+        not the scoreline distribution and is not derived from it. There is no
+        free closing corner price anywhere, in any division, so nothing on this
+        site compares these numbers with a market and none of them is an edge
+        claim. They are sealed before kickoff like everything else on this card
+        and they are read straight out of
+        <a href="{{ match.entry_url }}">{{ match.entry_file }}</a>. Corners are
+        shown only in divisions where the median club carries at least half a
+        season of recent corner history; the
+        <a href="/method/#corners">method page</a> gives the rule and the
+        divisions it passes.</p>
+      </section>
+      {% endif %}
+
       {% if match.cold_start or match.name_provisional %}
       <div class="forecast-caveats">
         {% if match.cold_start %}
@@ -215,6 +405,33 @@
         {% endif %}
       </dl>
       <p class="audit-copy">This page is a view of the earliest sealed forecast for this fixture. The JSON entry is the record; later publications cannot replace it.</p>
+
+      {# Which figures came out of the file and which are functions of it. A
+         reader has to be able to tell the two apart and to recompute either,
+         so the card says it rather than leaving the distinction to /method/. #}
+      <h3 class="audit-subhead">Sealed, and derived from sealed</h3>
+      <p class="audit-copy"><strong>Sealed as numbers</strong> in
+      <a href="{{ match.entry_url }}">{{ match.entry_file }}</a>: the result, the
+      whole {{ match.goal_ladder|length if match.goal_ladder else 0 }}-line goal-total
+      ladder, both-teams-to-score, every Asian handicap line, the expected goals
+      {%- if match.corner_view %}, and the corner distribution{% endif %}. Open the
+      entry and they are there, byte for byte, as published before kickoff.</p>
+      {% if match.derived %}
+      <p class="audit-copy"><strong>Derived from sealed inputs</strong>, recomputed
+      when this page was built and stored nowhere: the correct-score grid, the
+      winning margin, goals by team, exact total goals, odd/even, clean sheets and
+      win to nil. Each is a different sum of one Dixon-Coles scoreline
+      distribution rebuilt from three numbers that ARE sealed — <code>xg_home</code>,
+      <code>xg_away</code> and the division's <code>rho</code> — at
+      {{ match.derived.max_goals }} goals a side. No second model, no second fit,
+      nothing fetched. Anyone can recompute them from the entry and get the same
+      figures. The check is worth running: across every sealed prediction that
+      carries the inputs, the derived figures and the sealed ones agree to
+      within 3 parts in 100,000 &mdash; which is the rounding you get from an
+      entry that stores the expected goals and <code>rho</code> to four decimal
+      places, and nothing else.</p>
+      {% endif %}
+
       {% if match.kickoff_sealed %}
       <p class="audit-copy">When this was sealed the fixture list had not fixed the
       kickoff, so the entry above carries <code>{{ match.kickoff_sealed }}</code> — the

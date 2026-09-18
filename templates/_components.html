@@ -12,3 +12,38 @@
 {% if flag %}<img class="flag" src="/flags/{{ flag }}.svg" alt="" width="22" height="16">{% endif %}
 <span class="sr-only">{{ country }}</span>
 {%- endmacro %}
+
+{# A partition, printed. `part` comes from render._partition, which has already
+   checked that the outcomes are exhaustive and mutually exclusive and rounded
+   them in one pass. The footnote is driven by part.exact rather than written
+   by hand, so the card can never claim its figures add to 100.0 while printing
+   one of them as a floor. #}
+{% macro partition(part, title, tag='sealed, not scored', note=true) -%}
+<div class="partition">
+  {% if title %}<h4>{{ title }} <span class="mkt-tag is-forecast">{{ tag }}</span></h4>{% endif %}
+  <ul class="partition-list">
+    {% for item in part.outcomes %}
+    <li{% if item.side %} class="is-{{ item.side }}"{% endif %}>
+      <span>{{ item.label }}</span>
+      <strong>{{ item.text }}</strong>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if note %}<p class="partition-note">{{ partition_note(part) }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro partition_note(part) -%}
+{% if part.exact -%}
+These {{ part.n }} outcomes are one partition of the same distribution: every way
+the match can end is in exactly one of them, nothing is left in an "any other"
+line, and they are rounded in a single pass, so the printed figures add to
+exactly 100.0.
+{%- else -%}
+These {{ part.n }} outcomes are one partition of the same distribution: every way
+the match can end is in exactly one of them and nothing is left in an "any
+other" line. At least one of them falls below a tenth of a percent and is shown
+as the floor rather than as 0.0%, because the model did not rule it out — so
+the printed figures here do NOT add to 100.0, and the tenths underneath them do.
+{%- endif %}
+{%- endmacro %}

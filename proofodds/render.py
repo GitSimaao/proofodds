@@ -19,9 +19,11 @@ import shutil
 import subprocess
 import unicodedata
 
+import numpy as np
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import anchor, charts, config, crests, dixon_coles, grade, guest, ledger
+from . import data
 from .data import sealed_name
 
 log = logging.getLogger(__name__)
@@ -247,6 +249,257 @@ def score_matrix(xg_home, xg_away, rho,
     }
 
 
+# --------------------------------------------------------------------------- #
+#  Partitions
+#
+#  Every market on a match card is a sum over the same fitted scoreline
+#  distribution, so every one of them can be printed as a partition: a set of
+#  outcomes that is exhaustive and mutually exclusive, adding to one by
+#  construction with nothing left in an "any other result" line. `_partition`
+#  is the single place that checks that claim before the card makes it, and
+#  the single place that rounds — one pass over the whole set in tenths, so
+#  the printed figures add to their own total instead of to 99.9 or 100.1.
+# --------------------------------------------------------------------------- #
+def _partition(entries: list[dict]) -> dict:
+    """
+    Round a set of outcomes that should add to one, and say whether it printed.
+
+    `entries` are dicts carrying at least `p`. The returned `exact` flag is
+    what the card's footnote is driven by: when every outcome is worth at
+    least a tenth of a percent the printed figures really do add to 100.0 and
+    the card says so, and when one of them is below that it is shown as the
+    honest floor `<0.1%`, the printed figures no longer add to 100.0, and the
+    card says that instead. Claiming the first while printing the second is
+    the kind of small lie this site cannot afford.
+    """
+    parts = [float(e["p"]) for e in entries]
+    if min(parts) < 0:
+        raise ValueError(f"partition has negative mass: min {min(parts)!r}")
+    if abs(sum(parts) - 1.0) > 1e-9:
+        raise ValueError(f"partition sums to {sum(parts)!r}, not 1")
+    tenths = percent_split(parts, 1000)
+    # "outcomes", never "items": a Jinja template that says `part.items` gets
+    # the dict method, not the list, and renders nothing while raising nothing
+    # that looks like a template bug.
+    outcomes = [{**entry, "p": part, "tenths": tenth, "text": _tenths_text(tenth)}
+                for entry, part, tenth in zip(entries, parts, tenths)]
+    return {"outcomes": outcomes, "exact": all(t > 0 for t in tenths),
+            "tenths_total": sum(tenths), "n": len(outcomes)}
+
+
+def _yes_no(label: str, p_yes: float) -> dict:
+    return _partition([{"label": label, "p": p_yes},
+                       {"label": "No", "p": 1.0 - p_yes}])
+
+
+def goal_ladder(row: dict, league: str) -> list[dict] | None:
+    """
+    The whole sealed 0.5-5.5 ladder, read from the entry and tagged line by line.
+
+    All six lines have been sealed in every prediction since 2 SEPTEMBER 2026
+    and only the 2.5 line was ever shown. That date is worth getting right:
+    `goal_totals` first appears in the entry of 2 September, not 26 August, and
+    the 630 predictions sealed between 28 August and 1 September carry
+    `p_over25` alone. Dropping the standalone over/under block in favour of
+    this ladder would have taken the 2.5 line off all 630 of those cards, so an
+    entry with no ladder falls back to the one line it did seal and the card's
+    sparse-markets note says the other five were never sealed.
+
+    Nothing here is recomputed either way: every probability comes straight out
+    of the sealed row. An entry that sealed neither returns None rather than a
+    ladder reconstructed after the fact.
+
+    The tags are per line and they are not decoration. football-data.co.uk
+    publishes a closing price for the 2.5 line and for no other, so 2.5 is
+    scored against the market where the division's source carries it and every
+    other line is sealed and scored by nothing. One block, two tags — because
+    letting the block inherit the 2.5 line's tag would be the site claiming a
+    benchmark for five lines it cannot check, in the place a reader skims.
+    """
+    lines = row.get("goal_totals") or []
+    if not lines and row.get("p_over25") is not None \
+            and row.get("p_under25") is not None:
+        lines = [{"line": config.TOTALS_LINE, "p_over": row["p_over25"],
+                  "p_under": row["p_under25"]}]
+    if not lines:
+        return None
+    main_is_scored = config.is_scored(league, "OU2.5")
+    ladder = []
+    for item in lines:
+        try:
+            line = float(item["line"])
+            p_over, p_under = float(item["p_over"]), float(item["p_under"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (p_over > 0 and p_under > 0):
+            continue
+        is_main = abs(line - config.TOTALS_LINE) < 1e-9
+        scored = is_main and main_is_scored
+        pct = percent_split([p_over, p_under])
+        ladder.append({
+            "line": line,
+            "label": f"{line:.1f}",
+            "p_over": p_over, "p_under": p_under,
+            "pct_over": pct[0], "pct_under": pct[1],
+            "fair_over": 1.0 / p_over, "fair_under": 1.0 / p_under,
+            "is_main": is_main,
+            "scored": scored,
+            "tag": "scored vs close" if scored else "sealed, not scored",
+            "tag_class": "is-scored" if scored else "is-forecast",
+        })
+    return ladder or None
+
+
+def derived_markets(xg_home, xg_away, rho, home: str, away: str) -> dict | None:
+    """
+    Every market that is a different sum of the SAME fitted scoreline grid.
+
+    Clean sheets, win to nil, odd/even, exact total goals, goals by team and
+    the winning margin are not a second model and not a second fit. They are
+    the distribution `score_matrix_from_xg` builds from the sealed `xg_home`,
+    `xg_away` and the division's sealed `model_rho`, summed a different way
+    each time — which is also true of the result, the ladder, BTTS and the
+    handicap, the difference being only that those four were sealed as numbers
+    and these are recomputed here.
+
+    Two things this must not do, and both have a way of going wrong quietly:
+
+    * It must use the FULL grid at `MAX_GOALS`, never `render.score_matrix`.
+      That one is a display object truncated at SCORE_GRID_MAX with three tail
+      buckets; deriving a total or a margin from it would put the tail in the
+      wrong place and nothing on the page would look wrong.
+    * Every market must be its own exhaustive partition. `_partition` refuses
+      one that is not, rather than printing a set of numbers that quietly adds
+      to 0.98.
+
+    Returns None for an entry that predates any of the three sealed inputs,
+    for the same reason `score_matrix` does: rho is the low-score correction
+    and pretending it was zero would print a distribution the sealed model
+    never produced.
+    """
+    if xg_home is None or xg_away is None or rho is None:
+        return None
+    try:
+        lam, mu, rho = float(xg_home), float(xg_away), float(rho)
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(v) for v in (lam, mu, rho)) or lam < 0 or mu < 0:
+        return None
+
+    grid = dixon_coles.score_matrix_from_xg(lam, mu, rho)
+    if float(grid.min()) < 0:
+        raise ValueError(
+            f"derived markets have negative mass for xg={lam},{mu} rho={rho}: "
+            f"min cell {float(grid.min())!r}")
+    size = grid.shape[0]
+    goals = np.arange(size)
+    home_goals = grid.sum(axis=1)
+    away_goals = grid.sum(axis=0)
+    totals = np.zeros(2 * size - 1)
+    np.add.at(totals, np.add.outer(goals, goals).ravel(), grid.ravel())
+    margin = np.zeros(2 * size - 1)          # index 0 == away by `size-1`
+    np.add.at(margin, (np.subtract.outer(goals, goals) + size - 1).ravel(),
+              grid.ravel())
+    centre = size - 1
+
+    total_cut = config.TOTAL_GOALS_MAX
+    team_cut = config.TEAM_GOALS_MAX
+
+    def _exact_total() -> dict:
+        entries = [{"label": str(t), "goals": t, "p": float(totals[t])}
+                   for t in range(total_cut + 1)]
+        entries.append({"label": f"{total_cut + 1} or more", "goals": None,
+                        "p": float(totals[total_cut + 1:].sum())})
+        return _partition(entries)
+
+    def _team(side: np.ndarray) -> dict:
+        entries = [{"label": str(g), "goals": g, "p": float(side[g])}
+                   for g in range(team_cut + 1)]
+        entries.append({"label": f"{team_cut + 1} or more", "goals": None,
+                        "p": float(side[team_cut + 1:].sum())})
+        return _partition(entries)
+
+    return {
+        "max_goals": size - 1,
+        "total_cut": total_cut,
+        "team_cut": team_cut,
+        # A clean sheet is the OPPONENT failing to score, which is the column
+        # (or row) of the grid at nil — not the side's own goals.
+        "clean_sheet": {
+            "home": _yes_no("Yes", float(grid[:, 0].sum())),
+            "away": _yes_no("Yes", float(grid[0, :].sum())),
+        },
+        "win_to_nil": {
+            "home": _yes_no("Yes", float(grid[1:, 0].sum())),
+            "away": _yes_no("Yes", float(grid[0, 1:].sum())),
+        },
+        # 0-0 is an even total, and the partition says so rather than leaving a
+        # reader to guess which way nil-nil falls.
+        "odd_even": _partition([
+            {"label": "Even", "p": float(totals[0::2].sum())},
+            {"label": "Odd", "p": float(totals[1::2].sum())},
+        ]),
+        "exact_total": _exact_total(),
+        "team_goals": {"home": _team(home_goals), "away": _team(away_goals)},
+        "margin": _partition([
+            {"label": f"{home} by 3+", "side": "home",
+             "p": float(margin[centre + 3:].sum())},
+            {"label": f"{home} by 2", "side": "home",
+             "p": float(margin[centre + 2])},
+            {"label": f"{home} by 1", "side": "home",
+             "p": float(margin[centre + 1])},
+            {"label": "Draw", "side": "draw", "p": float(margin[centre])},
+            {"label": f"{away} by 1", "side": "away",
+             "p": float(margin[centre - 1])},
+            {"label": f"{away} by 2", "side": "away",
+             "p": float(margin[centre - 2])},
+            {"label": f"{away} by 3+", "side": "away",
+             "p": float(margin[:centre - 2].sum())},
+        ]),
+    }
+
+
+def corner_view(row: dict) -> dict | None:
+    """
+    The sealed corner distribution, shown only where it is worth showing.
+
+    Two gates, and they are different gates. The DIVISION gate lives in
+    `ledger._corner_gate` and decides whether a corner model is fitted and
+    sealed at all. This one is about the individual entry: a corner block
+    sealed before 18 September 2026 came from a fit with no time weighting,
+    where a corner count from 2015/16 voted as loudly as one from last week.
+    Those blocks are in the ledger for good and are never rewritten, so the
+    card reads them and declines to print them. `xi` is the marker only the
+    weighted fit writes, which is why its absence is the test rather than a
+    date comparison.
+    """
+    block = row.get("corners")
+    if not isinstance(block, dict) or not block.get("totals"):
+        return None
+    if block.get("xi") is None:
+        return None
+    lines = []
+    for item in block["totals"]:
+        try:
+            line = float(item["line"])
+            p_over, p_under = float(item["p_over"]), float(item["p_under"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (p_over > 0 and p_under > 0):
+            continue
+        pct = percent_split([p_over, p_under])
+        lines.append({"line": line, "label": f"{line:.1f}",
+                      "p_over": p_over, "p_under": p_under,
+                      "pct_over": pct[0], "pct_under": pct[1],
+                      "fair_over": 1.0 / p_over, "fair_under": 1.0 / p_under})
+    if not lines:
+        return None
+    return {"x_home": block.get("x_home"), "x_away": block.get("x_away"),
+            "x_total": block.get("x_total"),
+            "dispersion": block.get("dispersion"),
+            "xi": block.get("xi"), "lines": lines}
+
+
 def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
     """Turn one immutable ledger row into the site's richer display model."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -263,14 +516,14 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
                 if row.get("p_btts_yes") is not None else None)
     handicaps = row.get("asian_handicap") or []
     main_ah = min(handicaps, key=lambda x: abs(float(x["p_home"]) - .5)) if handicaps else None
-    # Still read, still sealed, deliberately not rendered. Corners are the one
-    # market this site publishes no score for, so it publishes no forecast for
-    # them either — see the note in config.FORECAST_MARKETS. The entries keep
-    # accumulating so the record exists on the day the scoring does.
+    # Read, sealed, and shown as SEALED, NOT SCORED — there is no free closing
+    # price for corners anywhere, so this is never an edge claim. `corner_view`
+    # also refuses a block sealed by the old unweighted fit; see its docstring.
     corner_data = row.get("corners")
     corner_totals = corner_data.get("totals", []) if isinstance(corner_data, dict) else []
     corner_main = (min(corner_totals, key=lambda x: abs(float(x["p_over"]) - .5))
                    if corner_totals else None)
+    corners_shown = corner_view(row)
     favourite = ("H", "D", "A")[max(
         range(3), key=lambda i: (row["p_H"], row["p_D"], row["p_A"])[i])]
     match_slug = (f"{league.lower()}-{slugify(row['home'])}-v-"
@@ -278,6 +531,32 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
     match_url = f"/matches/{row['kickoff'][:10]}/{match_slug}/"
     tbc = bool(row.get("kickoff_tbc"))
     entry_file = row.get("entry_file", f"{row['published_at'][:10]}.json")
+
+    ladder = goal_ladder(row, league)
+    derived = derived_markets(row.get("xg_home"), row.get("xg_away"),
+                              row.get("model_rho"), home, away)
+    matrix = score_matrix(row.get("xg_home"), row.get("xg_away"),
+                          row.get("model_rho"))
+
+    # One registry, read by BOTH the market nav and the sections themselves.
+    # The nav exists so a reader can reach any market on this card in one tap;
+    # a nav item that scrolls to nothing, or a section with no way to reach it,
+    # is worse than no nav at all, and two lists of conditions in two files is
+    # exactly how that happens. The template asks this list what to render.
+    sections = [("result", "Result")]
+    if ladder or row.get("xg_home") is not None or row.get("p_over25") is not None:
+        sections.append(("goals", "Goals"))
+    if row.get("p_btts_yes") is not None or derived:
+        sections.append(("btts", "Both teams"))
+    if handicaps:
+        sections.append(("handicap", "Handicap"))
+    if derived:
+        sections.append(("margin", "Margin"))
+        sections.append(("teams", "By team"))
+    if matrix:
+        sections.append(("score", "Correct score"))
+    if corners_shown:
+        sections.append(("corners", "Corners"))
 
     return {
         **row,
@@ -295,8 +574,13 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "goal_totals": row.get("goal_totals", []),
         # Whether THIS division has a closing benchmark for each market. The
         # Brasileirao source publishes a closing 1X2 and nothing else, so its
-        # over/under and handicap are forecasts like BTTS is — the card has to
-        # say which is which, on the card, not in a footnote.
+        # over/under and handicap fall to the THIRD tier, not the second: the
+        # card used to tag them "forecast only", which says they are measured
+        # against guessing, and nothing measures them at all. `grade.py` needs
+        # a closing price to set `ou_graded` / `ah_graded`, so a Brazilian
+        # over/under reaches no scorecard on this site and the tag now says so.
+        # A tag is only worth keeping while it is the truth.
+        "result_scored": config.is_scored(league, "1X2"),
         "ou_scored": config.is_scored(league, "OU2.5"),
         "ah_scored": config.is_scored(league, "AH"),
         # A fixture first published before a market existed carries only what
@@ -304,10 +588,24 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         # cannot be added later — and the card says why, rather than leaving a
         # reader to wonder where the markets the method page promises are.
         "sparse_markets": [
+            # Bare noun phrases: the sentence on the card is "this card
+            # carries no ...", and "no the Asian handicap" was live prose.
             label for key, label in (("p_over25", "over/under 2.5"),
                                      ("p_btts_yes", "both teams to score"),
-                                     ("asian_handicap", "the Asian handicap"))
-            if not row.get(key)],
+                                     ("goal_totals",
+                                      "goal-total lines other than 2.5"),
+                                     ("asian_handicap", "Asian handicap"))
+            if not row.get(key)]
+        # The corner section is missing for two different reasons and they are
+        # not the same sentence. A division that never sealed one has no corner
+        # history worth modelling; an entry sealed before 18 September 2026 has
+        # a block that was fitted with no time decay and is deliberately not
+        # printed. Both are "sealed before this existed" from the reader's
+        # side, which is what this list says.
+        + (["corner model"]
+           if corners_shown is None and not row.get("corners") else [])
+        + (["time-weighted corner model"]
+           if corners_shown is None and row.get("corners") else []),
         "asian_handicap": handicaps,
         "main_ah": main_ah,
         "p_btts_yes": row.get("p_btts_yes"),
@@ -316,8 +614,17 @@ def prediction_view(row: dict, now: dt.datetime | None = None) -> dict:
         "pct_btts_no": pct_btts[1] if pct_btts else None,
         "corners": corner_data,
         "corner_main": corner_main,
-        "score_matrix": score_matrix(
-            row.get("xg_home"), row.get("xg_away"), row.get("model_rho")),
+        "corner_view": corners_shown,
+        "goal_ladder": ladder,
+        "score_matrix": matrix,
+        "sections": [{"id": i, "label": l} for i, l in sections],
+        "section_ids": {i for i, _ in sections},
+        # Recomputed from the sealed xg and rho, exactly as the correct-score
+        # view is. Nothing here is read out of the entry and nothing here is
+        # added to it: the entry is already 625 KB for 88 predictions, and a
+        # deterministic function of three sealed numbers does not need sealing
+        # twice. The card says which is which.
+        "derived": derived,
         "home_mark": club_mark(home, league),
         "away_mark": club_mark(away, league),
         "cold_start": [sealed_name(n, league) for n in row.get("cold_start", [])],
@@ -486,6 +793,49 @@ def _coverage_ratio(entry: dict) -> dict:
     return {"covered": sum(1 for c in requested if c in sealed),
             "requested_n": len(requested),
             "not_covered": grouped}
+
+
+def corner_eligibility() -> list[dict]:
+    """
+    The corner rule, measured rather than asserted, for the method page.
+
+    The page that explains the rule prints the table the rule produces, from
+    the same data the ledger gates on — so a division that falls out of the
+    corner model falls out of the method page's list in the same build, and
+    nobody has to remember to retype a list of leagues. A hand-typed list is
+    exactly the thing that rots silently here.
+
+    Never fatal. A division whose CSVs are missing is reported as unmeasurable
+    rather than taking the whole site down with it.
+    """
+    today = np.datetime64(dt.date.today())
+    table = []
+    for code in config.ENABLED_LEAGUES:
+        meta = config.LEAGUES.get(code, {})
+        entry = {"code": code, "name": meta.get("name", code),
+                 "raw": None, "effective": None, "median": None, "bar": None,
+                 "clubs": None, "newest": None, "passes": False, "error": None}
+        try:
+            matches = data.load_matches(code)
+            past = matches[matches["Date"].to_numpy(dtype="datetime64[D]") < today]
+            gate = ledger._corner_gate(past, today)
+            if {"HC", "AC"}.issubset(past.columns):
+                rows = past.dropna(subset=["HC", "AC"])
+            else:
+                rows = past.iloc[0:0]
+            entry.update(
+                raw=int(len(rows)),
+                effective=round(gate["n_effective"], 1),
+                median=round(gate["median"], 1),
+                bar=gate["bar"], clubs=gate["n_clubs"],
+                newest=(str(rows["Season"].iloc[-1]) if len(rows) else None),
+                passes=bool(gate["passes"]))
+        except Exception as exc:                      # noqa: BLE001
+            log.warning("corner eligibility: %s could not be measured (%s)",
+                        code, exc)
+            entry["error"] = str(exc)[:120]
+        table.append(entry)
+    return table
 
 
 def sitemap(pages: list[str]) -> str:
@@ -734,6 +1084,12 @@ def build(out_dir=None) -> None:
         page="method", canonical="/method/",
         xi=config.XI,
         half_life=int(round(math.log(2) / config.XI)),
+        corner_table=corner_eligibility(),
+        total_goals_max=config.TOTAL_GOALS_MAX,
+        team_goals_max=config.TEAM_GOALS_MAX,
+        score_grid_max=config.SCORE_GRID_MAX,
+        max_goals=config.MAX_GOALS,
+        goal_total_lines=config.GOAL_TOTAL_LINES,
         **common))
 
     # The log: dated notes with a stable home on our own domain, so links from
