@@ -108,7 +108,7 @@
     <p>Statistical forecasts published for informational purposes. Not betting
     advice. 18+. If gambling stops being fun, it is worth talking to someone —
     <a href="https://www.begambleaware.org/" rel="noopener">BeGambleAware</a>.</p>
-    <p>Built <time datetime="{{ built_iso }}" data-built>{{ built_at }}</time> · Odds and results from football-data.co.uk</p>
+    <p>Built <time datetime="{{ built_iso }}" data-built>{{ built_at }}</time>{% if build_commit_short %} from <code>{{ build_commit_short }}</code>{% if build_unpublished %} &mdash; <strong>not in the public repository</strong>{% elif build_dirty %} &mdash; plus uncommitted changes{% endif %}{% endif %} · Odds and results from football-data.co.uk</p>
   </div>
 </footer>
 

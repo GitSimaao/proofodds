@@ -181,6 +181,17 @@
 cd proofodds
 python -m proofodds.verify</pre>
     </div>
+{% if build_unpublished %}
+    <div class="callout">
+      <p><strong>This page was built from code that is not in the public repository.</strong>
+      It was rendered from commit <code>{{ build_commit_short }}</code>{% if build_dirty %}, with
+      uncommitted changes on top of it{% endif %}, and that commit has not reached the remote. The
+      command above still recomputes the chain &mdash; sealed entries are committed and pushed as
+      part of sealing, and <code>verify.py</code> reads nothing but those entries &mdash; but a
+      clone will not rebuild this page as you are seeing it. The site says so rather than leaving
+      the instruction above quietly false.</p>
+    </div>
+{% endif %}
     <p class="section-note">Or point it at a directory of files downloaded from this site.
     It ignores anything in there that is not a ledger entry — the build summary at
     <a href="/predictions/_chain.json">/predictions/_chain.json</a> among them — and reports

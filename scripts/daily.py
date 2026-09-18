@@ -42,6 +42,9 @@ NOT fatal (exit 0), each for a stated reason:
   * git commit or push failed — the entry is sealed on disk and the next run
     pushes it. A network blip must not page. (A push failing for DAYS is a
     real problem, but it is a different alarm: remote staleness, not this run.)
+  * the build came from a commit that is not on the remote — a publishing gap
+    a push closes, not a bad run. It is warned about here and stated on the
+    site itself, which is the half that gets noticed.
 
 A fatal condition is recorded and the run continues to the end. The site is
 still graded and rebuilt, because it reports the chain's state honestly and a
@@ -238,6 +241,25 @@ def main() -> int:
     # Build into staging and swap, rather than deleting the directory nginx is
     # serving and refilling it page by page.
     render.publish_site()
+
+    # Did this build come from code a reader can actually clone?
+    #
+    # On a normal run it always does: the push at step 5 happens before this
+    # build. It is false when somebody deployed by hand without pushing, which
+    # is how the site twice ended up serving code that was not in the
+    # repository. Logged here, and said out loud on the site itself, because a
+    # log line alone is exactly what nobody read the first two times.
+    #
+    # NOT fatal, for the same reason a failed push is not: the run sealed,
+    # anchored and graded correctly, and the entries are on disk. An unpushed
+    # commit is a publishing gap that a push closes, not a bad run, and paging
+    # for it would train people to ignore the page that means a broken chain.
+    provenance = render.build_provenance()
+    if provenance["published"] is False:
+        log.warning("the site was built from %s, which is NOT on origin/main — "
+                    "a reader cloning the repository cannot reproduce this "
+                    "build. The site now says so on /ledger/. Push it.",
+                    (provenance["commit"] or "?")[:10])
 
     if failures:
         log.error("RUN FAILED — %s", "; ".join(failures))

@@ -16,6 +16,7 @@ import logging
 import math
 import re
 import shutil
+import subprocess
 import unicodedata
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -498,6 +499,68 @@ def sitemap(pages: list[str]) -> str:
 
 
 # --------------------------------------------------------------------------- #
+def build_provenance() -> dict:
+    """
+    Which commit built this page, and whether a reader can obtain that commit.
+
+    /ledger/ tells a reader to clone the repository and recompute the chain,
+    and /method/ makes the same offer. Those instructions are only true while
+    the code serving the page is code the reader can actually get. Twice in two
+    days it was not: the site was deployed from commits that had not been
+    pushed, so somebody cloning got a repository that could not build the page
+    they were reading.
+
+    Nothing caught it either time, because the divergence is invisible from
+    both ends — the server looks fine, the repository looks fine, and only
+    comparing the two shows it. Nobody compares the two. So the build records
+    which commit it came from and whether that commit is on the remote, and the
+    page prints it. Deploying ahead of the repository is now wrong in public
+    instead of undetectable, which is the same move 081ba02 made for a stale
+    feed and the stale-build note already makes for an old build: the fix for
+    an invisible state is to make it a recorded one.
+
+    `published` is judged against the local `origin/main` ref, because a build
+    must not make a network call to decide what to render. It therefore reports
+    what this machine last saw, and is None — unknown, and the page says
+    nothing — when git cannot answer at all.
+
+    This is deliberately NOT sealed into the ledger entry. It describes the
+    machine that rendered a page, which is not a fact about the predictions,
+    and entries are append-only: `ledger.generator_identity` stays as it is.
+    """
+    def _git(*args: str) -> subprocess.CompletedProcess | None:
+        try:
+            return subprocess.run(["git", *args], cwd=str(config.ROOT),
+                                  capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    unknown = {"commit": None, "dirty": None, "published": None}
+    if not (config.ROOT / ".git").exists():
+        return unknown
+
+    head = _git("rev-parse", "HEAD")
+    if head is None or head.returncode != 0 or not head.stdout.strip():
+        return unknown
+    commit = head.stdout.strip()
+
+    # Tracked files only. An untracked file cannot change what the templates
+    # render, and `outputs/` would otherwise report every build as modified.
+    status = _git("status", "--porcelain", "--untracked-files=no")
+    dirty = (bool(status.stdout.strip())
+             if status is not None and status.returncode == 0 else None)
+
+    # Exit 0 = HEAD is an ancestor of origin/main, so a clone gets it. Exit 1 =
+    # it is not. Anything else (no remote ref at all, for instance) is unknown
+    # rather than a claim in either direction.
+    ancestor = _git("merge-base", "--is-ancestor", commit, "origin/main")
+    published = None
+    if ancestor is not None and ancestor.returncode in (0, 1):
+        published = ancestor.returncode == 0
+
+    return {"commit": commit, "dirty": dirty, "published": published}
+
+
 def build(out_dir=None) -> None:
     out_dir = out_dir or config.SITE_DIR
     env = environment()
@@ -546,6 +609,12 @@ def build(out_dir=None) -> None:
     asset_v = hashlib.sha256(css).hexdigest()[:10]
     brand_v = hashlib.sha256(brand_files).hexdigest()[:10]
 
+    # Which commit this build came from, and whether a reader can clone it.
+    # Printed in the footer of every page, so a site running ahead of its own
+    # repository says so instead of quietly breaking the clone instruction on
+    # /ledger/.
+    provenance = build_provenance()
+
     common = {
         "asset_v": asset_v,
         "brand_v": brand_v,
@@ -557,6 +626,15 @@ def build(out_dir=None) -> None:
         # Machine-readable, so the page can compare its own age with the
         # reader's clock and say when it has gone stale.
         "built_iso": build_now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "build_commit": provenance["commit"],
+        "build_commit_short": (provenance["commit"] or "")[:10] or None,
+        "build_dirty": provenance["dirty"],
+        # True / False / None, and None means "git could not say", in which
+        # case the page claims nothing either way — hence the explicit
+        # `is False` rather than a falsy test, which would read "unknown" as
+        # "unpublished" and print an accusation the build cannot support.
+        "build_published": provenance["published"],
+        "build_unpublished": provenance["published"] is False,
         "uniform_log_loss": config.UNIFORM_LOG_LOSS,
         "min_league_rows": config.MIN_LEAGUE_ROWS,
         "backtest": config.BACKTEST,

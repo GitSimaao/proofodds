@@ -3502,3 +3502,90 @@ def test_the_scorecard_page_publishes_the_coverage_it_measured():
     # The division with nothing played must not be dressed up as complete.
     assert "Super Lig" not in html.split('id="coverage"')[1].split("</table>")[0]
     assert "T1" in html
+
+
+# --------------------------------------------------------------------------- #
+#  Build provenance
+#
+#  /ledger/ tells a reader to clone the repository and recompute the chain.
+#  That instruction is only true while the deployed code is code they can get,
+#  and twice in two days it was not — the site was served from commits that had
+#  never been pushed, invisibly, because checking means comparing a server with
+#  a remote and nobody does that by hand. The build now records which commit it
+#  came from and whether a clone would get it, and the page says so.
+# --------------------------------------------------------------------------- #
+def test_build_provenance_reports_this_repository():
+    from proofodds import render
+    prov = render.build_provenance()
+    assert set(prov) == {"commit", "dirty", "published"}
+    assert prov["commit"] and len(prov["commit"]) == 40, "a full HEAD sha"
+    assert prov["published"] in (True, False, None)
+
+
+def test_build_provenance_is_unknown_not_false_without_git(monkeypatch,
+                                                           tmp_path):
+    """
+    No git, no claim.
+
+    `published` is a three-valued answer on purpose: reporting "cannot say" as
+    "not published" would print an accusation on the site that the build has no
+    evidence for, on any checkout without a remote.
+    """
+    from proofodds import render
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    assert render.build_provenance() == {"commit": None, "dirty": None,
+                                         "published": None}
+
+
+def test_an_unpushed_build_says_so_next_to_the_clone_instruction():
+    """
+    The failure this exists to catch, on the page that makes the promise.
+    """
+    html = _render_ledger_page(build_unpublished=True, build_dirty=False,
+                               build_commit_short="d903ce34c7")
+    assert "not in the public repository" in html
+    assert "d903ce34c7" in html
+    # And it must not undermine the half that is still true: the sealed
+    # entries are pushed, so the chain check itself is unaffected.
+    assert "still recomputes the chain" in html
+
+
+def test_a_pushed_build_prints_no_warning():
+    """
+    An alarm that shows on a normal build is an alarm nobody reads.
+    """
+    html = _render_ledger_page(build_unpublished=False, build_dirty=False,
+                               build_commit_short="d903ce34c7")
+    assert "not in the public repository" not in html
+
+
+def test_unknown_provenance_prints_no_warning():
+    html = _render_ledger_page(build_unpublished=False, build_dirty=None,
+                               build_commit_short=None)
+    assert "not in the public repository" not in html
+
+
+def _render_ledger_page(**provenance):
+    """Render /ledger/ with a fixed chain and only provenance varying."""
+    from proofodds import ledger, render
+    row = {
+        "file": "2026-09-18.json", "published_at": "2026-09-18T00:07:00Z",
+        "n": 1, "hash": "c" * 64, "prev_hash": ledger.GENESIS,
+        "generator_commit": "a" * 40, "generator_dirty": False,
+        "generator_source": "d" * 64,
+        "coverage": {"requested": ["E0"], "returned": {"E0": 1},
+                     "missing": []},
+        "anchor": {"status": "attested", "blocks": [900123],
+                   "proof": "2026-09-18.json.ots"},
+        "coverage_sealed": 1, "coverage_requested": 1,
+    }
+    return render.environment().get_template("ledger.html").render(
+        site_name="ProofOdds", site_url="https://proofodds.com",
+        repo_url="https://github.com/GitSimaao/proofodds", asset_v="test",
+        chain={"ok": True, "n_entries": 1, "head": "b" * 64},
+        anchors={"proofs": 1, "continuous_after_start": True,
+                 "proof_entry_start": "2026-09-18", "chain_only_before": 0,
+                 "attested": 1, "pending": 0, "mismatched": 0,
+                 "unclassified": 0},
+        entries=[row], genesis=ledger.GENESIS, coverage_from="2026-09-13",
+        **provenance)
