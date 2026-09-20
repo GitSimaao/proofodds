@@ -401,6 +401,84 @@ def ah_scorecard(graded: pd.DataFrame) -> dict:
             "ci_high": interval["ci_high"], "separated": interval["separated"]}
 
 
+def market_overlap(graded: pd.DataFrame) -> dict:
+    """
+    How far the three scored scorecard lines are three separate measurements.
+
+    They are not. The result, the goal total and the handicap are three
+    partitions of ONE fitted scoreline distribution, graded on overlapping
+    sets of matches, so a reader who sees the model behind on all three is
+    looking at one fact seen three ways more than at three facts. The site
+    says the first half of that on this page already ("different sums of the
+    same distribution") and has never said the consequence, which is the half
+    that changes how the scorecard should be read.
+
+    "Correlated, not identical" is the honest phrasing, and the number that
+    earns it is the correlation of the PER-MATCH paired difference
+    (model loss - market loss) between two markets on the matches both grade.
+    That difference is the quantity each headline is a mean of, so its
+    correlation is exactly how much the two headlines are one number. A
+    handicap is reported alongside its line size because the overlap is not
+    constant: at a line near zero the handicap is very nearly the result
+    market re-sliced, while a large line genuinely asks about the margin tail,
+    which the result market never resolves.
+
+    Measured at build time from the live graded frame, like everything else on
+    this page, so the page cannot go on asserting a number the data stopped
+    supporting. Pearson on a paired difference, no bootstrap — same reasoning
+    as `paired_interval`: an interval or a coefficient a reader cannot
+    recompute from the published ledger is the wrong trade here.
+    """
+    empty = {"live": False}
+    if graded.empty or "ah_graded" not in graded.columns:
+        return empty
+
+    def diff(mask_col, model_col, market_col, weight_col=None):
+        mask = graded[mask_col].to_numpy(bool)
+        d = (graded[model_col] - graded[market_col]).to_numpy(float)
+        if weight_col is not None:
+            w = graded[weight_col].to_numpy(float)
+            # Per unit of settled stake, so a quarter line that settled half a
+            # bet is not compared against a whole one.
+            d = np.divide(d, np.where(w > 0, w, np.nan))
+        return mask, d
+
+    m_res, d_res = diff("graded", "model_loss", "market_loss")
+    m_ou, d_ou = diff("ou_graded", "ou_model_loss", "ou_market_loss")
+    m_ah, d_ah = diff("ah_graded", "ah_model_loss", "ah_market_loss", "ah_weight")
+
+    def corr(ma, da, mb, db):
+        keep = ma & mb & np.isfinite(da) & np.isfinite(db)
+        n = int(keep.sum())
+        if n < 3:
+            return {"n": n, "r": None}
+        x, y = da[keep], db[keep]
+        if x.std() == 0 or y.std() == 0:
+            return {"n": n, "r": None}
+        return {"n": n, "r": float(np.corrcoef(x, y)[0, 1])}
+
+    absline = graded["AHCh"].abs().to_numpy(float)
+    near = m_ah & (absline <= 0.25 + 1e-9)
+    far = m_ah & (absline >= 1.0 - 1e-9)
+
+    return {
+        "live": True,
+        "res_ah": corr(m_res, d_res, m_ah, d_ah),
+        "res_ou": corr(m_res, d_res, m_ou, d_ou),
+        "ou_ah": corr(m_ou, d_ou, m_ah, d_ah),
+        "res_ah_near": corr(m_res, d_res, near, d_ah),
+        "res_ah_far": corr(m_res, d_res, far, d_ah),
+        # Every handicap and every total is graded on a match that the result
+        # market also grades, which is the plainest statement of the overlap
+        # and needs no coefficient at all.
+        "ah_also_res": int((m_ah & m_res).sum()),
+        "ah_n": int(m_ah.sum()),
+        "ou_also_res": int((m_ou & m_res).sum()),
+        "ou_n": int(m_ou.sum()),
+        "ah_also_ou": int((m_ah & m_ou).sum()),
+    }
+
+
 def by_week(graded: pd.DataFrame) -> list[dict]:
     """Weekly rollup — enough resolution to see form without being noisy."""
     if graded.empty or "graded" not in graded.columns:

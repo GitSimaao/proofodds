@@ -920,6 +920,9 @@ def build(out_dir=None) -> None:
     totals = grade.totals_scorecard(graded)
     btts = grade.btts_scorecard(graded)
     asian = grade.ah_scorecard(graded)
+    # How far the three scored markets are three separate measurements.
+    # Only /method/ uses it, beside the boxes that name them.
+    overlap = grade.market_overlap(graded)
     weeks = grade.by_week(graded)
     leagues = grade.by_league(graded)
     cohorts = grade.by_cohort(graded)
@@ -1085,6 +1088,7 @@ def build(out_dir=None) -> None:
         xi=config.XI,
         half_life=int(round(math.log(2) / config.XI)),
         corner_table=corner_eligibility(),
+        overlap=overlap,
         total_goals_max=config.TOTAL_GOALS_MAX,
         team_goals_max=config.TEAM_GOALS_MAX,
         score_grid_max=config.SCORE_GRID_MAX,

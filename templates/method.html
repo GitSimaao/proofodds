@@ -28,7 +28,9 @@
           <a href="/scorecard/">scorecard</a>, and it is the only place an edge claim
           could ever live. Today: the <strong>result</strong> in every division, plus
           <strong>over/under 2.5</strong> and the <strong>Asian handicap</strong> in the
-          divisions whose source publishes them.</p>
+          divisions whose source publishes them. Those three are not three
+          independent measurements, and the scorecard should not be read as if
+          they were &mdash; <a href="#not-three">why, and by how much</a>.</p>
         </div>
         <div class="box">
           <h4>Scored against guessing</h4>
@@ -96,6 +98,70 @@
       different sums of the same Dixon–Coles scoreline distribution — not separate
       fitted models, and not a second set of assumptions. Corners are the one exception
       on the card and are a genuinely separate model; they are marked as such below.</p>
+
+      <h3 id="not-three">Three scorecard lines, and not three measurements</h3>
+      <p>The paragraph above is the pleasant half of the sentence. This is the
+      other half, and it changes how the <a href="/scorecard/">scorecard</a>
+      should be read.</p>
+      <p>If every market is a different sum of one fitted distribution, then the
+      <strong>result</strong>, <strong>over/under 2.5</strong> and
+      <strong>Asian handicap</strong> lines on the scorecard are not three
+      independent verdicts on the model. They are three partitions of the same
+      distribution, graded on overlapping sets of the same matches.
+      {% if overlap.live and overlap.ah_n %}Every one of the {{ overlap.ah_n }}
+      matches graded on the handicap, and every one of the {{ overlap.ou_n }}
+      graded on the total, is a match the result market also grades.{% endif %}
+      A reader who sees the model behind on all three{% if score.live and totals.live
+      and overlap.live and asian.live and not score.beats_market and not
+      totals.beats_market and not asian.beats_market %} — and as this page built, it
+      is behind on all three{% endif %} will naturally count three pieces of evidence. It is closer
+      to one piece of evidence seen three ways. That reader could easily be us,
+      which is the reason this is on the page.</p>
+      <p><strong>Correlated is not the same as identical, and the overstatement
+      runs both ways.</strong> The markets do ask different questions of the same
+      distribution. Over/under asks about the <em>total</em>, the result and the
+      handicap about the <em>difference</em>, and a large handicap line asks
+      about the tail of that difference — a margin the result market never has
+      to resolve, because two goals and five goals are the same home win to
+      it.</p>
+      {% if overlap.live and overlap.res_ah.r is not none %}
+      <p>How much overlap, measured rather than asserted. Each scorecard
+      headline is a mean of one number per match: the model's log loss minus the
+      closing line's. Correlate that per-match number between two markets, over
+      the matches both of them grade, and you have how far the two headlines are
+      one number. At build time, on the live graded sample:</p>
+      <ul>
+        <li><strong>Result and Asian handicap: r = {{ '%.2f'|format(overlap.res_ah.r) }}</strong>
+        over {{ overlap.res_ah.n }} matches. Much of the same fact twice.</li>
+        {% if overlap.res_ah_near.r is not none and overlap.res_ah_far.r is not none %}
+        <li>And it splits by line size, which is the point. On handicaps of
+        <strong>0.25 or less</strong> — where the handicap is very nearly
+        draw-no-bet, or "home win or not" — r = {{ '%.2f'|format(overlap.res_ah_near.r) }}
+        over {{ overlap.res_ah_near.n }} matches: all but the same measurement.
+        On handicaps of <strong>1.00 or more</strong>, r = {{ '%.2f'|format(overlap.res_ah_far.r) }}
+        over {{ overlap.res_ah_far.n }} matches. That gap between the two is the
+        margin tail being genuinely tested, and it is the honest case for
+        keeping the handicap line on the page at all.</li>
+        {% endif %}
+        {% if overlap.res_ou.r is not none %}
+        <li><strong>Result and over/under 2.5: r = {{ '%.2f'|format(overlap.res_ou.r) }}</strong>
+        over {{ overlap.res_ou.n }} matches. Close to independent, which is what
+        you would expect: knowing the total tells you little about who won.</li>
+        {% endif %}
+      </ul>
+      <p>So the scorecard's three scored lines are worth somewhere between one
+      measurement and three, nearer two, and the handicap is the line that adds
+      least of its own. Read the result line as the headline it is, read the
+      total as a second and largely separate question, and do not read the
+      handicap as a third opinion on the first — at small lines it mostly is the
+      first. The coefficients above are Pearson on a paired difference, computed
+      at build time from the same graded frame the scorecard uses, and they will
+      move as the sample grows.</p>
+      {% else %}
+      <p>How much overlap is not yet measurable here: too few matches are graded
+      on more than one market to correlate anything. Until it is, the direction
+      is the claim and no number is offered for it.</p>
+      {% endif %}
 
       <p><strong>Not every entry carries every market, and none was backfilled.</strong>
       The markets arrived on different days and first publication wins, so a fixture
