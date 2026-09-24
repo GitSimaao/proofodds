@@ -1,0 +1,492 @@
+{
+  "version": 6,
+  "leagues": [
+    "BRA"
+  ],
+  "published_at": "2026-09-24T00:09:16Z",
+  "prev_hash": "1927d04e7ff3b854584e32d4ef664e30ab9df152d920c7acce32f82e85f0a460",
+  "generator": {
+    "commit": "ec19a3ce20e310ef8995526041b26737ad72fdc3",
+    "dirty": false,
+    "source_sha256": "52dd1ca4ccd8b813975f774d1d9fd4c617a6e89268ae10bc7b7c253d805dc2b4"
+  },
+  "models": {
+    "BRA": {
+      "name": "dixon-coles",
+      "xi": 0.002,
+      "prior_sd": 0.6,
+      "trained_through": "2026-09-20",
+      "n_train": 5596,
+      "home_advantage": 1.3918,
+      "rho": -0.0345,
+      "league_mean_goals": 1.0336,
+      "totals_line": 2.5,
+      "markets": [
+        "1X2",
+        "BTTS",
+        "goal totals",
+        "Asian handicap"
+      ],
+      "corners": {
+        "available": false,
+        "reason": "the median club carries 0.0 effective corner appearances, below the bar of 19"
+      }
+    }
+  },
+  "predictions": [
+    {
+      "league": "BRA",
+      "kickoff": "2026-10-02T23:00:00Z",
+      "home": "Sao Paulo",
+      "away": "Santos",
+      "p_H": 0.480898,
+      "p_D": 0.269059,
+      "p_A": 0.250043,
+      "p_over25": 0.455078,
+      "p_under25": 0.544922,
+      "p_btts_yes": 0.495199,
+      "p_btts_no": 0.504801,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.913299,
+          "p_under": 0.086701
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.716076,
+          "p_under": 0.283924
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.455078,
+          "p_under": 0.544922
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.241501,
+          "p_under": 0.758499
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.108245,
+          "p_under": 0.891755
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.041733,
+          "p_under": 0.958267
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.033476,
+          "p_away": 0.966524,
+          "fair_home": 29.872567,
+          "fair_away": 1.034635,
+          "push": 0.065548
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.066226,
+          "p_away": 0.933774,
+          "fair_home": 15.099899,
+          "fair_away": 1.070922,
+          "push": 0.032774
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.096829,
+          "p_away": 0.903171,
+          "fair_home": 10.327485,
+          "fair_away": 1.10721,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.104517,
+          "p_away": 0.895483,
+          "fair_home": 9.567841,
+          "fair_away": 1.116716,
+          "push": 0.073556
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.113531,
+          "p_away": 0.886469,
+          "fair_home": 8.808197,
+          "fair_away": 1.128071,
+          "push": 0.147111
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.183912,
+          "p_away": 0.816088,
+          "fair_home": 5.437372,
+          "fair_away": 1.225359,
+          "push": 0.073556
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.24394,
+          "p_away": 0.75606,
+          "fair_home": 4.099366,
+          "fair_away": 1.322647,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.276726,
+          "p_away": 0.723274,
+          "fair_home": 3.613676,
+          "fair_away": 1.382603,
+          "push": 0.118479
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.319694,
+          "p_away": 0.680306,
+          "fair_home": 3.127987,
+          "fair_away": 1.469928,
+          "push": 0.236958
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.41113,
+          "p_away": 0.58887,
+          "fair_home": 2.432323,
+          "fair_away": 1.698167,
+          "push": 0.118479
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.480898,
+          "p_away": 0.519102,
+          "fair_home": 2.079441,
+          "fair_away": 1.926405,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.55565,
+          "p_away": 0.44435,
+          "fair_home": 1.799695,
+          "fair_away": 2.250477,
+          "push": 0.134529
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.657917,
+          "p_away": 0.342083,
+          "fair_home": 1.519949,
+          "fair_away": 2.923267,
+          "push": 0.269059
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.711091,
+          "p_away": 0.288909,
+          "fair_home": 1.40629,
+          "fair_away": 3.461293,
+          "push": 0.134529
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.749957,
+          "p_away": 0.250043,
+          "fair_home": 1.333409,
+          "fair_away": 3.99932,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.814246,
+          "p_away": 0.185754,
+          "fair_home": 1.22813,
+          "fair_away": 5.383475,
+          "push": 0.078955
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.890591,
+          "p_away": 0.109409,
+          "fair_home": 1.12285,
+          "fair_away": 9.14,
+          "push": 0.15791
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.89997,
+          "p_away": 0.10003,
+          "fair_home": 1.111148,
+          "fair_away": 9.996975,
+          "push": 0.078955
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.907868,
+          "p_away": 0.092132,
+          "fair_home": 1.101482,
+          "fair_away": 10.853949,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.939088,
+          "p_away": 0.060912,
+          "fair_home": 1.064862,
+          "fair_away": 16.41726,
+          "push": 0.033246
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.972533,
+          "p_away": 0.027467,
+          "fair_home": 1.028243,
+          "fair_away": 36.407533,
+          "push": 0.066492
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.973478,
+          "p_away": 0.026522,
+          "fair_home": 1.027245,
+          "fair_away": 37.70415,
+          "push": 0.033246
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.974359,
+          "p_away": 0.025641,
+          "fair_home": 1.026315,
+          "fair_away": 39.000766,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.984161,
+          "p_away": 0.015839,
+          "fair_home": 1.016094,
+          "fair_away": 63.133862,
+          "push": 0.009959
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.994161,
+          "p_away": 0.005839,
+          "fair_home": 1.005873,
+          "fair_away": 171.261785,
+          "push": 0.019918
+        }
+      ],
+      "xg_home": 1.4924,
+      "xg_away": 1.0033,
+      "cold_start": [],
+      "home_raw": "São Paulo FC",
+      "away_raw": "Santos FC"
+    }
+  ],
+  "coverage": {
+    "requested": [
+      "E0",
+      "E1",
+      "E2",
+      "E3",
+      "EC",
+      "SP1",
+      "SP2",
+      "I1",
+      "I2",
+      "D1",
+      "D2",
+      "F1",
+      "F2",
+      "P1",
+      "N1",
+      "B1",
+      "SC0",
+      "SC1",
+      "SC2",
+      "SC3",
+      "T1",
+      "G1",
+      "BRA"
+    ],
+    "returned": {
+      "E0": 0,
+      "E1": 0,
+      "E2": 0,
+      "E3": 0,
+      "EC": 0,
+      "SP1": 0,
+      "SP2": 0,
+      "I1": 0,
+      "I2": 0,
+      "D1": 0,
+      "D2": 0,
+      "F1": 0,
+      "F2": 0,
+      "P1": 0,
+      "N1": 0,
+      "B1": 0,
+      "SC0": 0,
+      "SC1": 0,
+      "SC2": 0,
+      "SC3": 0,
+      "T1": 0,
+      "G1": 0,
+      "BRA": 1
+    },
+    "missing": [
+      {
+        "league": "E0",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "E3",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "EC",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "SP1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "SP2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "I1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "I2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "D1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "D2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "F1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "F2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "P1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "N1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "B1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "SC0",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "SC1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "SC2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "SC3",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "T1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      },
+      {
+        "league": "G1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-24"
+      }
+    ],
+    "notes": [],
+    "sources": {
+      "football-data.co.uk/fixtures.csv": {
+        "url": "https://www.football-data.co.uk/fixtures.csv",
+        "checked_at": "2026-09-24T00:09:15Z",
+        "rows": 198,
+        "oldest": "2026-09-18",
+        "newest": "2026-09-20",
+        "stale": true,
+        "rows_by_division": {
+          "B1": 9,
+          "D1": 9,
+          "D2": 9,
+          "E0": 10,
+          "E1": 12,
+          "E2": 11,
+          "E3": 12,
+          "EC": 12,
+          "F1": 9,
+          "F2": 9,
+          "G1": 7,
+          "I1": 10,
+          "I2": 10,
+          "N1": 9,
+          "P1": 9,
+          "SC0": 6,
+          "SC1": 5,
+          "SC2": 5,
+          "SC3": 5,
+          "SP1": 10,
+          "SP2": 11,
+          "T1": 9
+        },
+        "newest_by_division": {
+          "B1": "2026-09-20",
+          "D1": "2026-09-20",
+          "D2": "2026-09-20",
+          "E0": "2026-09-20",
+          "E1": "2026-09-20",
+          "E2": "2026-09-19",
+          "E3": "2026-09-19",
+          "EC": "2026-09-19",
+          "F1": "2026-09-20",
+          "F2": "2026-09-19",
+          "G1": "2026-09-20",
+          "I1": "2026-09-20",
+          "I2": "2026-09-20",
+          "N1": "2026-09-20",
+          "P1": "2026-09-20",
+          "SC0": "2026-09-20",
+          "SC1": "2026-09-19",
+          "SC2": "2026-09-19",
+          "SC3": "2026-09-19",
+          "SP1": "2026-09-20",
+          "SP2": "2026-09-20",
+          "T1": "2026-09-20"
+        }
+      }
+    }
+  },
+  "hash": "36a2ec563a77b10ad06e691b5b8c0828247a184054d76ee238c547f0e281ac46"
+}
