@@ -1,0 +1,744 @@
+{
+  "version": 6,
+  "leagues": [
+    "BRA"
+  ],
+  "published_at": "2026-09-25T00:09:10Z",
+  "prev_hash": "36a2ec563a77b10ad06e691b5b8c0828247a184054d76ee238c547f0e281ac46",
+  "generator": {
+    "commit": "bb74986ea82c4db018d047755c8a0e782475d6ed",
+    "dirty": true,
+    "source_sha256": "003ddd58fc0da1fe9355782df38747a13016750b10d819ef97d289a9cbb4f308"
+  },
+  "models": {
+    "BRA": {
+      "name": "dixon-coles",
+      "xi": 0.002,
+      "prior_sd": 0.6,
+      "trained_through": "2026-09-20",
+      "n_train": 5596,
+      "home_advantage": 1.3918,
+      "rho": -0.0345,
+      "league_mean_goals": 1.0336,
+      "totals_line": 2.5,
+      "markets": [
+        "1X2",
+        "BTTS",
+        "goal totals",
+        "Asian handicap"
+      ],
+      "corners": {
+        "available": false,
+        "reason": "the median club carries 0.0 effective corner appearances, below the bar of 19"
+      }
+    }
+  },
+  "predictions": [
+    {
+      "league": "BRA",
+      "kickoff": "2026-10-02T23:00:00Z",
+      "home": "Sao Paulo",
+      "away": "Santos",
+      "p_H": 0.480894,
+      "p_D": 0.269059,
+      "p_A": 0.250047,
+      "p_over25": 0.455078,
+      "p_under25": 0.544922,
+      "p_btts_yes": 0.4952,
+      "p_btts_no": 0.5048,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.9133,
+          "p_under": 0.0867
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.716075,
+          "p_under": 0.283925
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.455078,
+          "p_under": 0.544922
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.241501,
+          "p_under": 0.758499
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.108245,
+          "p_under": 0.891755
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.041733,
+          "p_under": 0.958267
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.033475,
+          "p_away": 0.966525,
+          "fair_home": 29.87332,
+          "fair_away": 1.034634,
+          "push": 0.065547
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.066224,
+          "p_away": 0.933776,
+          "fair_home": 15.10021,
+          "fair_away": 1.070921,
+          "push": 0.032773
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.096827,
+          "p_away": 0.903173,
+          "fair_home": 10.327679,
+          "fair_away": 1.107208,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.104515,
+          "p_away": 0.895485,
+          "fair_home": 9.568028,
+          "fair_away": 1.116713,
+          "push": 0.073555
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.113528,
+          "p_away": 0.886472,
+          "fair_home": 8.808377,
+          "fair_away": 1.128068,
+          "push": 0.14711
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.183909,
+          "p_away": 0.816091,
+          "fair_home": 5.437459,
+          "fair_away": 1.225354,
+          "push": 0.073555
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.243937,
+          "p_away": 0.756063,
+          "fair_home": 4.099422,
+          "fair_away": 1.322641,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.276723,
+          "p_away": 0.723277,
+          "fair_home": 3.613727,
+          "fair_away": 1.382595,
+          "push": 0.118479
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.31969,
+          "p_away": 0.68031,
+          "fair_home": 3.128032,
+          "fair_away": 1.469918,
+          "push": 0.236958
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.411125,
+          "p_away": 0.588875,
+          "fair_home": 2.432348,
+          "fair_away": 1.698155,
+          "push": 0.118479
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.480895,
+          "p_away": 0.519105,
+          "fair_home": 2.079458,
+          "fair_away": 1.926391,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.555645,
+          "p_away": 0.444355,
+          "fair_home": 1.799709,
+          "fair_away": 2.250454,
+          "push": 0.134529
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.657911,
+          "p_away": 0.342089,
+          "fair_home": 1.519961,
+          "fair_away": 2.92322,
+          "push": 0.269059
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.711086,
+          "p_away": 0.288914,
+          "fair_home": 1.4063,
+          "fair_away": 3.461237,
+          "push": 0.134529
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.749953,
+          "p_away": 0.250047,
+          "fair_home": 1.333416,
+          "fair_away": 3.999254,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.814243,
+          "p_away": 0.185757,
+          "fair_home": 1.228135,
+          "fair_away": 5.383372,
+          "push": 0.078956
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.890588,
+          "p_away": 0.109412,
+          "fair_home": 1.122853,
+          "fair_away": 9.139781,
+          "push": 0.157912
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.899967,
+          "p_away": 0.100033,
+          "fair_home": 1.111151,
+          "fair_away": 9.996748,
+          "push": 0.078956
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.907866,
+          "p_away": 0.092134,
+          "fair_home": 1.101485,
+          "fair_away": 10.853716,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.939087,
+          "p_away": 0.060913,
+          "fair_home": 1.064864,
+          "fair_away": 16.41687,
+          "push": 0.033247
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.972532,
+          "p_away": 0.027468,
+          "fair_home": 1.028243,
+          "fair_away": 36.406421,
+          "push": 0.066493
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.973477,
+          "p_away": 0.026523,
+          "fair_home": 1.027246,
+          "fair_away": 37.703023,
+          "push": 0.033247
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.974359,
+          "p_away": 0.025641,
+          "fair_home": 1.026316,
+          "fair_away": 38.999625,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.98416,
+          "p_away": 0.01584,
+          "fair_home": 1.016095,
+          "fair_away": 63.131905,
+          "push": 0.009959
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.994161,
+          "p_away": 0.005839,
+          "fair_home": 1.005874,
+          "fair_away": 171.255298,
+          "push": 0.019918
+        }
+      ],
+      "xg_home": 1.4924,
+      "xg_away": 1.0033,
+      "cold_start": [],
+      "home_raw": "São Paulo FC",
+      "away_raw": "Santos FC"
+    },
+    {
+      "league": "BRA",
+      "kickoff": "2026-10-03T21:30:00Z",
+      "home": "Atletico-MG",
+      "away": "Bragantino",
+      "p_H": 0.490021,
+      "p_D": 0.272849,
+      "p_A": 0.23713,
+      "p_over25": 0.431941,
+      "p_under25": 0.568059,
+      "p_btts_yes": 0.472864,
+      "p_btts_no": 0.527136,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.905567,
+          "p_under": 0.094433
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.697219,
+          "p_under": 0.302781
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.431941,
+          "p_under": 0.568059
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.222599,
+          "p_under": 0.777401
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.096662,
+          "p_under": 0.903338
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.036054,
+          "p_under": 0.963946
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.033309,
+          "p_away": 0.966691,
+          "fair_home": 30.021602,
+          "fair_away": 1.034457,
+          "push": 0.066255
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.06643,
+          "p_away": 0.93357,
+          "fair_home": 15.053357,
+          "fair_away": 1.071157,
+          "push": 0.033127
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.097357,
+          "p_away": 0.902643,
+          "fair_home": 10.271478,
+          "fair_away": 1.107858,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.105253,
+          "p_away": 0.894747,
+          "fair_home": 9.500883,
+          "fair_away": 1.117635,
+          "push": 0.075023
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.114544,
+          "p_away": 0.885456,
+          "fair_home": 8.730287,
+          "fair_away": 1.129361,
+          "push": 0.150046
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.186361,
+          "p_away": 0.813639,
+          "fair_home": 5.365924,
+          "fair_away": 1.229047,
+          "push": 0.075023
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.247403,
+          "p_away": 0.752597,
+          "fair_home": 4.041993,
+          "fair_away": 1.328732,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.281558,
+          "p_away": 0.718442,
+          "fair_home": 3.551662,
+          "fair_away": 1.391901,
+          "push": 0.121309
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.326655,
+          "p_away": 0.673345,
+          "fair_home": 3.061331,
+          "fair_away": 1.485124,
+          "push": 0.242618
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.419615,
+          "p_away": 0.580385,
+          "fair_home": 2.383136,
+          "fair_away": 1.722995,
+          "push": 0.121309
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.490021,
+          "p_away": 0.509979,
+          "fair_home": 2.040728,
+          "fair_away": 1.960866,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.567433,
+          "p_away": 0.432567,
+          "fair_home": 1.762323,
+          "fair_away": 2.31178,
+          "push": 0.136424
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.673892,
+          "p_away": 0.326108,
+          "fair_home": 1.483918,
+          "fair_away": 3.066468,
+          "push": 0.272849
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.725409,
+          "p_away": 0.274591,
+          "fair_home": 1.378532,
+          "fair_away": 3.641783,
+          "push": 0.136424
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.76287,
+          "p_away": 0.23713,
+          "fair_home": 1.310839,
+          "fair_away": 4.217098,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.826379,
+          "p_away": 0.173621,
+          "fair_home": 1.210098,
+          "fair_away": 5.75968,
+          "push": 0.076852
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.901423,
+          "p_away": 0.098577,
+          "fair_home": 1.109357,
+          "fair_away": 10.144344,
+          "push": 0.153705
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.909629,
+          "p_away": 0.090371,
+          "fair_home": 1.099349,
+          "fair_away": 11.065554,
+          "push": 0.076852
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.916575,
+          "p_away": 0.083425,
+          "fair_home": 1.091019,
+          "fair_away": 11.986764,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.945623,
+          "p_away": 0.054377,
+          "fair_home": 1.057504,
+          "fair_away": 18.390022,
+          "push": 0.030718
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.976572,
+          "p_away": 0.023428,
+          "fair_home": 1.02399,
+          "fair_away": 42.684266,
+          "push": 0.061437
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.977315,
+          "p_away": 0.022685,
+          "fair_home": 1.023212,
+          "fair_away": 44.081288,
+          "push": 0.030718
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.978011,
+          "p_away": 0.021989,
+          "fair_home": 1.022483,
+          "fair_away": 45.47831,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.986574,
+          "p_away": 0.013426,
+          "fair_home": 1.013608,
+          "fair_away": 74.484804,
+          "push": 0.008679
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.995289,
+          "p_away": 0.004711,
+          "fair_home": 1.004734,
+          "fair_away": 212.253786,
+          "push": 0.017359
+        }
+      ],
+      "xg_home": 1.4674,
+      "xg_away": 0.9389,
+      "cold_start": [],
+      "home_raw": "CA Mineiro",
+      "away_raw": "RB Bragantino"
+    }
+  ],
+  "coverage": {
+    "requested": [
+      "E0",
+      "E1",
+      "E2",
+      "E3",
+      "EC",
+      "SP1",
+      "SP2",
+      "I1",
+      "I2",
+      "D1",
+      "D2",
+      "F1",
+      "F2",
+      "P1",
+      "N1",
+      "B1",
+      "SC0",
+      "SC1",
+      "SC2",
+      "SC3",
+      "T1",
+      "G1",
+      "BRA"
+    ],
+    "returned": {
+      "E0": 0,
+      "E1": 0,
+      "E2": 0,
+      "E3": 0,
+      "EC": 0,
+      "SP1": 0,
+      "SP2": 0,
+      "I1": 0,
+      "I2": 0,
+      "D1": 0,
+      "D2": 0,
+      "F1": 0,
+      "F2": 0,
+      "P1": 0,
+      "N1": 0,
+      "B1": 0,
+      "SC0": 0,
+      "SC1": 0,
+      "SC2": 0,
+      "SC3": 0,
+      "T1": 0,
+      "G1": 0,
+      "BRA": 2
+    },
+    "missing": [
+      {
+        "league": "E0",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "E3",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "EC",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "SP1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "SP2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "I1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "I2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "D1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "D2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "F1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "F2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "P1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "N1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "B1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "SC0",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "SC1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "SC2",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "SC3",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "T1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      },
+      {
+        "league": "G1",
+        "reason": "fixture feed is stale — football-data.co.uk fixtures.csv has 198 rows, newest 2026-09-20, nothing on or after 2026-09-25"
+      }
+    ],
+    "notes": [],
+    "sources": {
+      "football-data.co.uk/fixtures.csv": {
+        "url": "https://www.football-data.co.uk/fixtures.csv",
+        "checked_at": "2026-09-25T00:09:10Z",
+        "rows": 198,
+        "oldest": "2026-09-18",
+        "newest": "2026-09-20",
+        "stale": true,
+        "rows_by_division": {
+          "B1": 9,
+          "D1": 9,
+          "D2": 9,
+          "E0": 10,
+          "E1": 12,
+          "E2": 11,
+          "E3": 12,
+          "EC": 12,
+          "F1": 9,
+          "F2": 9,
+          "G1": 7,
+          "I1": 10,
+          "I2": 10,
+          "N1": 9,
+          "P1": 9,
+          "SC0": 6,
+          "SC1": 5,
+          "SC2": 5,
+          "SC3": 5,
+          "SP1": 10,
+          "SP2": 11,
+          "T1": 9
+        },
+        "newest_by_division": {
+          "B1": "2026-09-20",
+          "D1": "2026-09-20",
+          "D2": "2026-09-20",
+          "E0": "2026-09-20",
+          "E1": "2026-09-20",
+          "E2": "2026-09-19",
+          "E3": "2026-09-19",
+          "EC": "2026-09-19",
+          "F1": "2026-09-20",
+          "F2": "2026-09-19",
+          "G1": "2026-09-20",
+          "I1": "2026-09-20",
+          "I2": "2026-09-20",
+          "N1": "2026-09-20",
+          "P1": "2026-09-20",
+          "SC0": "2026-09-20",
+          "SC1": "2026-09-19",
+          "SC2": "2026-09-19",
+          "SC3": "2026-09-19",
+          "SP1": "2026-09-20",
+          "SP2": "2026-09-20",
+          "T1": "2026-09-20"
+        }
+      }
+    }
+  },
+  "hash": "9f36c21cae17f2d59daa3b4f3a6bc04ce089b2c770e67eeb0aaa1c847c51491d"
+}
