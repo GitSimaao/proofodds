@@ -1,0 +1,2525 @@
+{
+  "version": 6,
+  "leagues": [
+    "BRA",
+    "SP2"
+  ],
+  "published_at": "2026-09-27T00:08:44Z",
+  "prev_hash": "1ba4cd7ff517430f4b48e5d7123ad2ae3a6e1e39f2ed949875c7515cd39df809",
+  "generator": {
+    "commit": "186792475156976817c0146aed0ffdcc81edaa59",
+    "dirty": true,
+    "source_sha256": "003ddd58fc0da1fe9355782df38747a13016750b10d819ef97d289a9cbb4f308"
+  },
+  "models": {
+    "BRA": {
+      "name": "dixon-coles",
+      "xi": 0.002,
+      "prior_sd": 0.6,
+      "trained_through": "2026-09-20",
+      "n_train": 5596,
+      "home_advantage": 1.3918,
+      "rho": -0.0345,
+      "league_mean_goals": 1.0337,
+      "totals_line": 2.5,
+      "markets": [
+        "1X2",
+        "BTTS",
+        "goal totals",
+        "Asian handicap"
+      ],
+      "corners": {
+        "available": false,
+        "reason": "the median club carries 0.0 effective corner appearances, below the bar of 19"
+      }
+    },
+    "SP2": {
+      "name": "dixon-coles",
+      "xi": 0.002,
+      "prior_sd": 0.6,
+      "trained_through": "2026-09-20",
+      "n_train": 5148,
+      "home_advantage": 1.2881,
+      "rho": -0.0047,
+      "league_mean_goals": 1.0209,
+      "totals_line": 2.5,
+      "markets": [
+        "1X2",
+        "BTTS",
+        "goal totals",
+        "Asian handicap"
+      ],
+      "corners": {
+        "name": "team-strength negative-binomial",
+        "inputs": [
+          "HC",
+          "AC"
+        ],
+        "n_train": 4203,
+        "n_effective": 597.2,
+        "xi": 0.002,
+        "median_effective_per_club": 38.9,
+        "bar": 21,
+        "dispersion": 0.0665
+      }
+    }
+  },
+  "predictions": [
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-27T12:00:00Z",
+      "home": "Valladolid",
+      "away": "Cordoba",
+      "p_H": 0.408924,
+      "p_D": 0.261058,
+      "p_A": 0.330018,
+      "p_over25": 0.493996,
+      "p_under25": 0.506004,
+      "p_btts_yes": 0.537659,
+      "p_btts_no": 0.462341,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.928756,
+          "p_under": 0.071244
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.742661,
+          "p_under": 0.257339
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.493996,
+          "p_under": 0.506004
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.27487,
+          "p_under": 0.72513
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.129711,
+          "p_under": 0.870289
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.052782,
+          "p_under": 0.947218
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.023089,
+          "p_away": 0.976911,
+          "fair_home": 43.310725,
+          "fair_away": 1.023635,
+          "push": 0.050217
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.048249,
+          "p_away": 0.951751,
+          "fair_home": 20.72567,
+          "fair_away": 1.050695,
+          "push": 0.025108
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.072146,
+          "p_away": 0.927854,
+          "fair_home": 13.860735,
+          "fair_away": 1.077756,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.076801,
+          "p_away": 0.923199,
+          "fair_home": 13.020583,
+          "fair_away": 1.083191,
+          "push": 0.060614
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.082099,
+          "p_away": 0.917901,
+          "fair_home": 12.18043,
+          "fair_away": 1.089442,
+          "push": 0.121228
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.141326,
+          "p_away": 0.858674,
+          "fair_home": 7.075818,
+          "fair_away": 1.164587,
+          "push": 0.060614
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.193374,
+          "p_away": 0.806626,
+          "fair_home": 5.171329,
+          "fair_away": 1.239732,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.216732,
+          "p_away": 0.783268,
+          "fair_home": 4.613988,
+          "fair_away": 1.276703,
+          "push": 0.107775
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.246509,
+          "p_away": 0.753491,
+          "fair_home": 4.056647,
+          "fair_away": 1.327156,
+          "push": 0.21555
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.337526,
+          "p_away": 0.662474,
+          "fair_home": 2.962735,
+          "fair_away": 1.509493,
+          "push": 0.107775
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.408924,
+          "p_away": 0.591076,
+          "fair_home": 2.445441,
+          "fair_away": 1.69183,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.470314,
+          "p_away": 0.529686,
+          "fair_home": 2.12624,
+          "fair_away": 1.88791,
+          "push": 0.130529
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.553391,
+          "p_away": 0.446609,
+          "fair_home": 1.807039,
+          "fair_away": 2.239097,
+          "push": 0.261058
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.620438,
+          "p_away": 0.379562,
+          "fair_home": 1.611764,
+          "fair_away": 2.634618,
+          "push": 0.130529
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.669982,
+          "p_away": 0.330018,
+          "fair_home": 1.492577,
+          "fair_away": 3.030139,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.740103,
+          "p_away": 0.259897,
+          "fair_home": 1.351164,
+          "fair_away": 3.847675,
+          "push": 0.094744
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.826617,
+          "p_away": 0.173383,
+          "fair_home": 1.20975,
+          "fair_away": 5.767575,
+          "push": 0.189489
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.844763,
+          "p_away": 0.155237,
+          "fair_home": 1.183764,
+          "fair_away": 6.441774,
+          "push": 0.094744
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.859471,
+          "p_away": 0.140529,
+          "fair_home": 1.163506,
+          "fair_away": 7.115973,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.901742,
+          "p_away": 0.098258,
+          "fair_home": 1.108964,
+          "fair_away": 10.177308,
+          "push": 0.046877
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.948386,
+          "p_away": 0.051614,
+          "fair_home": 1.054423,
+          "fair_away": 19.374736,
+          "push": 0.093754
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.950925,
+          "p_away": 0.049075,
+          "fair_home": 1.051608,
+          "fair_away": 20.376929,
+          "push": 0.046877
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.953225,
+          "p_away": 0.046775,
+          "fair_home": 1.04907,
+          "fair_away": 21.379121,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.969786,
+          "p_away": 0.030214,
+          "fair_home": 1.031155,
+          "fair_away": 33.097343,
+          "push": 0.017077
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.986932,
+          "p_away": 0.013068,
+          "fair_home": 1.013241,
+          "fair_away": 76.525143,
+          "push": 0.034153
+        }
+      ],
+      "xg_home": 1.4099,
+      "xg_away": 1.2399,
+      "cold_start": [],
+      "corners": {
+        "x_home": 4.755,
+        "x_away": 4.397,
+        "x_total": 9.152,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.769766,
+            "p_under": 0.230234
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.661633,
+            "p_under": 0.338367
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.544723,
+            "p_under": 0.455277
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.429336,
+            "p_under": 0.570664
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.324145,
+            "p_under": 0.675855
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.234734,
+            "p_under": 0.765266
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.163328,
+            "p_under": 0.836672
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.109406,
+            "p_under": 0.890594
+          }
+        ]
+      }
+    },
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-27T14:15:00Z",
+      "home": "Mallorca",
+      "away": "Almeria",
+      "p_H": 0.527261,
+      "p_D": 0.263491,
+      "p_A": 0.209248,
+      "p_over25": 0.411825,
+      "p_under25": 0.588175,
+      "p_btts_yes": 0.439659,
+      "p_btts_no": 0.560341,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.902109,
+          "p_under": 0.097891
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.676508,
+          "p_under": 0.323492
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.411825,
+          "p_under": 0.588175
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.206721,
+          "p_under": 0.793279
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.087262,
+          "p_under": 0.912738
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.031601,
+          "p_under": 0.968399
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.038372,
+          "p_away": 0.961628,
+          "fair_home": 26.060864,
+          "fair_away": 1.039903,
+          "push": 0.073361
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.074988,
+          "p_away": 0.925012,
+          "fair_home": 13.335512,
+          "fair_away": 1.081067,
+          "push": 0.03668
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.108918,
+          "p_away": 0.891082,
+          "fair_home": 9.181253,
+          "fair_away": 1.122231,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.118496,
+          "p_away": 0.881504,
+          "fair_home": 8.439117,
+          "fair_away": 1.134425,
+          "push": 0.080832
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.129921,
+          "p_away": 0.870079,
+          "fair_home": 7.69698,
+          "fair_away": 1.149321,
+          "push": 0.161663
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.206436,
+          "p_away": 0.793564,
+          "fair_home": 4.844119,
+          "fair_away": 1.260138,
+          "push": 0.080832
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.270581,
+          "p_away": 0.729419,
+          "fair_home": 3.695751,
+          "fair_away": 1.370954,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.31042,
+          "p_away": 0.68958,
+          "fair_home": 3.221438,
+          "fair_away": 1.450159,
+          "push": 0.12834
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.364017,
+          "p_away": 0.635983,
+          "fair_home": 2.747124,
+          "fair_away": 1.572369,
+          "push": 0.25668
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.457657,
+          "p_away": 0.542343,
+          "fair_home": 2.185043,
+          "fair_away": 1.843851,
+          "push": 0.12834
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.527261,
+          "p_away": 0.472739,
+          "fair_home": 1.896593,
+          "fair_away": 2.115333,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.607266,
+          "p_away": 0.392734,
+          "fair_home": 1.646725,
+          "fair_away": 2.546252,
+          "push": 0.131746
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.715893,
+          "p_away": 0.284107,
+          "fair_home": 1.396857,
+          "fair_away": 3.519797,
+          "push": 0.263491
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.759002,
+          "p_away": 0.240998,
+          "fair_home": 1.31752,
+          "fair_away": 4.149412,
+          "push": 0.131746
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.790752,
+          "p_away": 0.209248,
+          "fair_home": 1.264618,
+          "fair_away": 4.779028,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.851683,
+          "p_away": 0.148317,
+          "fair_home": 1.174146,
+          "fair_away": 6.742313,
+          "push": 0.071541
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.922787,
+          "p_away": 0.077213,
+          "fair_home": 1.083673,
+          "fair_away": 12.951231,
+          "push": 0.143083
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.928737,
+          "p_away": 0.071263,
+          "fair_home": 1.076731,
+          "fair_away": 14.032488,
+          "push": 0.071541
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.933835,
+          "p_away": 0.066165,
+          "fair_home": 1.070853,
+          "fair_away": 15.113746,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.957981,
+          "p_away": 0.042019,
+          "fair_home": 1.043862,
+          "fair_away": 23.7989,
+          "push": 0.025205
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.983409,
+          "p_away": 0.016591,
+          "fair_home": 1.016871,
+          "fair_away": 60.274652,
+          "push": 0.050411
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.983838,
+          "p_away": 0.016162,
+          "fair_home": 1.016427,
+          "fair_away": 61.874543,
+          "push": 0.025205
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.984246,
+          "p_away": 0.015754,
+          "fair_home": 1.016007,
+          "fair_away": 63.474434,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.990572,
+          "p_away": 0.009428,
+          "fair_home": 1.009517,
+          "fair_away": 106.072019,
+          "push": 0.006387
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.996981,
+          "p_away": 0.003019,
+          "fair_home": 1.003028,
+          "fair_away": 331.249293,
+          "push": 0.012774
+        }
+      ],
+      "xg_home": 1.4949,
+      "xg_away": 0.8348,
+      "cold_start": [],
+      "corners": {
+        "x_home": 4.56,
+        "x_away": 4.427,
+        "x_total": 8.987,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.7558,
+            "p_under": 0.2442
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.644481,
+            "p_under": 0.355519
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.525794,
+            "p_under": 0.474206
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.410279,
+            "p_under": 0.589721
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.306435,
+            "p_under": 0.693565
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.219398,
+            "p_under": 0.780602
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.150859,
+            "p_under": 0.849141
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.099824,
+            "p_under": 0.900176
+          }
+        ]
+      }
+    },
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-27T16:30:00Z",
+      "home": "Burgos",
+      "away": "Eldense",
+      "p_H": 0.542763,
+      "p_D": 0.27512,
+      "p_A": 0.182117,
+      "p_over25": 0.349978,
+      "p_under25": 0.650022,
+      "p_btts_yes": 0.376932,
+      "p_btts_no": 0.623068,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.87681,
+          "p_under": 0.12319
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.62057,
+          "p_under": 0.37943
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.349978,
+          "p_under": 0.650022
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.161084,
+          "p_under": 0.838916
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.061983,
+          "p_under": 0.938017
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.020389,
+          "p_under": 0.979611
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.035544,
+          "p_away": 0.964456,
+          "fair_home": 28.134529,
+          "fair_away": 1.036853,
+          "push": 0.072524
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.071833,
+          "p_away": 0.928167,
+          "fair_home": 13.921266,
+          "fair_away": 1.077392,
+          "push": 0.036262
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.10549,
+          "p_away": 0.89451,
+          "fair_home": 9.479593,
+          "fair_away": 1.11793,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.115058,
+          "p_away": 0.884942,
+          "fair_home": 8.691265,
+          "fair_away": 1.130018,
+          "push": 0.08316
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.126535,
+          "p_away": 0.873465,
+          "fair_home": 7.902938,
+          "fair_away": 1.144866,
+          "push": 0.166321
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.205761,
+          "p_away": 0.794239,
+          "fair_home": 4.859996,
+          "fair_away": 1.259068,
+          "push": 0.08316
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.271811,
+          "p_away": 0.728189,
+          "fair_home": 3.67903,
+          "fair_away": 1.373269,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.314405,
+          "p_away": 0.685595,
+          "fair_home": 3.18061,
+          "fair_away": 1.458587,
+          "push": 0.135476
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.37283,
+          "p_away": 0.62717,
+          "fair_home": 2.68219,
+          "fair_away": 1.594463,
+          "push": 0.270952
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.471111,
+          "p_away": 0.528889,
+          "fair_home": 2.122642,
+          "fair_away": 1.890756,
+          "push": 0.135476
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.542763,
+          "p_away": 0.457237,
+          "fair_home": 1.842426,
+          "fair_away": 2.187048,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.629334,
+          "p_away": 0.370666,
+          "fair_home": 1.588982,
+          "fair_away": 2.697846,
+          "push": 0.13756
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.748762,
+          "p_away": 0.251238,
+          "fair_home": 1.335538,
+          "fair_away": 3.980292,
+          "push": 0.27512
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.788835,
+          "p_away": 0.211165,
+          "fair_home": 1.267693,
+          "fair_away": 4.735629,
+          "push": 0.13756
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.817883,
+          "p_away": 0.182117,
+          "fair_home": 1.222669,
+          "fair_away": 5.490967,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.875789,
+          "p_away": 0.124211,
+          "fair_home": 1.141827,
+          "fair_away": 8.050826,
+          "push": 0.066119
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.94252,
+          "p_away": 0.05748,
+          "fair_home": 1.060986,
+          "fair_away": 17.397336,
+          "push": 0.132238
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.94659,
+          "p_away": 0.05341,
+          "fair_home": 1.056424,
+          "fair_away": 18.722926,
+          "push": 0.066119
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.950121,
+          "p_away": 0.049879,
+          "fair_home": 1.052498,
+          "fair_away": 20.048517,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.969406,
+          "p_away": 0.030594,
+          "fair_home": 1.03156,
+          "fair_away": 32.686148,
+          "push": 0.019894
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.98949,
+          "p_away": 0.01051,
+          "fair_home": 1.010622,
+          "fair_away": 95.148316,
+          "push": 0.039787
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.989703,
+          "p_away": 0.010297,
+          "fair_home": 1.010404,
+          "fair_away": 97.119593,
+          "push": 0.019894
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.989908,
+          "p_away": 0.010092,
+          "fair_home": 1.010195,
+          "fair_away": 99.090869,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.994126,
+          "p_away": 0.005874,
+          "fair_home": 1.005909,
+          "fair_away": 170.244014,
+          "push": 0.004243
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.99838,
+          "p_away": 0.00162,
+          "fair_home": 1.001623,
+          "fair_away": 617.284147,
+          "push": 0.008485
+        }
+      ],
+      "xg_home": 1.4093,
+      "xg_away": 0.6893,
+      "cold_start": [],
+      "corners": {
+        "x_home": 4.132,
+        "x_away": 5.063,
+        "x_total": 9.194,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.772956,
+            "p_under": 0.227044
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.665681,
+            "p_under": 0.334319
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.549337,
+            "p_under": 0.450663
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.434131,
+            "p_under": 0.565869
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.328742,
+            "p_under": 0.671258
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.238839,
+            "p_under": 0.761161
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.166769,
+            "p_under": 0.833231
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.11213,
+            "p_under": 0.88787
+          }
+        ]
+      }
+    },
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-27T16:30:00Z",
+      "home": "Eibar",
+      "away": "Las Palmas",
+      "p_H": 0.445427,
+      "p_D": 0.292534,
+      "p_A": 0.262039,
+      "p_over25": 0.355894,
+      "p_under25": 0.644106,
+      "p_btts_yes": 0.416528,
+      "p_btts_no": 0.583472,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.879413,
+          "p_under": 0.120587
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.626235,
+          "p_under": 0.373765
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.355894,
+          "p_under": 0.644106
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.165244,
+          "p_under": 0.834756
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.064177,
+          "p_under": 0.935823
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.021314,
+          "p_under": 0.978686
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.020051,
+          "p_away": 0.979949,
+          "fair_home": 49.873547,
+          "fair_away": 1.020461,
+          "push": 0.049821
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.045085,
+          "p_away": 0.954915,
+          "fair_home": 22.180217,
+          "fair_away": 1.047214,
+          "push": 0.02491
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.068872,
+          "p_away": 0.931128,
+          "fair_home": 14.519584,
+          "fair_away": 1.073967,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.073695,
+          "p_away": 0.926305,
+          "fair_home": 13.569466,
+          "fair_away": 1.079558,
+          "push": 0.065437
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.079243,
+          "p_away": 0.920757,
+          "fair_home": 12.619349,
+          "fair_away": 1.086063,
+          "push": 0.130874
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.143714,
+          "p_away": 0.856286,
+          "fair_home": 6.958281,
+          "fair_away": 1.167834,
+          "push": 0.065437
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.199746,
+          "p_away": 0.800254,
+          "fair_home": 5.006347,
+          "fair_away": 1.249604,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.22772,
+          "p_away": 0.77228,
+          "fair_home": 4.391366,
+          "fair_away": 1.294866,
+          "push": 0.12284
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.264804,
+          "p_away": 0.735196,
+          "fair_home": 3.776385,
+          "fair_away": 1.360181,
+          "push": 0.245681
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.367763,
+          "p_away": 0.632237,
+          "fair_home": 2.719143,
+          "fair_away": 1.581685,
+          "push": 0.12284
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.445427,
+          "p_away": 0.554573,
+          "fair_home": 2.245036,
+          "fair_away": 1.803189,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.521741,
+          "p_away": 0.478259,
+          "fair_home": 1.916661,
+          "fair_away": 2.090915,
+          "push": 0.146267
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.629609,
+          "p_away": 0.370391,
+          "fair_home": 1.588286,
+          "fair_away": 2.699853,
+          "push": 0.292534
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.693067,
+          "p_away": 0.306933,
+          "fair_home": 1.442862,
+          "fair_away": 3.258042,
+          "push": 0.146267
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.737961,
+          "p_away": 0.262039,
+          "fair_home": 1.355084,
+          "fair_away": 3.816231,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.808295,
+          "p_away": 0.191705,
+          "fair_home": 1.237172,
+          "fair_away": 5.216344,
+          "push": 0.087015
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.893447,
+          "p_away": 0.106553,
+          "fair_home": 1.11926,
+          "fair_away": 9.385036,
+          "push": 0.174029
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.903603,
+          "p_away": 0.096397,
+          "fair_home": 1.106681,
+          "fair_away": 10.373734,
+          "push": 0.087015
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.911991,
+          "p_away": 0.088009,
+          "fair_home": 1.096502,
+          "fair_away": 11.362433,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.943017,
+          "p_away": 0.056983,
+          "fair_home": 1.060426,
+          "fair_away": 17.549182,
+          "push": 0.032901
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.976229,
+          "p_away": 0.023771,
+          "fair_home": 1.024349,
+          "fair_away": 42.068679,
+          "push": 0.065803
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.977038,
+          "p_away": 0.022962,
+          "fair_home": 1.023502,
+          "fair_away": 43.550293,
+          "push": 0.032901
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.977794,
+          "p_away": 0.022206,
+          "fair_home": 1.022711,
+          "fair_away": 45.031906,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.986555,
+          "p_away": 0.013445,
+          "fair_home": 1.013628,
+          "fair_away": 74.378365,
+          "push": 0.008881
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.995475,
+          "p_away": 0.004525,
+          "fair_home": 1.004545,
+          "fair_away": 221.01299,
+          "push": 0.017762
+        }
+      ],
+      "xg_home": 1.2407,
+      "xg_away": 0.8798,
+      "cold_start": [],
+      "corners": {
+        "x_home": 4.267,
+        "x_away": 4.28,
+        "x_total": 8.547,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.715308,
+            "p_under": 0.284692
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.596094,
+            "p_under": 0.403906
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.473829,
+            "p_under": 0.526171
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.359362,
+            "p_under": 0.640638
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.26038,
+            "p_under": 0.73962
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.180578,
+            "p_under": 0.819422
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.120129,
+            "p_under": 0.879871
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.076834,
+            "p_under": 0.923166
+          }
+        ]
+      }
+    },
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-27T19:00:00Z",
+      "home": "Oviedo",
+      "away": "Sp Gijon",
+      "p_H": 0.465141,
+      "p_D": 0.286902,
+      "p_A": 0.247957,
+      "p_over25": 0.365692,
+      "p_under25": 0.634308,
+      "p_btts_yes": 0.420126,
+      "p_btts_no": 0.579874,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.883706,
+          "p_under": 0.116294
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.635389,
+          "p_under": 0.364611
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.365692,
+          "p_under": 0.634308
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.172229,
+          "p_under": 0.827771
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.067911,
+          "p_under": 0.932089
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.022912,
+          "p_under": 0.977088
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.023406,
+          "p_away": 0.976594,
+          "fair_home": 42.723541,
+          "fair_away": 1.023967,
+          "push": 0.054854
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.050947,
+          "p_away": 0.949053,
+          "fair_home": 19.628354,
+          "fair_away": 1.053682,
+          "push": 0.027427
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.076976,
+          "p_away": 0.923024,
+          "fair_home": 12.990992,
+          "fair_away": 1.083396,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.082698,
+          "p_away": 0.917302,
+          "fair_home": 12.092179,
+          "fair_away": 1.090154,
+          "push": 0.069187
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.089339,
+          "p_away": 0.910661,
+          "fair_home": 11.193366,
+          "fair_away": 1.098103,
+          "push": 0.138375
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.157028,
+          "p_away": 0.842972,
+          "fair_home": 6.368282,
+          "fair_away": 1.186279,
+          "push": 0.069187
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.215351,
+          "p_away": 0.784649,
+          "fair_home": 4.643576,
+          "fair_away": 1.274456,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.246086,
+          "p_away": 0.753914,
+          "fair_home": 4.063619,
+          "fair_away": 1.326411,
+          "push": 0.124894
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.287054,
+          "p_away": 0.712946,
+          "fair_home": 3.483662,
+          "fair_away": 1.402631,
+          "push": 0.249789
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.388805,
+          "p_away": 0.611195,
+          "fair_home": 2.571981,
+          "fair_away": 1.63614,
+          "push": 0.124894
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.46514,
+          "p_away": 0.53486,
+          "fair_home": 2.149889,
+          "fair_away": 1.869649,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.54304,
+          "p_away": 0.45696,
+          "fair_home": 1.841485,
+          "fair_away": 2.188375,
+          "push": 0.143451
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.652281,
+          "p_away": 0.347719,
+          "fair_home": 1.533081,
+          "fair_away": 2.875887,
+          "push": 0.286902
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.710516,
+          "p_away": 0.289484,
+          "fair_home": 1.407428,
+          "fair_away": 3.454419,
+          "push": 0.143451
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.752043,
+          "p_away": 0.247957,
+          "fair_home": 1.329712,
+          "fair_away": 4.03295,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.820238,
+          "p_away": 0.179762,
+          "fair_home": 1.219158,
+          "fair_away": 5.562922,
+          "push": 0.083141
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.902036,
+          "p_away": 0.097964,
+          "fair_home": 1.108604,
+          "fair_away": 10.207793,
+          "push": 0.166283
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.910919,
+          "p_away": 0.089081,
+          "fair_home": 1.097792,
+          "fair_away": 11.225753,
+          "push": 0.083141
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.918325,
+          "p_away": 0.081675,
+          "fair_home": 1.088939,
+          "fair_away": 12.243713,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.947445,
+          "p_away": 0.052555,
+          "fair_home": 1.055471,
+          "fair_away": 19.027586,
+          "push": 0.030735
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.978471,
+          "p_away": 0.021529,
+          "fair_home": 1.022002,
+          "fair_away": 46.449385,
+          "push": 0.061469
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.979154,
+          "p_away": 0.020846,
+          "fair_home": 1.02129,
+          "fair_away": 47.970487,
+          "push": 0.030735
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.979795,
+          "p_away": 0.020205,
+          "fair_home": 1.020622,
+          "fair_away": 49.49159,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.987816,
+          "p_away": 0.012184,
+          "fair_home": 1.012334,
+          "fair_away": 82.075029,
+          "push": 0.00812
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.99597,
+          "p_away": 0.00403,
+          "fair_home": 1.004046,
+          "fair_away": 248.134769,
+          "push": 0.016241
+        }
+      ],
+      "xg_home": 1.2942,
+      "xg_away": 0.8626,
+      "cold_start": [],
+      "corners": {
+        "x_home": 5.877,
+        "x_away": 3.77,
+        "x_total": 9.647,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.806311,
+            "p_under": 0.193689
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.708155,
+            "p_under": 0.291845
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.597963,
+            "p_under": 0.402037
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.484942,
+            "p_under": 0.515058
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.377775,
+            "p_under": 0.622225
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.282951,
+            "p_under": 0.717049
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.204052,
+            "p_under": 0.795948
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.141926,
+            "p_under": 0.858074
+          }
+        ]
+      }
+    },
+    {
+      "league": "SP2",
+      "kickoff": "2026-09-28T18:30:00Z",
+      "home": "Leganes",
+      "away": "Castellon",
+      "p_H": 0.330783,
+      "p_D": 0.278441,
+      "p_A": 0.390776,
+      "p_over25": 0.425472,
+      "p_under25": 0.574528,
+      "p_btts_yes": 0.483897,
+      "p_btts_no": 0.516103,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.906985,
+          "p_under": 0.093015
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.688139,
+          "p_under": 0.311861
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.425472,
+          "p_under": 0.574528
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.217437,
+          "p_under": 0.782563
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.093573,
+          "p_under": 0.906427
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.034575,
+          "p_under": 0.965425
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.010753,
+          "p_away": 0.989247,
+          "fair_home": 92.999946,
+          "fair_away": 1.01087,
+          "push": 0.031208
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.026433,
+          "p_away": 0.973567,
+          "fair_home": 37.830896,
+          "fair_away": 1.027151,
+          "push": 0.015604
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.041625,
+          "p_away": 0.958375,
+          "fair_home": 24.024146,
+          "fair_away": 1.043433,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.043633,
+          "p_away": 0.956367,
+          "fair_home": 22.918199,
+          "fair_away": 1.045624,
+          "push": 0.046035
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.045846,
+          "p_away": 0.954154,
+          "fair_home": 21.812252,
+          "fair_away": 1.048049,
+          "push": 0.09207
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.09189,
+          "p_away": 0.90811,
+          "fair_home": 10.88261,
+          "fair_away": 1.101188,
+          "push": 0.046035
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.133694,
+          "p_away": 0.866306,
+          "fair_home": 7.479744,
+          "fair_away": 1.154327,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.148309,
+          "p_away": 0.851691,
+          "fair_home": 6.742659,
+          "fair_away": 1.174135,
+          "push": 0.098544
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.166512,
+          "p_away": 0.833488,
+          "fair_home": 6.005575,
+          "fair_away": 1.199777,
+          "push": 0.197088
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.257626,
+          "p_away": 0.742374,
+          "fair_home": 3.881595,
+          "fair_away": 1.34703,
+          "push": 0.098544
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.330783,
+          "p_away": 0.669217,
+          "fair_home": 3.023133,
+          "fair_away": 1.494283,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.384283,
+          "p_away": 0.615717,
+          "fair_home": 2.602251,
+          "fair_away": 1.624122,
+          "push": 0.139221
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.458428,
+          "p_away": 0.541572,
+          "fair_home": 2.181368,
+          "fair_away": 1.846476,
+          "push": 0.278441
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.546021,
+          "p_away": 0.453979,
+          "fair_home": 1.831433,
+          "fair_away": 2.202743,
+          "push": 0.139221
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.609224,
+          "p_away": 0.390776,
+          "fair_home": 1.641433,
+          "fair_away": 2.55901,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.684016,
+          "p_away": 0.315984,
+          "fair_home": 1.461954,
+          "fair_away": 3.164717,
+          "push": 0.109343
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.779742,
+          "p_away": 0.220258,
+          "fair_home": 1.282475,
+          "fair_away": 4.54013,
+          "push": 0.218685
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.806782,
+          "p_away": 0.193218,
+          "fair_home": 1.239492,
+          "fair_away": 5.175508,
+          "push": 0.109343
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.827909,
+          "p_away": 0.172091,
+          "fair_home": 1.207862,
+          "fair_away": 5.810886,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.877619,
+          "p_away": 0.122381,
+          "fair_home": 1.139446,
+          "fair_away": 8.171227,
+          "push": 0.056642
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.93368,
+          "p_away": 0.06632,
+          "fair_home": 1.07103,
+          "fair_away": 15.078486,
+          "push": 0.113284
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.937662,
+          "p_away": 0.062338,
+          "fair_home": 1.066482,
+          "fair_away": 16.041676,
+          "push": 0.056642
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.941193,
+          "p_away": 0.058807,
+          "fair_home": 1.062481,
+          "fair_away": 17.004867,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.961674,
+          "p_away": 0.038326,
+          "fair_home": 1.039854,
+          "fair_away": 26.091733,
+          "push": 0.021297
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.983065,
+          "p_away": 0.016935,
+          "fair_home": 1.017227,
+          "fair_away": 59.049988,
+          "push": 0.042593
+        }
+      ],
+      "xg_home": 1.1291,
+      "xg_away": 1.2525,
+      "cold_start": [],
+      "corners": {
+        "x_home": 4.139,
+        "x_away": 5.427,
+        "x_total": 9.565,
+        "dispersion": 0.066489,
+        "totals": [
+          {
+            "line": 6.5,
+            "p_over": 0.801412,
+            "p_under": 0.198588
+          },
+          {
+            "line": 7.5,
+            "p_over": 0.701563,
+            "p_under": 0.298437
+          },
+          {
+            "line": 8.5,
+            "p_over": 0.590009,
+            "p_under": 0.409991
+          },
+          {
+            "line": 9.5,
+            "p_over": 0.4762,
+            "p_under": 0.5238
+          },
+          {
+            "line": 10.5,
+            "p_over": 0.36892,
+            "p_under": 0.63108
+          },
+          {
+            "line": 11.5,
+            "p_over": 0.274604,
+            "p_under": 0.725396
+          },
+          {
+            "line": 12.5,
+            "p_over": 0.196674,
+            "p_under": 0.803326
+          },
+          {
+            "line": 13.5,
+            "p_over": 0.135768,
+            "p_under": 0.864232
+          }
+        ]
+      }
+    },
+    {
+      "league": "BRA",
+      "kickoff": "2026-10-02T23:00:00Z",
+      "home": "Sao Paulo",
+      "away": "Santos",
+      "p_H": 0.480891,
+      "p_D": 0.269059,
+      "p_A": 0.25005,
+      "p_over25": 0.455079,
+      "p_under25": 0.544921,
+      "p_btts_yes": 0.495201,
+      "p_btts_no": 0.504799,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.9133,
+          "p_under": 0.0867
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.716076,
+          "p_under": 0.283924
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.455079,
+          "p_under": 0.544921
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.241501,
+          "p_under": 0.758499
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.108246,
+          "p_under": 0.891754
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.041733,
+          "p_under": 0.958267
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.033474,
+          "p_away": 0.966526,
+          "fair_home": 29.873866,
+          "fair_away": 1.034633,
+          "push": 0.065546
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.066223,
+          "p_away": 0.933777,
+          "fair_home": 15.100439,
+          "fair_away": 1.07092,
+          "push": 0.032773
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.096826,
+          "p_away": 0.903174,
+          "fair_home": 10.327822,
+          "fair_away": 1.107206,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.104513,
+          "p_away": 0.895487,
+          "fair_home": 9.568167,
+          "fair_away": 1.116711,
+          "push": 0.073554
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.113527,
+          "p_away": 0.886473,
+          "fair_home": 8.808512,
+          "fair_away": 1.128065,
+          "push": 0.147108
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.183907,
+          "p_away": 0.816093,
+          "fair_home": 5.437524,
+          "fair_away": 1.225351,
+          "push": 0.073554
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.243934,
+          "p_away": 0.756066,
+          "fair_home": 4.099464,
+          "fair_away": 1.322636,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.27672,
+          "p_away": 0.72328,
+          "fair_home": 3.613766,
+          "fair_away": 1.38259,
+          "push": 0.118479
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.319686,
+          "p_away": 0.680314,
+          "fair_home": 3.128067,
+          "fair_away": 1.46991,
+          "push": 0.236957
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.411122,
+          "p_away": 0.588878,
+          "fair_home": 2.432368,
+          "fair_away": 1.698145,
+          "push": 0.118479
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.480891,
+          "p_away": 0.519109,
+          "fair_home": 2.079471,
+          "fair_away": 1.926379,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.555641,
+          "p_away": 0.444359,
+          "fair_home": 1.799722,
+          "fair_away": 2.250435,
+          "push": 0.134529
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.657907,
+          "p_away": 0.342093,
+          "fair_home": 1.519972,
+          "fair_away": 2.923181,
+          "push": 0.269059
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.711082,
+          "p_away": 0.288918,
+          "fair_home": 1.406307,
+          "fair_away": 3.46119,
+          "push": 0.134529
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.74995,
+          "p_away": 0.25005,
+          "fair_home": 1.333422,
+          "fair_away": 3.9992,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.81424,
+          "p_away": 0.18576,
+          "fair_home": 1.228139,
+          "fair_away": 5.383287,
+          "push": 0.078957
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.890586,
+          "p_away": 0.109414,
+          "fair_home": 1.122856,
+          "fair_away": 9.13959,
+          "push": 0.157914
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.899965,
+          "p_away": 0.100035,
+          "fair_home": 1.111154,
+          "fair_away": 9.996551,
+          "push": 0.078957
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.907864,
+          "p_away": 0.092136,
+          "fair_home": 1.101487,
+          "fair_away": 10.853511,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.939086,
+          "p_away": 0.060914,
+          "fair_home": 1.064865,
+          "fair_away": 16.416524,
+          "push": 0.033247
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.972532,
+          "p_away": 0.027468,
+          "fair_home": 1.028244,
+          "fair_away": 36.405423,
+          "push": 0.066494
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.973476,
+          "p_away": 0.026524,
+          "fair_home": 1.027246,
+          "fair_away": 37.702012,
+          "push": 0.033247
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.974358,
+          "p_away": 0.025642,
+          "fair_home": 1.026317,
+          "fair_away": 38.998601,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.98416,
+          "p_away": 0.01584,
+          "fair_home": 1.016095,
+          "fair_away": 63.130142,
+          "push": 0.009959
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.994161,
+          "p_away": 0.005839,
+          "fair_home": 1.005874,
+          "fair_away": 171.249385,
+          "push": 0.019919
+        }
+      ],
+      "xg_home": 1.4924,
+      "xg_away": 1.0033,
+      "cold_start": [],
+      "home_raw": "São Paulo FC",
+      "away_raw": "Santos FC"
+    },
+    {
+      "league": "BRA",
+      "kickoff": "2026-10-03T21:30:00Z",
+      "home": "Atletico-MG",
+      "away": "Bragantino",
+      "p_H": 0.490018,
+      "p_D": 0.272848,
+      "p_A": 0.237134,
+      "p_over25": 0.431946,
+      "p_under25": 0.568054,
+      "p_btts_yes": 0.472868,
+      "p_btts_no": 0.527132,
+      "goal_totals": [
+        {
+          "line": 0.5,
+          "p_over": 0.905569,
+          "p_under": 0.094431
+        },
+        {
+          "line": 1.5,
+          "p_over": 0.697222,
+          "p_under": 0.302778
+        },
+        {
+          "line": 2.5,
+          "p_over": 0.431946,
+          "p_under": 0.568054
+        },
+        {
+          "line": 3.5,
+          "p_over": 0.222602,
+          "p_under": 0.777398
+        },
+        {
+          "line": 4.5,
+          "p_over": 0.096664,
+          "p_under": 0.903336
+        },
+        {
+          "line": 5.5,
+          "p_over": 0.036055,
+          "p_under": 0.963945
+        }
+      ],
+      "asian_handicap": [
+        {
+          "line": -3.0,
+          "p_home": 0.033309,
+          "p_away": 0.966691,
+          "fair_home": 30.021805,
+          "fair_away": 1.034457,
+          "push": 0.066254
+        },
+        {
+          "line": -2.75,
+          "p_home": 0.06643,
+          "p_away": 0.93357,
+          "fair_home": 15.053459,
+          "fair_away": 1.071157,
+          "push": 0.033127
+        },
+        {
+          "line": -2.5,
+          "p_home": 0.097356,
+          "p_away": 0.902644,
+          "fair_home": 10.271547,
+          "fair_away": 1.107857,
+          "push": 0.0
+        },
+        {
+          "line": -2.25,
+          "p_home": 0.105253,
+          "p_away": 0.894747,
+          "fair_home": 9.500951,
+          "fair_away": 1.117634,
+          "push": 0.075022
+        },
+        {
+          "line": -2.0,
+          "p_home": 0.114543,
+          "p_away": 0.885457,
+          "fair_home": 8.730356,
+          "fair_away": 1.12936,
+          "push": 0.150045
+        },
+        {
+          "line": -1.75,
+          "p_home": 0.18636,
+          "p_away": 0.81364,
+          "fair_home": 5.365963,
+          "fair_away": 1.229045,
+          "push": 0.075022
+        },
+        {
+          "line": -1.5,
+          "p_home": 0.247401,
+          "p_away": 0.752599,
+          "fair_home": 4.04202,
+          "fair_away": 1.328729,
+          "push": 0.0
+        },
+        {
+          "line": -1.25,
+          "p_home": 0.281556,
+          "p_away": 0.718444,
+          "fair_home": 3.551688,
+          "fair_away": 1.391897,
+          "push": 0.121309
+        },
+        {
+          "line": -1.0,
+          "p_home": 0.326653,
+          "p_away": 0.673347,
+          "fair_home": 3.061355,
+          "fair_away": 1.485118,
+          "push": 0.242617
+        },
+        {
+          "line": -0.75,
+          "p_home": 0.419612,
+          "p_away": 0.580388,
+          "fair_home": 2.383152,
+          "fair_away": 1.722987,
+          "push": 0.121309
+        },
+        {
+          "line": -0.5,
+          "p_home": 0.490018,
+          "p_away": 0.509982,
+          "fair_home": 2.040739,
+          "fair_away": 1.960855,
+          "push": 0.0
+        },
+        {
+          "line": -0.25,
+          "p_home": 0.567429,
+          "p_away": 0.432571,
+          "fair_home": 1.762334,
+          "fair_away": 2.311762,
+          "push": 0.136424
+        },
+        {
+          "line": 0.0,
+          "p_home": 0.673887,
+          "p_away": 0.326113,
+          "fair_home": 1.483928,
+          "fair_away": 3.066424,
+          "push": 0.272848
+        },
+        {
+          "line": 0.25,
+          "p_home": 0.725405,
+          "p_away": 0.274595,
+          "fair_home": 1.37854,
+          "fair_away": 3.641728,
+          "push": 0.136424
+        },
+        {
+          "line": 0.5,
+          "p_home": 0.762866,
+          "p_away": 0.237134,
+          "fair_home": 1.310846,
+          "fair_away": 4.217032,
+          "push": 0.0
+        },
+        {
+          "line": 0.75,
+          "p_home": 0.826376,
+          "p_away": 0.173624,
+          "fair_home": 1.210103,
+          "fair_away": 5.75957,
+          "push": 0.076853
+        },
+        {
+          "line": 1.0,
+          "p_home": 0.90142,
+          "p_away": 0.09858,
+          "fair_home": 1.109361,
+          "fair_away": 10.144067,
+          "push": 0.153706
+        },
+        {
+          "line": 1.25,
+          "p_home": 0.909627,
+          "p_away": 0.090373,
+          "fair_home": 1.099352,
+          "fair_away": 11.065263,
+          "push": 0.076853
+        },
+        {
+          "line": 1.5,
+          "p_home": 0.916573,
+          "p_away": 0.083427,
+          "fair_home": 1.091021,
+          "fair_away": 11.986459,
+          "push": 0.0
+        },
+        {
+          "line": 1.75,
+          "p_home": 0.945621,
+          "p_away": 0.054379,
+          "fair_home": 1.057506,
+          "fair_away": 18.389494,
+          "push": 0.030719
+        },
+        {
+          "line": 2.0,
+          "p_home": 0.976571,
+          "p_away": 0.023429,
+          "fair_home": 1.023991,
+          "fair_away": 42.682582,
+          "push": 0.061438
+        },
+        {
+          "line": 2.25,
+          "p_home": 0.977314,
+          "p_away": 0.022686,
+          "fair_home": 1.023213,
+          "fair_away": 44.07958,
+          "push": 0.030719
+        },
+        {
+          "line": 2.5,
+          "p_home": 0.978011,
+          "p_away": 0.021989,
+          "fair_home": 1.022484,
+          "fair_away": 45.476578,
+          "push": 0.0
+        },
+        {
+          "line": 2.75,
+          "p_home": 0.986574,
+          "p_away": 0.013426,
+          "fair_home": 1.013609,
+          "fair_away": 74.48177,
+          "push": 0.00868
+        },
+        {
+          "line": 3.0,
+          "p_home": 0.995288,
+          "p_away": 0.004712,
+          "fair_home": 1.004734,
+          "fair_away": 212.242711,
+          "push": 0.01736
+        }
+      ],
+      "xg_home": 1.4674,
+      "xg_away": 0.939,
+      "cold_start": [],
+      "home_raw": "CA Mineiro",
+      "away_raw": "RB Bragantino"
+    }
+  ],
+  "coverage": {
+    "requested": [
+      "E0",
+      "E1",
+      "E2",
+      "E3",
+      "EC",
+      "SP1",
+      "SP2",
+      "I1",
+      "I2",
+      "D1",
+      "D2",
+      "F1",
+      "F2",
+      "P1",
+      "N1",
+      "B1",
+      "SC0",
+      "SC1",
+      "SC2",
+      "SC3",
+      "T1",
+      "G1",
+      "BRA"
+    ],
+    "returned": {
+      "E0": 0,
+      "E1": 0,
+      "E2": 0,
+      "E3": 0,
+      "EC": 0,
+      "SP1": 0,
+      "SP2": 6,
+      "I1": 0,
+      "I2": 0,
+      "D1": 0,
+      "D2": 0,
+      "F1": 0,
+      "F2": 0,
+      "P1": 0,
+      "N1": 0,
+      "B1": 0,
+      "SC0": 0,
+      "SC1": 0,
+      "SC2": 0,
+      "SC3": 0,
+      "T1": 0,
+      "G1": 0,
+      "BRA": 2
+    },
+    "missing": [
+      {
+        "league": "E0",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "E2",
+        "reason": "fixture feed is stale for this division — its newest row in football-data.co.uk fixtures.csv is 2026-09-26, before 2026-09-27 (file newest 2026-09-28)"
+      },
+      {
+        "league": "E3",
+        "reason": "fixture feed is stale for this division — its newest row in football-data.co.uk fixtures.csv is 2026-09-26, before 2026-09-27 (file newest 2026-09-28)"
+      },
+      {
+        "league": "EC",
+        "reason": "fixture feed is stale for this division — its newest row in football-data.co.uk fixtures.csv is 2026-09-26, before 2026-09-27 (file newest 2026-09-28)"
+      },
+      {
+        "league": "SP1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "I1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "I2",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "D1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "D2",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "F1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "F2",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "P1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "N1",
+        "reason": "no unplayed match in the window"
+      },
+      {
+        "league": "B1",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "SC0",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "SC1",
+        "reason": "fixture feed is stale for this division — its newest row in football-data.co.uk fixtures.csv is 2026-09-25, before 2026-09-27 (file newest 2026-09-28)"
+      },
+      {
+        "league": "SC2",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "SC3",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "T1",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      },
+      {
+        "league": "G1",
+        "reason": "fixture feed carries no row for this division — football-data.co.uk fixtures.csv is current to 2026-09-28 for other divisions"
+      }
+    ],
+    "notes": [],
+    "sources": {
+      "football-data.co.uk/fixtures.csv": {
+        "url": "https://www.football-data.co.uk/fixtures.csv",
+        "checked_at": "2026-09-27T00:08:44Z",
+        "rows": 41,
+        "oldest": "2026-09-25",
+        "newest": "2026-09-28",
+        "stale": false,
+        "rows_by_division": {
+          "E2": 4,
+          "E3": 10,
+          "EC": 12,
+          "SC1": 4,
+          "SP2": 11
+        },
+        "newest_by_division": {
+          "E2": "2026-09-26",
+          "E3": "2026-09-26",
+          "EC": "2026-09-26",
+          "SC1": "2026-09-25",
+          "SP2": "2026-09-28"
+        }
+      }
+    }
+  },
+  "hash": "b2f33ce433c8ab11970374ebdec98e051bd6560f7dc919210e6803486fdd61a0"
+}
