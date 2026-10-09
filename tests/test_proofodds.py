@@ -4375,3 +4375,19 @@ def test_a_retired_nations_page_says_so_and_leaves_the_menu(tmp_path, monkeypatc
     home = (tmp_path / "site" / "index.html").read_text()
     assert "/nations-league/" not in home
     assert "/nations-league/" not in (tmp_path / "site" / "sitemap.xml").read_text()
+
+
+def test_a_held_pick_is_readable_by_its_owner_only(tmp_path, monkeypatch):
+    """Other accounts share this machine. A held pick is not theirs to read."""
+    import shutil
+    import stat
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    path = _seal_guest(tmp_path, monkeypatch, reveal="kickoff",
+                       now=dt.datetime(2098, 1, 1, tzinfo=dt.timezone.utc),
+                       kickoff="2098-01-02T15:00Z")
+    mode = lambda p: stat.S_IMODE(p.stat().st_mode)
+    assert mode(path) == 0o600
+    assert mode(path.parent) == 0o700 and mode(guest.EMBARGO_DIR) == 0o700
+    shutil.rmtree(guest.EMBARGO_DIR)
+    restored = guest.restore_held()[0]
+    assert mode(restored) == 0o600 and mode(guest.EMBARGO_DIR) == 0o700

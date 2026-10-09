@@ -8,9 +8,9 @@ This writes one row per day to data/traffic_daily.csv: counts only, no IP
 addresses and no user agents, so it can be kept indefinitely without keeping
 anything about a reader.
 
-    sudo python scripts/traffic_snapshot.py     # needs to read /var/log/nginx
-
-Run daily by deploy/proofodds-traffic.timer. Every day still in the logs is
+Run daily by deploy/proofodds-traffic.timer, as proofodds with the adm group
+so that it can read /var/log/nginx. It must never be run by a root unit: it
+lives in a directory proofodds can write to. Every day still in the logs is
 recomputed, so a day's row settles once the day is over.
 
 A "person" is an upper bound: a browser user agent matching no crawler
@@ -75,7 +75,7 @@ def main() -> int:
                 row["p"] = urlsplit(row["path"]).path
                 rows.append(row)
     if not rows:
-        print("no log lines readable — run as root", file=sys.stderr)
+        print("no log lines readable — needs the adm group", file=sys.stderr)
         return 1
 
     seen = collections.defaultdict(lambda: {"pages": 0, "assets": 0, "bad": 0,

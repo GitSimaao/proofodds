@@ -346,6 +346,37 @@ for grading and rebuilding after matches finish, not for publishing.
 
 ---
 
+### Server hardening
+
+The server holds the embargo key and the deploy key that can push to this
+repository, so SSH is key-only and repeated failures are banned. Two files in
+`deploy/` describe what is installed:
+
+```bash
+# SSH: no passwords, root by key only, 3 tries, 30 s to authenticate.
+# The 00- prefix matters: sshd keeps the first value it reads.
+sudo cp deploy/sshd-00-proofodds-hardening.conf \
+        /etc/ssh/sshd_config.d/00-proofodds-hardening.conf
+sudo sshd -t && sudo systemctl reload ssh     # reload, never restart
+sudo sshd -T | grep -Ei 'passwordauth|permitroot|maxauthtries|logingrace'
+
+# fail2ban: 5 failures in 10 minutes bans for 1 hour, doubling up to a week.
+sudo apt-get install fail2ban
+sudo cp deploy/fail2ban-proofodds-sshd.local /etc/fail2ban/jail.d/proofodds-sshd.local
+sudo systemctl enable --now fail2ban && sudo fail2ban-client status sshd
+```
+
+Before turning passwords off, make sure your key is in `authorized_keys` and
+that you can reach the machine's console without SSH. Keep a session open and
+test a new one before closing it.
+
+Everything under `/opt/proofodds` is owned by `proofodds`, with no path
+writable by any other account. `.env` is 600, `.ssh/` is 700, and `data/` is
+750 with `data/embargo/` at 700. No unit that runs as root may execute
+anything under this directory: `proofodds-traffic.service` runs as `proofodds`
+with the `adm` group so it can read the nginx logs.
+
+
 ## Known work
 
 **The corner model has no time weighting.** `dixon_coles.fit_from_frame` decays every

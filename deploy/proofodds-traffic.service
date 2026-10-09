@@ -1,10 +1,23 @@
-# Daily visitor counts, kept after the access log rotates. Runs as root because
-# it reads /var/log/nginx; it writes counts only, then hands the file back.
+# Daily visitor counts, kept after the access log rotates.
+#
+# Runs as proofodds, never as root: the script and the interpreter both live
+# under /opt/proofodds, which proofodds can write to, so a root unit here
+# would let that account become root. Reading /var/log/nginx needs the adm
+# group, granted to this one unit only.
 
 [Unit]
 Description=ProofOdds — daily traffic counts
 
 [Service]
 Type=oneshot
+User=proofodds
+Group=proofodds
+SupplementaryGroups=adm
+WorkingDirectory=/opt/proofodds
 ExecStart=/opt/proofodds/.venv/bin/python /opt/proofodds/scripts/traffic_snapshot.py
-ExecStartPost=/bin/chown proofodds:proofodds /opt/proofodds/data/traffic_daily.csv
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds/data

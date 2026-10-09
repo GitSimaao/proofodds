@@ -207,10 +207,22 @@ def restore_held() -> list[Path]:
                 continue
             target = embargo_dir(slug) / name
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(raw)
+            _private_dirs(target.parent)
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(raw)
             restored.append(target)
             log.warning("restored held entry %s from its ciphertext", name)
     return restored
+
+
+def _private_dirs(directory: Path) -> None:
+    """Close data/embargo/ and the guest's directory in it to other accounts."""
+    for folder in (EMBARGO_DIR, directory):
+        try:
+            os.chmod(folder, 0o700)
+        except OSError:
+            pass
 
 
 def embargo_dir(slug: str) -> Path:
@@ -365,6 +377,8 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     held = reveal == "kickoff" or bool(waiting)
     directory = embargo_dir(slug) if held else guest_dir(slug)
     directory.mkdir(parents=True, exist_ok=True)
+    if held:
+        _private_dirs(directory)
     name = f"{slug}--{now.strftime('%Y-%m-%dT%H%M%SZ')}.json"
     path = directory / name
     if path.exists() or (guest_dir(slug) / name).exists():
@@ -408,7 +422,14 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
         # long to pad — nothing is sealed, rather than a pick being held with
         # no copy anywhere but this disk.
         _write_held(slug, name, raw)
-    path.write_bytes(raw)
+    if held:
+        # A held pick in plaintext: readable by this account and nobody else
+        # on the machine, from the first byte.
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(raw)
+    else:
+        path.write_bytes(raw)
     log.info("sealed %s: %s %s v %s, %s %s @ %.3f", slug, league,
              entry["home"], entry["away"], market, selection, odds)
 

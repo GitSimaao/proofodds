@@ -1,0 +1,17 @@
+# ProofOdds server, 9 October 2026. Source: deploy/fail2ban-proofodds-sshd.local
+#
+# Five failures in ten minutes bans the address for an hour. A repeat
+# offender's ban doubles each time, up to a week. Nobody is whitelisted:
+# login is by key only, so the owner cannot trip this by mistyping.
+[DEFAULT]
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1w
+
+[sshd]
+enabled = true
+backend = systemd
+mode = aggressive
+maxretry = 5
+findtime = 10m
+bantime = 1h
