@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import logging
 import os
+import shutil
 import sys
 
 import requests
@@ -39,6 +40,8 @@ REPEAT_HOURS = 24
 # A feed has "collapsed" when it has left this share of the divisions it
 # serves without fixtures, for reasons that are the feed's fault.
 COLLAPSE_SHARE = 0.4
+# A full disk stops sealing, and a held pick that cannot be written is lost.
+DISK_ALERT_PERCENT = float(os.environ.get("PROOFODDS_DISK_ALERT_PERCENT", "85"))
 
 
 def _state() -> dict:
@@ -78,6 +81,7 @@ def send(key: str, title: str, body: str, *, urgent: bool = False,
                     "alerts.log only: %s", title)
 
     try:
+        ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
         with ALERT_LOG.open("a", encoding="utf-8") as handle:
             handle.write(f"{stamp}  {'SENT    ' if delivered else 'NOT SENT'}"
                          f"  {title}\n    {body.replace(chr(10), chr(10) + '    ')}\n")
@@ -129,6 +133,46 @@ def check_coverage(coverage: dict | None) -> None:
         send("coverage", "fixture coverage has collapsed", problem)
     else:
         clear("coverage")
+
+
+def check_disk() -> float:
+    """Alert when the disk holding the ledger is nearly full. Returns % used."""
+    usage = shutil.disk_usage(config.ROOT)
+    percent = round(100 * usage.used / usage.total, 1)
+    if percent > DISK_ALERT_PERCENT:
+        send("disk", f"disk is {percent:.0f}% full",
+             f"{usage.free / 2**30:.1f} GB free of {usage.total / 2**30:.0f} GB. "
+             "A full disk stops sealing and puts held picks at risk. "
+             "Start with: du -xh --max-depth=2 / | sort -h | tail -25")
+    else:
+        clear("disk")
+    return percent
+
+
+def check_provenance(provenance: dict) -> None:
+    """
+    Alert when the live site was built from code a reader cannot clone.
+
+    The provenance line on each page only helps someone who reads it, and
+    three times nobody did. `dirty` and `published` are True, False or None;
+    None means git could not say, and nothing is claimed from it.
+    """
+    commit = (provenance.get("commit") or "?")[:10]
+    problems = []
+    if provenance.get("dirty") is True:
+        problems.append("the working tree had uncommitted changes")
+    if provenance.get("published") is False:
+        problems.append(f"commit {commit} is not on origin/main")
+    if not problems:
+        if provenance.get("dirty") is False and provenance.get("published"):
+            clear("provenance")
+        return
+    send("provenance", "the site is built from code not in git",
+         f"The live site was built from {commit} and "
+         + " and ".join(problems)
+         + ". The site says it can be reproduced from the repository; right "
+           "now that is false. Commit and push from /opt/proofodds, as the "
+           "proofodds user.")
 
 
 def main(argv: list[str]) -> int:

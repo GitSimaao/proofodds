@@ -29,6 +29,15 @@ publication waits. Until then it sits in data/embargo/<slug>/, outside the
 repository, while its OpenTimestamps proof is committed at once. Entries are
 released strictly in chain order, so the public chain never has a hole in it.
 
+A held entry must survive this disk. Its hash is public from the moment it
+is sealed, so if the file were lost the record would show a pick that was
+never revealed, which is exactly what a tipster hiding a loser looks like.
+So every held entry is also encrypted, padded to one fixed length so that the
+size says nothing about the pick, and committed to held/<slug>/ in the public
+repository at once. Release works from that ciphertext alone. The key is
+PROOFODDS_EMBARGO_KEY; without it nothing can be held, and a lost key means
+every ciphertext is unreadable.
+
 Sealed-before-kickoff is checked twice: against the kickoff the guest states,
 when sealing, and against the kickoff time in the results feed, when grading.
 The second check is the one that counts, because the first trusts the guest.
@@ -62,6 +71,15 @@ TOKENS_FILE = config.DATA_DIR / "guest_tokens.json"
 # A reveal-at-kickoff entry holds back everything sealed after it, so the
 # wait has to be bounded.
 EMBARGO_MAX_DAYS = 7
+
+# Encrypted copies of held entries, in the repository. Never deleted: once
+# the entry is public the ciphertext is redundant, and harmless.
+HELD_DIR = config.ROOT / "held"
+TOKENS_BACKUP = HELD_DIR / "_tokens.enc"
+# Every held entry is padded to this many bytes before encryption, so all
+# ciphertexts are the same length whatever was picked. An entry is about 700
+# bytes; one that will not fit is refused rather than given a longer file.
+HELD_PLAINTEXT_BYTES = 2048
 
 MARKETS = {
     "1X2": {"H", "D", "A"},
@@ -117,6 +135,84 @@ def used_competitions() -> list[str]:
     return sorted(used)
 
 
+def _fernet():
+    """The cipher for held entries, or None when no key is configured."""
+    key = os.environ.get("PROOFODDS_EMBARGO_KEY", "").strip()
+    if not key:
+        return None
+    from cryptography.fernet import Fernet
+    return Fernet(key.encode("ascii"))
+
+
+def _pad(raw: bytes, size: int) -> bytes:
+    if len(raw) > size - 4:
+        raise ValueError(f"{len(raw)} bytes will not fit a {size}-byte block")
+    return len(raw).to_bytes(4, "big") + raw + b"\0" * (size - 4 - len(raw))
+
+
+def _unpad(block: bytes) -> bytes:
+    return block[4:4 + int.from_bytes(block[:4], "big")]
+
+
+def held_path(slug: str, name: str) -> Path:
+    return HELD_DIR / slug / f"{name}.enc"
+
+
+def _write_held(slug: str, name: str, raw: bytes) -> Path:
+    """Encrypt one held entry into the repository. Raises without a key."""
+    cipher = _fernet()
+    if cipher is None:
+        raise ValueError(
+            "reveal-at-kickoff is not available: PROOFODDS_EMBARGO_KEY is not "
+            "set, so a held entry could not be backed up. Nothing was sealed.")
+    target = held_path(slug, name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(cipher.encrypt(_pad(raw, HELD_PLAINTEXT_BYTES)))
+    return target
+
+
+def restore_held() -> list[Path]:
+    """
+    Rebuild data/embargo/ from the ciphertexts in the repository.
+
+    For every encrypted entry that is neither public nor on disk, decrypt it
+    and put it back. This is what makes losing data/ survivable. A ciphertext
+    whose contents do not hash to what they claim is left alone and reported.
+    """
+    if not HELD_DIR.exists():
+        return []
+    cipher = _fernet()
+    restored = []
+    for directory in sorted(p for p in HELD_DIR.iterdir() if p.is_dir()):
+        slug = directory.name
+        for blob in sorted(directory.glob("*.json.enc")):
+            name = blob.name[:-len(".enc")]
+            if (guest_dir(slug) / name).exists() or \
+                    (embargo_dir(slug) / name).exists():
+                continue
+            if cipher is None:
+                log.error("held entry %s is missing from disk and "
+                          "PROOFODDS_EMBARGO_KEY is not set — it cannot be "
+                          "restored or released", blob.name)
+                continue
+            try:
+                raw = _unpad(cipher.decrypt(blob.read_bytes()))
+                entry = json.loads(raw.decode("utf-8"))
+                from .ledger import compute_hash
+                if compute_hash(entry) != entry["hash"]:
+                    raise ValueError("contents do not match their hash")
+            except Exception as exc:
+                log.error("held entry %s could not be restored: %s",
+                          blob.name, exc)
+                continue
+            target = embargo_dir(slug) / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw)
+            restored.append(target)
+            log.warning("restored held entry %s from its ciphertext", name)
+    return restored
+
+
 def embargo_dir(slug: str) -> Path:
     return EMBARGO_DIR / slug
 
@@ -157,6 +253,7 @@ def release_due(now: dt.datetime | None = None) -> list[Path]:
     until the earlier one caught up.
     """
     now = now or dt.datetime.now(dt.timezone.utc)
+    restore_held()
     released = []
     for slug in embargoed_slugs():
         for path in embargoed_files(slug):
@@ -255,6 +352,9 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
             log.warning("%s %r resolved to %r by fuzzy match — check it",
                         side, raw, hit)
 
+    # If data/embargo/ was lost, put it back before reading the chain's head
+    # from it; otherwise this entry would link to the wrong predecessor.
+    restore_held()
     # The chain runs through embargoed entries too: the newest entry is the
     # newest of both, and anything sealed while one is waiting waits behind it.
     waiting = embargoed_files(slug)
@@ -302,8 +402,13 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     from .ledger import compute_hash
     entry["hash"] = compute_hash(entry)
 
-    path.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    raw = (json.dumps(entry, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    if held:
+        # Ciphertext first. If it cannot be written — no key, or an entry too
+        # long to pad — nothing is sealed, rather than a pick being held with
+        # no copy anywhere but this disk.
+        _write_held(slug, name, raw)
+    path.write_bytes(raw)
     log.info("sealed %s: %s %s v %s, %s %s @ %.3f", slug, league,
              entry["home"], entry["away"], market, selection, odds)
 
@@ -542,7 +647,17 @@ def all_guests() -> list[dict]:
 # --------------------------------------------------------------------------- #
 def _tokens() -> dict:
     if not TOKENS_FILE.exists():
-        return {}
+        cipher = _fernet()
+        if cipher is None or not TOKENS_BACKUP.exists():
+            return {}
+        # The disk copy is gone and the repository has one. Put it back, so a
+        # guest's token keeps working after data/ is lost.
+        table = json.loads(_unpad(cipher.decrypt(TOKENS_BACKUP.read_bytes())))
+        log.warning("restored the token table from its encrypted backup")
+        TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        TOKENS_FILE.write_text(json.dumps(table, indent=2), encoding="utf-8")
+        os.chmod(TOKENS_FILE, 0o600)
+        return table
     return json.loads(TOKENS_FILE.read_text(encoding="utf-8"))
 
 
@@ -589,6 +704,28 @@ def _write_tokens(table: dict) -> None:
     tmp.write_text(json.dumps(table, indent=2), encoding="utf-8")
     os.chmod(tmp, 0o600)
     tmp.replace(TOKENS_FILE)
+    _backup_tokens(table)
+
+
+def _backup_tokens(table: dict) -> None:
+    """
+    An encrypted copy of the token table, in the repository.
+
+    Contact details are left out. They are personal data, the repository's
+    history is permanent, and a key that leaked years from now would expose
+    them; losing them with the disk only costs asking again.
+    """
+    cipher = _fernet()
+    if cipher is None:
+        log.warning("PROOFODDS_EMBARGO_KEY is not set — the token table is "
+                    "not backed up")
+        return
+    slim = {key: {k: v for k, v in row.items() if k != "contact"}
+            for key, row in table.items()}
+    raw = json.dumps(slim, sort_keys=True).encode("utf-8")
+    size = 4096 * (1 + (len(raw) + 4) // 4096)
+    TOKENS_BACKUP.parent.mkdir(parents=True, exist_ok=True)
+    TOKENS_BACKUP.write_bytes(cipher.encrypt(_pad(raw, size)))
 
 
 def guest_for_token(token: str) -> dict | None:
@@ -616,6 +753,8 @@ def publish(now: dt.datetime | None = None, push: bool = True) -> list[Path]:
     paths = []
     if config.GUESTS_DIR.exists():
         paths.append("guests")
+    if HELD_DIR.exists():
+        paths.append("held")
     slugs = set(guest_slugs()) | set(embargoed_slugs())
     proofs = [p for p in config.TIMESTAMPS_DIR.glob("*--*.json.ots")
               if p.name.split("--")[0] in slugs]
@@ -629,13 +768,29 @@ def publish(now: dt.datetime | None = None, push: bool = True) -> list[Path]:
     done = git("commit", "-m", f"guests: {len(staged)} file(s)", "--", *paths)
     if done.returncode != 0:
         log.warning("guest commit failed: %s", done.stderr or done.stdout)
+        _backup_alert("commit", done.stderr or done.stdout)
         return released
     if push:
         pushed = git("push")
         if pushed.returncode != 0:
             log.warning("guest push failed (committed locally): %s",
                         pushed.stderr.strip())
+            _backup_alert("push", pushed.stderr)
+        else:
+            from . import alert
+            alert.clear("guest-backup")
     return released
+
+
+def _backup_alert(step: str, detail: str) -> None:
+    """A held pick whose ciphertext has not left this disk is not backed up."""
+    if not embargoed_slugs():
+        return
+    from . import alert
+    alert.send("guest-backup", "held picks are not backed up",
+               f"git {step} failed, so the encrypted copy of a held pick "
+               "exists only on the server. It is retried every five "
+               f"minutes.\n{(detail or '').strip()[:300]}", urgent=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -674,6 +829,8 @@ def main(argv=None) -> int:
     rev = sub.add_parser("revoke", help="revoke a guest's sealing token")
     rev.add_argument("--guest", required=True)
     sub.add_parser("release", help="publish due entries, commit and push")
+    sub.add_parser("restore", help="rebuild data/embargo/ and the token "
+                                   "table from the encrypted copies in held/")
 
     sub.add_parser("show", help="grade and print every guest record")
     sync = sub.add_parser("sync", help="download creator-ledger result feeds")
@@ -711,6 +868,14 @@ def main(argv=None) -> int:
 
     if args.cmd == "revoke":
         print(f"revoked {revoke(slugify(args.guest))} token(s)")
+        return 0
+
+    if args.cmd == "restore":
+        entries = restore_held()
+        _tokens()
+        print(f"restored {len(entries)} held entr"
+              f"{'y' if len(entries) == 1 else 'ies'}; token table "
+              f"{'present' if TOKENS_FILE.exists() else 'NOT present'}")
         return 0
 
     if args.cmd == "release":

@@ -1032,6 +1032,7 @@ def build(out_dir=None) -> None:
         "brand_v": brand_v,
         "site_name": config.SITE_NAME,
         "site_url": config.SITE_URL,
+        "nations_enabled": config.NATIONS_ENABLED,
         "tagline": config.SITE_TAGLINE,
         "repo_url": config.REPO_URL,
         "built_at": build_now.strftime("%d %b %Y"),
@@ -1158,12 +1159,19 @@ def build(out_dir=None) -> None:
     # The national-team forecast. Unsealed and unscored, and therefore written
     # from `nations_forecast` alone — no value on this page comes from `graded`,
     # `score` or anything else the scorecard is built from.
-    write("nations-league/index.html", env.get_template("nations.html").render(
-        page="nations", canonical="/nations-league/",
-        nations=nations_forecast,
-        nations_holdout=config.NATIONS_HOLDOUT,
-        half_life=int(round(math.log(2) / config.XI)),
-        **common))
+    # Retired on 9 October 2026, when its only data source ended. The URL was
+    # public for two weeks, so it answers with a note rather than a 404.
+    if config.NATIONS_ENABLED:
+        write("nations-league/index.html", env.get_template("nations.html").render(
+            page="nations", canonical="/nations-league/",
+            nations=nations_forecast,
+            nations_holdout=config.NATIONS_HOLDOUT,
+            half_life=int(round(math.log(2) / config.XI)),
+            **common))
+    else:
+        write("nations-league/index.html",
+              env.get_template("nations_retired.html").render(
+                  page="nations", canonical="/nations-league/", **common))
 
     # The log: dated notes with a stable home on our own domain, so links from
     # elsewhere (HN, Reddit) point at a page we control rather than a post a

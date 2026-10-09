@@ -231,9 +231,21 @@ feed. An entry sealed at or after it is shown as `late` and never scored. Where
 the feed has no time, an entry sealed on the match day is shown as
 `time_unverified` and not scored.
 
-**What you cannot reproduce from a clone.** Entries under embargo and the token
-file are private by design, so a clone holds every *published* guest entry and
-every proof, and not the entries still waiting for kickoff.
+**Held entries survive the server.** A held entry exists in plaintext only in
+`data/embargo/`, while its hash is already public. So at the moment of sealing
+it is also encrypted (Fernet, from `cryptography`), padded to a fixed 2,048
+bytes so that every ciphertext is the same length whatever was picked, and
+committed to `held/<slug>/`. If `data/` is lost, `python -m proofodds.guest
+restore` rebuilds it from those files, and release does the same on its own.
+The key is `PROOFODDS_EMBARGO_KEY` in `.env`. Without a key nothing can be
+held. If the key is lost, the ciphertexts cannot be opened by anyone.
+
+The token table is backed up the same way, to `held/_tokens.enc`, without
+contact details.
+
+**What you cannot reproduce from a clone.** A clone holds every published
+guest entry, every proof, and the ciphertext of every held entry. It does not
+hold the key, so it cannot read an entry before its kickoff.
 
 ### Sealing from the command line
 

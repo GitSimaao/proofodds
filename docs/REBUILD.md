@@ -56,3 +56,16 @@ the working example.
 - Nothing outside `/opt/proofodds`, apart from the nginx site file and the
   systemd units. `/opt/proofodds-refresh` and `/opt/pl-dixon-coles` are old
   copies and were left alone.
+
+## Follow-up, 9 October 2026 (evening)
+
+| What | Detail |
+|---|---|
+| Held picks are backed up in the repository | A held entry used to exist only in `data/embargo/` while its hash was public. Losing the disk would have left a sealed pick that could never be revealed. Each one is now encrypted, padded to a fixed length and committed to `held/<slug>/` when sealed; release rebuilds from the ciphertext if the disk copy is gone. Key: `PROOFODDS_EMBARGO_KEY`. |
+| Token table is backed up | `held/_tokens.enc`, same key, contact details left out. |
+| Nations League page retired | Its only data source, TheStatsAPI, ends on 10 October. `PROOFODDS_NATIONS=0`; both menu links are conditional; `/nations-league/` answers with a note that the page was never sealed or scored. |
+| `nations.py`, `statsapi.py`, `scripts/check_pinnacle.py`, `scripts/tune_nations.py`, `data/statsapi/` | **Parked, not forgotten.** Kept until the 8 December decision. Delete them then, or revive them with a data source. Nothing on a timer calls them. |
+| Alert on a build from code not in git | `alert.check_provenance`, after every build. Once a day at most, never fatal. |
+| Alert on a filling disk | `alert.check_disk`, above 85%. |
+| Live nginx was missing `location /timestamps/` | The block was in `deploy/` and not on the server, so proofs were served without the cross-origin header. Installed. |
+| `requirements.txt` gained `cryptography` | That file is one of those hashed into each entry's generator identity, so the identity changes from the next sealed entry. The model did not change. |

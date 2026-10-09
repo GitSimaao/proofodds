@@ -284,6 +284,13 @@ def main() -> int:
     # commit is a publishing gap that a push closes, not a bad run, and paging
     # for it would train people to ignore the page that means a broken chain.
     provenance = render.build_provenance()
+    # Said on the site, and now also said to a person: a line on /ledger/ is
+    # only read by someone looking for it. At most once a day, never fatal.
+    try:
+        alert.check_provenance(provenance)
+        alert.check_disk()
+    except Exception:
+        log.exception("provenance/disk alert failed — continuing")
     if provenance["published"] is False:
         log.warning("the site was built from %s, which is NOT on origin/main — "
                     "a reader cloning the repository cannot reproduce this "

@@ -4145,9 +4145,10 @@ def test_nations_matches_are_absent_from_the_scorecard():
 #  Self-serve sealing: reveal at kickoff, tokens, late seals, alerts
 # --------------------------------------------------------------------------- #
 def _guest_sandbox(tmp_path, monkeypatch):
+    """The autouse fixture isolates the directories; this adds a key."""
+    from cryptography.fernet import Fernet
     from proofodds import guest
-    monkeypatch.setattr(guest, "EMBARGO_DIR", tmp_path / "embargo")
-    monkeypatch.setattr(guest, "TOKENS_FILE", tmp_path / "tokens.json")
+    monkeypatch.setenv("PROOFODDS_EMBARGO_KEY", Fernet.generate_key().decode())
     return guest
 
 
@@ -4247,3 +4248,130 @@ def test_a_quiet_week_is_not_a_coverage_alert_and_a_dead_feed_is():
                                    "46 rows, newest 2026-10-05"}
         for code in ("E2", "E3")]}
     assert "2 of 3" in alert.coverage_problem(dead)
+
+
+# --------------------------------------------------------------------------- #
+#  Held picks survive the disk; the machine reports on itself
+# --------------------------------------------------------------------------- #
+def test_a_held_pick_is_released_from_its_ciphertext_alone(tmp_path, monkeypatch):
+    """
+    data/embargo/ is the only plaintext copy of a held pick. Delete it, and
+    the entry must still be released, byte for byte, from held/.
+    """
+    import shutil
+    from proofodds import config, verify
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    t0 = dt.datetime(2098, 1, 1, 12, tzinfo=dt.timezone.utc)
+    a = _seal_guest(tmp_path, monkeypatch, now=t0,
+                    kickoff="2098-01-02T15:00Z", reveal="kickoff")
+    original = a.read_bytes()
+    blob = guest.held_path("test-guest", a.name)
+    assert blob.exists() and b"Arsenal" not in blob.read_bytes()
+
+    shutil.rmtree(guest.EMBARGO_DIR)
+    # Sealing after the loss still links to the lost entry, not to genesis.
+    b = _seal_guest(tmp_path, monkeypatch, selection="D", odds=3.4,
+                    now=t0 + dt.timedelta(hours=1), kickoff="2098-01-02T16:00Z")
+    assert json.loads(b.read_text())["prev_hash"] == json.loads(original)["hash"]
+
+    shutil.rmtree(guest.EMBARGO_DIR)
+    out = guest.release_due(dt.datetime(2098, 1, 3, tzinfo=dt.timezone.utc))
+    assert [p.name for p in out] == [a.name, b.name]
+    assert out[0].read_bytes() == original
+    ok, problems, stats = verify.verify(config.GUESTS_DIR / "test-guest")
+    assert ok and stats["entries"] == 2, problems
+    # Released entries are not restored a second time.
+    assert guest.restore_held() == []
+
+
+def test_every_held_ciphertext_is_the_same_length(tmp_path, monkeypatch):
+    """A length that varied with the selection would give the pick away."""
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    t0 = dt.datetime(2098, 1, 1, 12, tzinfo=dt.timezone.utc)
+    picks = [dict(market="1X2", selection="H", odds=2.0),
+             dict(market="OU2.5", selection="under", odds=1.85,
+                  book="A bookmaker with a long name"),
+             dict(market="AH", selection="A", line=-1.25, odds=11.125,
+                  home="Wolverhampton Wanderers", away="Brighton and Hove")]
+    sizes = set()
+    for i, pick in enumerate(picks):
+        path = _seal_guest(tmp_path, monkeypatch, reveal="kickoff",
+                           now=t0 + dt.timedelta(minutes=i),
+                           kickoff="2098-01-02T15:00Z", **pick)
+        sizes.add(len(guest.held_path("test-guest", path.name).read_bytes()))
+    assert len(sizes) == 1
+
+
+def test_nothing_is_held_without_a_key_or_room_to_pad(tmp_path, monkeypatch):
+    import pytest as _pytest
+    from proofodds import guest
+    kwargs = dict(reveal="kickoff", kickoff="2098-01-02T15:00Z",
+                  now=dt.datetime(2098, 1, 1, tzinfo=dt.timezone.utc))
+    with _pytest.raises(ValueError, match="PROOFODDS_EMBARGO_KEY"):
+        _seal_guest(tmp_path, monkeypatch, **kwargs)
+    _guest_sandbox(tmp_path, monkeypatch)
+    with _pytest.raises(ValueError, match="will not fit"):
+        _seal_guest(tmp_path, monkeypatch, note="x" * 3000, **kwargs)
+    assert not guest.embargoed_slugs()
+    assert not list(guest.HELD_DIR.rglob("*.enc"))
+
+
+def test_the_token_table_comes_back_without_contact_details(tmp_path, monkeypatch):
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    token = guest.invite("Theo Borges", contact="theo@example.org")
+    assert b"theo" not in guest.TOKENS_BACKUP.read_bytes()
+    guest.TOKENS_FILE.unlink()
+    row = guest.guest_for_token(token)
+    assert row["slug"] == "theo-borges" and "contact" not in row
+
+
+def test_a_build_from_code_not_in_git_is_alerted_once(monkeypatch):
+    from proofodds import alert
+    sent = []
+    monkeypatch.setattr(alert, "send", lambda key, title, body, **kw:
+                        sent.append((key, title, body)))
+    cleared = []
+    monkeypatch.setattr(alert, "clear", cleared.append)
+
+    alert.check_provenance({"commit": "a" * 40, "dirty": False, "published": True})
+    assert not sent and cleared == ["provenance"]
+    alert.check_provenance({"commit": "a" * 40, "dirty": True, "published": True})
+    alert.check_provenance({"commit": "b" * 40, "dirty": False, "published": False})
+    assert [key for key, _, _ in sent] == ["provenance", "provenance"]
+    assert "uncommitted" in sent[0][2] and "not on origin" in sent[1][2]
+    # Unknown is not an accusation.
+    alert.check_provenance({"commit": None, "dirty": None, "published": None})
+    assert len(sent) == 2
+
+
+def test_the_same_alert_is_not_repeated_within_a_day():
+    from proofodds import alert
+    t0 = dt.datetime(2026, 10, 9, 12, tzinfo=dt.timezone.utc)
+    alert.send("k", "title", "body", now=t0)
+    alert.send("k", "title", "body", now=t0 + dt.timedelta(hours=3))
+    alert.send("k", "title", "body", now=t0 + dt.timedelta(hours=25))
+    assert alert.ALERT_LOG.read_text().count("title") == 2
+
+
+def test_a_filling_disk_is_alerted_above_the_threshold(monkeypatch):
+    import collections
+    from proofodds import alert
+    usage = collections.namedtuple("usage", "total used free")
+    sent = []
+    monkeypatch.setattr(alert, "send", lambda key, *a, **kw: sent.append(key))
+    monkeypatch.setattr(alert, "clear", lambda key: None)
+    monkeypatch.setattr(alert.shutil, "disk_usage", lambda p: usage(100, 84, 16))
+    assert alert.check_disk() == 84.0 and not sent
+    monkeypatch.setattr(alert.shutil, "disk_usage", lambda p: usage(100, 91, 9))
+    assert alert.check_disk() == 91.0 and sent == ["disk"]
+
+
+def test_a_retired_nations_page_says_so_and_leaves_the_menu(tmp_path, monkeypatch):
+    from proofodds import render
+    monkeypatch.setattr(config, "NATIONS_ENABLED", False)
+    render.build(tmp_path / "site")
+    page = (tmp_path / "site" / "nations-league" / "index.html").read_text()
+    assert "retired" in page and "never sealed" in page
+    home = (tmp_path / "site" / "index.html").read_text()
+    assert "/nations-league/" not in home
+    assert "/nations-league/" not in (tmp_path / "site" / "sitemap.xml").read_text()

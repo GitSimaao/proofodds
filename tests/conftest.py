@@ -54,3 +54,27 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "needs_data" in item.keywords:
             item.add_marker(skip)
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _private_guest_state(tmp_path, monkeypatch):
+    """
+    No test may read or write the real held picks, tokens or alert log.
+
+    guest.restore_held() rebuilds data/embargo/ from held/ whenever an entry
+    looks missing, and with GUESTS_DIR pointed at a temp directory every real
+    entry looks missing. Without this a test run would decrypt live picks.
+    """
+    from proofodds import alert, guest
+    box = tmp_path / "_private"
+    monkeypatch.setattr(guest, "EMBARGO_DIR", box / "embargo")
+    monkeypatch.setattr(guest, "HELD_DIR", box / "held")
+    monkeypatch.setattr(guest, "TOKENS_FILE", box / "tokens.json")
+    monkeypatch.setattr(guest, "TOKENS_BACKUP", box / "held" / "_tokens.enc")
+    monkeypatch.setattr(alert, "ALERT_LOG", box / "alerts.log")
+    monkeypatch.setattr(alert, "STATE", box / "alert_state.json")
+    monkeypatch.setattr(alert, "ALERT_URL", "")
+    monkeypatch.delenv("PROOFODDS_EMBARGO_KEY", raising=False)
