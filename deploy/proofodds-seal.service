@@ -1,0 +1,29 @@
+# The sealing service behind /seal/. Listens on 127.0.0.1:8377 only; nginx
+# proxies /api/ to it. See proofodds/sealapi.py.
+#
+#   sudo cp deploy/proofodds-seal.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now proofodds-seal
+
+[Unit]
+Description=ProofOdds — guest sealing service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=proofodds
+Group=proofodds
+WorkingDirectory=/opt/proofodds
+EnvironmentFile=-/opt/proofodds/.env
+ExecStart=/opt/proofodds/.venv/bin/python -m proofodds.sealapi
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds
+
+[Install]
+WantedBy=multi-user.target

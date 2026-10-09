@@ -23,6 +23,7 @@ import numpy as np
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import anchor, charts, config, crests, dixon_coles, grade, guest, ledger
+from . import nations
 from . import data
 from .data import sealed_name
 
@@ -718,6 +719,34 @@ def upcoming_view(rows: list[dict] | None = None, *,
     return days
 
 
+def nations_view(now: dt.datetime | None = None) -> dict:
+    """
+    The Nations League forecast, dressed for the template.
+
+    Kept deliberately separate from `match_views`: that one reads the sealed
+    ledger and everything downstream of it is scored, this one reads a model
+    fitted at build time and nothing downstream of it is. Sharing a code path
+    is how the two would eventually share a number.
+
+    A failure here returns an unavailable forecast rather than raising. The
+    page is the only thing that depends on it, and an international feed being
+    down must never stop the sealed record from publishing.
+    """
+    if not config.NATIONS_ENABLED:
+        return {"available": False, "matches": [], "reason": "the page is turned off"}
+    try:
+        view = nations.forecast(now=now)
+    except Exception as exc:                      # never take the build down
+        log.warning("nations: forecast unavailable (%s)", exc)
+        return {"available": False, "matches": [],
+                "reason": "the international model could not be fitted"}
+    for match in view.get("matches", []):
+        match["home_mark"] = club_mark(match["home"])
+        match["away_mark"] = club_mark(match["away"])
+        match["bar"] = charts.outcome_bar(match["p_H"], match["p_D"], match["p_A"])
+    return view
+
+
 def ledger_view(anchor_report=None) -> list[dict]:
     anchor_report = anchor_report or anchor.report()
     by_entry = {row["entry"]: row for row in anchor_report["entries"]}
@@ -849,6 +878,35 @@ def sitemap(pages: list[str]) -> str:
 
 
 # --------------------------------------------------------------------------- #
+def guest_badge(record: dict) -> str:
+    """
+    The badge a guest puts on their own channel.
+
+    It states the count and the closing-line figure for the whole record and
+    nothing else: no profit, no win rate, no chosen period. A record with
+    fewer than 30 graded entries shows the count only, because a CLV figure
+    on a handful of bets is a number people will read as meaning something.
+    """
+    sealed = record["n_sealed"]
+    if record["n_graded"] >= 30:
+        right = (f"{sealed} sealed \u00b7 CLV "
+                 f"{record['avg_clv'] * 100:+.1f}% on {record['n_graded']}")
+    else:
+        right = f"{sealed} sealed \u00b7 too few to score"
+    left = "ProofOdds record"
+    lw, rw = 8 + len(left) * 7, 12 + len(right) * 6.6
+    width = int(lw + rw)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="28" '
+        f'role="img" aria-label="{left}: {right}">'
+        f'<rect width="{width}" height="28" rx="4" fill="#0B1628"/>'
+        f'<rect x="{int(lw)}" width="{int(rw)}" height="28" rx="4" fill="#2869D8"/>'
+        f'<rect x="{int(lw)}" width="6" height="28" fill="#2869D8"/>'
+        f'<g fill="#fff" font-family="Verdana,Geneva,sans-serif" font-size="12">'
+        f'<text x="8" y="18">{left}</text>'
+        f'<text x="{int(lw) + 8}" y="18">{right}</text></g></svg>\n')
+
+
 def build_provenance() -> dict:
     """
     Which commit built this page, and whether a reader can obtain that commit.
@@ -939,6 +997,7 @@ def build(out_dir=None) -> None:
     entries = ledger_view(anchors)
     build_now = dt.datetime.now(dt.timezone.utc)
     matches = match_views(now=build_now)
+    nations_forecast = nations_view(now=build_now)
     days = upcoming_view(matches, today=build_now.date(),
                          days_ahead=config.LOOKAHEAD_DAYS)
 
@@ -1096,6 +1155,16 @@ def build(out_dir=None) -> None:
         goal_total_lines=config.GOAL_TOTAL_LINES,
         **common))
 
+    # The national-team forecast. Unsealed and unscored, and therefore written
+    # from `nations_forecast` alone — no value on this page comes from `graded`,
+    # `score` or anything else the scorecard is built from.
+    write("nations-league/index.html", env.get_template("nations.html").render(
+        page="nations", canonical="/nations-league/",
+        nations=nations_forecast,
+        nations_holdout=config.NATIONS_HOLDOUT,
+        half_life=int(round(math.log(2) / config.XI)),
+        **common))
+
     # The log: dated notes with a stable home on our own domain, so links from
     # elsewhere (HN, Reddit) point at a page we control rather than a post a
     # moderator can delete. The launch note fills its numbers from the live
@@ -1144,6 +1213,23 @@ def build(out_dir=None) -> None:
             {"guest": record["slug"],
              "files": [p.name for p in guest.entry_files(record["slug"])]},
             indent=2), encoding="utf-8")
+        # Entries sealed for reveal at kickoff: their hashes, and nothing
+        # else, published while the entries themselves are still private.
+        (raw_dir / "_sealed.json").write_text(json.dumps(
+            {"guest": record["slug"],
+             "not_yet_public": guest.commitments(record["slug"])},
+            indent=2), encoding="utf-8")
+        (out_dir / "guests" / record["slug"] / "badge.svg").write_text(
+            guest_badge(record), encoding="utf-8")
+
+    # The form a guest seals through. Static; it posts to proofodds/sealapi.py.
+    write("seal/index.html", env.get_template("seal.html").render(
+        page="referee", canonical="/seal/",
+        seal_competitions=[
+            {"code": code, "country": meta["country"], "name": meta["name"],
+             "markets": ", ".join(meta["markets"])}
+            for code, meta in config.GUEST_COMPETITIONS.items()],
+        **common))
 
     # The offer, not just the demonstration.
     #
@@ -1185,8 +1271,11 @@ def build(out_dir=None) -> None:
     (out_dir / "robots.txt").write_text(
         ROBOTS.format(site_url=config.SITE_URL), encoding="utf-8")
     public_pages = ["/", "/scorecard/", "/ledger/", "/method/", "/referee/",
+                    "/seal/",
                     "/data/", "/privacy/", "/log/", "/log/first-post/",
                     "/predictions/"]
+    if nations_forecast.get("available"):
+        public_pages.append("/nations-league/")
     public_pages.extend(f"/guests/{r['slug']}/" for r in guest_records)
     public_pages.extend(match["match_url"] for match in matches)
     (out_dir / "sitemap.xml").write_text(

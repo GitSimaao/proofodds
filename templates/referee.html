@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Seal your own record — {{ site_name }}{% endblock %}
-{% block description %}We seal and score other people's predictions under the same rules: hashed before kickoff, anchored to Bitcoin, measured by closing line value, published whichever way it goes.{% endblock %}
+{% block description %}A sealed, timestamped record of your picks that you cannot edit and anyone can check: hashed before kickoff, anchored to Bitcoin, measured by closing line value, published whichever way it goes.{% endblock %}
 
 {% block content %}
 
@@ -8,7 +8,7 @@
   <p class="eyebrow">For anyone who forecasts football and would rather know</p>
   <h1>Seal your own record</h1>
   <p class="lead">The machinery on this site does not care whose predictions it measures.
-  Send us yours before kickoff and they go into a hash chain under exactly the same
+  Seal yours before kickoff and they go into a hash chain under exactly the same
   rules as ours — sealed, anchored, never rewritten — and the record is published
   whichever way it goes. That last part is the whole offer. Anyone can show you a
   screenshot of a winner.</p>
@@ -75,29 +75,46 @@
     around it. Seal a season of forecasts and you get the same treatment: graded against
     the market-average close, reported with the sample size and the confidence interval,
     and no headline claimed from a number too small to carry one.</p>
-    <p class="section-note">There is no charge and no plan to introduce one for this. It
-    is the part of the project we most want to exist.</p>
+    <p class="section-note">A record opened in 2026 is free and stays free. A paid plan
+    for people who sell picks is planned and does not exist yet: nothing is charged
+    today, and nobody has been asked to pay.</p>
   </div>
 </section>
 
 <section class="band">
   <div class="shell">
-    <h2>How it works today</h2>
-    <p class="section-note">Deliberately manual, and worth being straight about: there is
-    no submission form yet, because there is no guest yet and building the form first
-    would be building the wrong thing. You send an entry before kickoff — a message is
-    enough — and the operator runs one command. The chain and the anchor do the rest.</p>
+    <h2>How it works</h2>
+    <p class="section-note">You ask for a record, we send you a private token, and from
+    then on you seal your own picks through <a href="/seal/">a form</a> that takes about
+    twenty seconds. Nobody at ProofOdds touches an entry on its way in. There is no open
+    sign-up: tokens are issued by hand, because a record under a name should belong to
+    the person who uses that name.</p>
     <div class="scroll" style="padding:16px 18px;min-width:0">
       <pre class="mono" style="margin:0;font-size:13px;overflow-x:auto">competition   E0
-match         Arsenal v Chelsea, 2026-09-12 14:00 UTC
+match         Arsenal v Chelsea, 2026-10-17 14:00 UTC
 market        1X2
 selection     H
 odds taken    2.10</pre>
     </div>
     <p class="section-note">That is the whole entry. Pick and price, sealed before the
     whistle, nothing else — no reasoning to be judged on, no stake to be argued about.
-    Your entry is timestamped when we receive it and it is graded from the first
-    publication.</p>
+    You get a receipt with the entry's hash the moment it is sealed.</p>
+
+    <h3>If you sell your picks</h3>
+    <p class="section-note">A pick your subscribers paid for cannot be on a public page
+    before the match. Choose <em>reveal at kickoff</em> and the entry is sealed, chained
+    and timestamped now, and published when the match starts. Until then only its hash
+    and its Bitcoin timestamp proof are public, which is enough to prove later that it
+    existed when it did. Two limits, both deliberate: the match must be within seven
+    days, and entries become public in the order they were sealed, so one held entry
+    holds back those sealed after it.</p>
+
+    <h3>Sealed before kickoff, checked against the results feed</h3>
+    <p class="section-note">The kickoff you type is not trusted. When the match is
+    graded, the time you sealed is compared with the kickoff time in the results feed.
+    An entry sealed at or after it is shown on your record as <em>late</em> and is never
+    scored. Where the feed gives no kickoff time, an entry sealed on the match day is
+    shown as <em>time unverified</em> and is not scored either.</p>
 
     {% if guests %}
     <h3>Records so far</h3>
@@ -116,7 +133,9 @@ odds taken    2.10</pre>
       discovered we would rather say it on the page that makes the offer. The code is
       written and tested, the rules above are the rules, and the first person through
       the door gets the first chain. If that is you, the terms are the same as ours:
-      free, public, and not editable afterwards.</p>
+      free, public, and not editable afterwards. Write to
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> with the name you
+      publish under and a link to where you publish.</p>
     </div>
     {% endif %}
   </div>

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Seal a pick — {{ site_name }}{% endblock %}
+{% block description %}Seal one pick before kickoff into your own hash-chained, Bitcoin-timestamped record.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <p class="eyebrow">For people with a sealing token</p>
+  <h1>Seal a pick</h1>
+  <p class="lead">One pick, one price, before kickoff. Once sealed it cannot be edited or
+  removed, by you or by us. No token yet? <a href="/referee/">Ask for a record</a>.</p>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <form class="seal-form" action="/api/seal" method="post" autocomplete="off">
+      <label>Your token
+        <input type="password" name="token" required autocomplete="off" spellcheck="false">
+      </label>
+      <label>Competition
+        <select name="league" required>
+          <option value="">Choose one</option>
+          {% for c in seal_competitions %}
+          <option value="{{ c.code }}">{{ c.country }} · {{ c.name }} ({{ c.markets }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="seal-row">
+        <label>Home team
+          <input type="text" name="home" required maxlength="80" placeholder="Arsenal">
+        </label>
+        <label>Away team
+          <input type="text" name="away" required maxlength="80" placeholder="Chelsea">
+        </label>
+      </div>
+      <label>Kickoff, in UTC
+        <input type="text" name="kickoff" required maxlength="20"
+               placeholder="2026-10-17 14:00" pattern="\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}Z?">
+        <span class="seal-hint">Year-month-day hour:minute, UTC. It is checked later
+        against the results feed, so an entry sealed after the real kickoff is never
+        scored.</span>
+      </label>
+      <div class="seal-row">
+        <label>Market
+          <select name="market" required>
+            <option value="1X2">1X2</option>
+            <option value="OU2.5">Over/under 2.5</option>
+            <option value="AH">Asian handicap</option>
+          </select>
+        </label>
+        <label>Selection
+          <select name="selection" required>
+            <option value="H">H: home (1X2, AH)</option>
+            <option value="D">D: draw (1X2)</option>
+            <option value="A">A: away (1X2, AH)</option>
+            <option value="over">over (O/U 2.5)</option>
+            <option value="under">under (O/U 2.5)</option>
+          </select>
+        </label>
+      </div>
+      <div class="seal-row">
+        <label>Decimal odds taken
+          <input type="text" name="odds" required inputmode="decimal" maxlength="8" placeholder="2.10">
+        </label>
+        <label>Handicap line (Asian handicap only)
+          <input type="text" name="line" inputmode="decimal" maxlength="6" placeholder="-0.5">
+        </label>
+      </div>
+      <label>Bookmaker (optional)
+        <input type="text" name="book" maxlength="40">
+      </label>
+      <label class="seal-check">
+        <input type="checkbox" name="reveal" value="kickoff">
+        Reveal at kickoff. Sealed and timestamped now, published when the match
+        starts. The match must be within seven days.
+      </label>
+      <button type="submit">Seal it</button>
+      <p class="signup-fine">A team name that cannot be matched, a market with no closing
+      price, or a kickoff in the past is refused, and nothing is recorded.
+      {{ seal_competitions|length }} competitions are measurable. 18+.</p>
+    </form>
+  </div>
+</section>
+
+{% endblock %}

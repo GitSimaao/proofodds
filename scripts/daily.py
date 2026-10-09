@@ -62,8 +62,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from proofodds import (anchor, config, data, fixtures, guest, guest_data,
-                       ledger, render)  # noqa: E402
+from proofodds import (alert, anchor, config, data, fixtures, guest, guest_data,
+                       ledger, nations, render)  # noqa: E402
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -150,11 +150,40 @@ def main() -> int:
                 log.exception("creator result refresh incomplete — continuing "
                               "with the last good cache")
 
+        # The international pool behind /nations-league/. Wrapped, and kept
+        # away from `failures`: that page is unsealed and unscored, so an
+        # international feed being down is a stale page, not a broken record.
+        # It must never make this job exit non-zero — the non-zero exit is
+        # reserved for the chain breaking or the seal failing, and diluting it
+        # with a cosmetic outage is how an alert stops being read.
+        if config.NATIONS_ENABLED:
+            try:
+                nations.refresh()
+                nations.refresh_fixtures()
+            except Exception:
+                log.exception("nations: refresh incomplete — the page keeps "
+                              "the last good cache")
+
         log.info("fetching fixtures")
         # The coverage report travels with the fixtures into the sealed entry,
         # so a division whose feed failed is a line in the file rather than a
         # line in a log nobody reads.
         upcoming, coverage = fixtures.upcoming_with_coverage(leagues)
+
+        # A feed that has stopped delivering is not a failed run — the exit
+        # code stays 0, for the reasons in the docstring — but it is something
+        # the operator has to hear about, and a coverage block inside a JSON
+        # file is not hearing about it.
+        try:
+            alert.check_coverage(coverage)
+        except Exception:
+            log.exception("coverage alert failed — continuing")
+
+        # Guest entries whose embargo has ended, and any proof not yet pushed.
+        try:
+            guest.publish(push=not args.no_git)
+        except Exception:
+            log.exception("guest release failed — continuing")
 
         now = dt.datetime.now(dt.timezone.utc)
 

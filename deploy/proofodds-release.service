@@ -1,0 +1,21 @@
+# Publishes guest entries whose reveal-at-kickoff embargo has ended, and
+# commits and pushes them. Run by proofodds-release.timer every five minutes.
+
+[Unit]
+Description=ProofOdds — release embargoed guest entries
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=proofodds
+Group=proofodds
+WorkingDirectory=/opt/proofodds
+EnvironmentFile=-/opt/proofodds/.env
+ExecStart=/opt/proofodds/.venv/bin/python -m proofodds.guest release
+TimeoutStartSec=120
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds

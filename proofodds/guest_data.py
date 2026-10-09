@@ -178,6 +178,58 @@ def load_matches(code: str) -> pd.DataFrame:
     return _load_extra(code)
 
 
+_kickoff_cache: dict[str, tuple[tuple, dict]] = {}
+
+
+def kickoff_utc(code: str, day, home: str, away: str):
+    """
+    The kickoff the results feed records for one match, in UTC, or None.
+
+    football-data.co.uk prints UK local time in a `Time` column. load_matches
+    drops it, because the model has no use for it; grading a guest entry does,
+    since it is the only kickoff the guest did not supply.
+    """
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+
+    code = code.upper()
+    if competition(code)["source"] == "season":
+        paths = [data.season_path(code, season) for season in config.SEASONS[-2:]]
+        names = ("HomeTeam", "AwayTeam")
+    else:
+        paths = [extra_path(code)]
+        names = ("Home", "Away")
+    paths = [p for p in paths if p.exists()]
+    key = tuple(p.stat().st_mtime_ns for p in paths)
+    cached = _kickoff_cache.get(code)
+    if not cached or cached[0] != key:
+        table: dict = {}
+        london = ZoneInfo("Europe/London")
+        alias = getattr(data, "SELF_ALIASES", {}).get(code, {})
+        for path in paths:
+            raw = data.read_csv(path) if competition(code)["source"] == "season" \
+                else pd.read_csv(path, encoding="utf-8-sig")
+            if "Time" not in raw.columns or names[0] not in raw.columns:
+                continue
+            dates = pd.to_datetime(raw["Date"], dayfirst=True, errors="coerce")
+            for date, time, h, a in zip(dates, raw["Time"], raw[names[0]],
+                                        raw[names[1]]):
+                if pd.isna(date) or not isinstance(time, str):
+                    continue
+                try:
+                    hh, mm = (int(part) for part in time.strip().split(":")[:2])
+                except ValueError:
+                    continue
+                local = dt.datetime(date.year, date.month, date.day, hh, mm,
+                                    tzinfo=london)
+                h, a = str(h).strip(), str(a).strip()
+                table[(date.date(), alias.get(h, h), alias.get(a, a))] = \
+                    local.astimezone(dt.timezone.utc)
+        cached = (key, table)
+        _kickoff_cache[code] = cached
+    return cached[1].get((day, home, away))
+
+
 def known_teams(code: str) -> frozenset[str]:
     code = code.upper()
     if competition(code)["source"] == "season":

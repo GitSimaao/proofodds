@@ -202,6 +202,41 @@ python -m proofodds.guest sync
 python -m proofodds.guest sync --leagues BRA,I2,E2
 ```
 
+### Sealing through the web form
+
+A creator seals their own entries at `/seal/`. There is no open sign-up: the
+operator issues one token per person, and the form posts to
+`proofodds/sealapi.py`, a small service on `127.0.0.1:8377` that nginx proxies
+at `/api/`.
+
+```bash
+python -m proofodds.guest invite --guest "Example Creator" --contact "@example"
+python -m proofodds.guest revoke --guest "Example Creator"
+python -m proofodds.guest release     # publish due entries, commit, push
+```
+
+`invite` prints the token once and stores only its SHA-256, in
+`data/guest_tokens.json`, which is not in the repository.
+
+**Reveal at kickoff.** An entry can be sealed now and published when the match
+starts. It is written, chained and timestamped at once, and kept in
+`data/embargo/<slug>/` until then; its OpenTimestamps proof is committed
+immediately and its hash is listed in `/guests/<slug>/entries/_sealed.json`.
+Entries are published in the order they were sealed, so the public chain never
+has a gap. The match must be within seven days.
+
+**Late entries.** The kickoff inside an entry is typed by the creator. At
+grading, the sealing time is compared with the kickoff time in the results
+feed. An entry sealed at or after it is shown as `late` and never scored. Where
+the feed has no time, an entry sealed on the match day is shown as
+`time_unverified` and not scored.
+
+**What you cannot reproduce from a clone.** Entries under embargo and the token
+file are private by design, so a clone holds every *published* guest entry and
+every proof, and not the entries still waiting for kickoff.
+
+### Sealing from the command line
+
 Seal a Brasileirão 1X2 entry or a selected-team Asian-handicap line:
 
 ```bash
@@ -416,6 +451,8 @@ proofodds/
   data.py          download + cache football-data.co.uk, club-name resolution
   guest_data.py    all creator-ledger competitions, both source schemas
   guest.py         seal, timestamp, settle and benchmark creator entries
+  sealapi.py       the HTTP service behind /seal/
+  alert.py         push notifications for failed runs and collapsed coverage
   crests.py        validated, display-only football-data.org crest URL cache
   dixon_coles.py   the model: tau, weighted likelihood with analytic gradient, fitting
   fixtures.py      upcoming fixtures (football-data.org, or a CSV fallback)

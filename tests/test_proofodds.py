@@ -2215,7 +2215,7 @@ def _write_guest_entry(tmp_path, monkeypatch, entry):
     directory = config.GUESTS_DIR / "test-guest"
     directory.mkdir(parents=True)
     entry = dict(entry, schema="guest-2", guest="test-guest",
-                 guest_name="Test Guest", sealed_at="2026-08-31T10:00:00Z",
+                 guest_name="Test Guest", sealed_at="2026-08-29T10:00:00Z",
                  book="", note="", prev_hash="0" * 64)
     entry["hash"] = compute_hash(entry)
     (directory / "test-guest--2026-08-31T100000Z.json").write_text(
@@ -2293,7 +2293,10 @@ def test_guest_clv_grades_against_the_average_close(tmp_path, monkeypatch):
     gdir.mkdir(parents=True)
     entry = {
         "schema": "guest-1", "guest": "test-guest", "guest_name": "Test Guest",
-        "sealed_at": "2020-01-01T10:00:00Z",
+        # Two days before the match: the grader refuses anything it cannot
+        # show was sealed before the recorded kickoff.
+        "sealed_at": (played["Date"] - dt.timedelta(days=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"),
         "kickoff": played["Date"].strftime("%Y-%m-%dT%H:%M:%SZ"),
         "league": "E0", "home": played["HomeTeam"], "away": played["AwayTeam"],
         "home_raw": played["HomeTeam"], "away_raw": played["AwayTeam"],
@@ -3962,3 +3965,285 @@ def test_the_method_page_describes_what_the_cards_actually_show():
     assert "derived from sealed inputs" in flat
     assert "#corners" in method and 'id="corners"' in method
     assert "corner_table" in method       # measured, not a typed list
+
+
+# --------------------------------------------------------------------------- #
+#  National teams — and the wall between them and the sealed record
+# --------------------------------------------------------------------------- #
+#
+# The Nations League page publishes probabilities that were never sealed and
+# are never graded. That is allowed; what is not allowed is for any of it to
+# leak into the record that WAS sealed and graded. Everything below exists to
+# make the leak fail the build rather than appear quietly on a scorecard.
+
+
+def test_nations_score_uses_regulation_not_extra_time():
+    """A tie settled in extra time enters the fit at its 90-minute score."""
+    from proofodds import nations
+    assert nations._score({"score": {"home": 3, "away": 2,
+                                     "regulation": {"home": 1, "away": 1},
+                                     "went_to_extra_time": True}}) == (1, 1)
+    # and falls back when the source did not separate them
+    assert nations._score({"score": {"home": 2, "away": 0,
+                                     "regulation": None}}) == (2, 0)
+    assert nations._score({"score": {"home": None, "away": None}}) is None
+
+
+def test_nations_rows_keep_only_finished_matches():
+    from proofodds import nations
+    rows = nations._rows([
+        {"id": "a", "status": "finished", "utc_date": "2026-09-01T18:45:00.000Z",
+         "home_team": {"name": "Portugal"}, "away_team": {"name": "Hungary"},
+         "score": {"home": 2, "away": 1}, "is_neutral": False},
+        {"id": "b", "status": "scheduled", "utc_date": "2026-10-01T18:45:00.000Z",
+         "home_team": {"name": "Spain"}, "away_team": {"name": "Italy"},
+         "score": {"home": None, "away": None}, "is_neutral": False},
+    ], "UEFA Nations League")
+    assert [r["match_id"] for r in rows] == ["a"]
+    assert rows[0]["FTHG"] == 2 and rows[0]["FTAG"] == 1
+
+
+def test_nations_xi_is_slower_than_the_club_decay():
+    """
+    The whole reason this model has its own setting.
+
+    A national side plays about ten matches a year to a club's thirty-eight.
+    If someone ever 'tidies up' by pointing NATIONS_XI at config.XI, a rating
+    starts resting on barely one campaign and no page says so. Fail here.
+    """
+    assert config.NATIONS_XI < config.XI
+
+
+@pytest.mark.needs_nations
+def test_nations_fit_excludes_neutral_venues():
+    """
+    The model has one home advantage and cannot switch it off, so a neutral
+    match must not be fitted as though the nominal home side had one.
+    """
+    from proofodds import nations
+    fitted = nations.load_results(drop_neutral=True)
+    assert not fitted["neutral"].astype(bool).any()
+    everything = nations.load_results(drop_neutral=False)
+    assert len(everything) >= len(fitted)
+
+
+@pytest.mark.needs_nations
+def test_nations_forecast_writes_nothing_to_the_ledger(tmp_path, monkeypatch):
+    """
+    The load-bearing test.
+
+    A forecast that quietly wrote a ledger entry would create a sealed record
+    nobody decided to seal, and the chain would carry a prediction that never
+    went through `ledger.build_entry`. Point the ledger and the timestamps at
+    empty directories, run the whole forecast, and require both to still be
+    empty afterwards.
+    """
+    from proofodds import nations
+    ledger_dir = tmp_path / "predictions"
+    stamps = tmp_path / "timestamps"
+    ledger_dir.mkdir()
+    stamps.mkdir()
+    monkeypatch.setattr(config, "PREDICTIONS_DIR", ledger_dir)
+    monkeypatch.setattr(config, "TIMESTAMPS_DIR", stamps)
+
+    view = nations.forecast()
+    assert view["available"] is True
+    assert list(ledger_dir.iterdir()) == []
+    assert list(stamps.iterdir()) == []
+
+
+@pytest.mark.needs_nations
+def test_nations_probabilities_are_a_distribution():
+    from proofodds import nations
+    view = nations.forecast()
+    for match in view["matches"]:
+        assert abs(match["p_H"] + match["p_D"] + match["p_A"] - 1.0) < 1e-9
+        assert abs(match["p_over"] + match["p_under"] - 1.0) < 1e-9
+        assert abs(match["p_btts_yes"] + match["p_btts_no"] - 1.0) < 1e-9
+        assert 0.0 < match["xg_home"] < 10.0
+        assert 0.0 < match["xg_away"] < 10.0
+
+
+@pytest.mark.needs_nations
+def test_nations_never_prices_a_team_it_has_no_record_for():
+    """
+    Pricing an unknown side at league average and printing it beside the rest
+    would look exactly like a forecast without being one. It must be named as
+    unpriceable instead.
+    """
+    from proofodds import nations
+    view = nations.forecast()
+    known = set(nations.load_results().attrs["teams"])
+    for match in view["matches"]:
+        assert match["home"] in known and match["away"] in known
+
+
+def test_nations_view_degrades_instead_of_breaking_the_build(monkeypatch):
+    """
+    An international feed going down must never stop the sealed record from
+    publishing. The view reports itself unavailable; it does not raise.
+    """
+    from proofodds import nations, render
+    monkeypatch.setattr(nations, "forecast",
+                        lambda **kw: (_ for _ in ()).throw(RuntimeError("feed down")))
+    view = render.nations_view()
+    assert view["available"] is False
+    assert view["matches"] == []
+
+
+def test_nations_page_can_be_turned_off(monkeypatch):
+    from proofodds import render
+    monkeypatch.setattr(config, "NATIONS_ENABLED", False)
+    assert render.nations_view()["available"] is False
+
+
+@pytest.mark.needs_data
+@pytest.mark.needs_nations
+def test_nations_page_states_it_is_unsealed_and_unscored(tmp_path):
+    """
+    The page is allowed to exist only because it says what it is. If the
+    wording is ever edited away, the page becomes a set of unsealed numbers on
+    a site whose whole argument is that its numbers are sealed.
+    """
+    from proofodds import render
+    render.build(tmp_path)
+    page = (tmp_path / "nations-league" / "index.html").read_text(encoding="utf-8")
+    assert "Not sealed, and not scored" in page
+    assert "/scorecard/" in page          # links out to the record it is not in
+    assert "/ledger/" in page
+    assert "carry no hash" in page
+    assert "no external" in page
+
+
+@pytest.mark.needs_data
+@pytest.mark.needs_nations
+def test_nations_matches_are_absent_from_the_scorecard():
+    """
+    The separation, checked from the scorecard's end.
+
+    Deliberately compared on FIXTURES rather than team names. A first version
+    of this test compared names and failed on Andorra, which is a national
+    side and also a club in the Segunda Division — a coincidence of spelling,
+    not a leak, and a test that cries wolf at one gets switched off before the
+    day it would have caught something real.
+    """
+    from proofodds import grade, nations
+    graded = grade.graded_frame()
+    if graded.empty:
+        pytest.skip("nothing graded yet")
+
+    # Structural: the graded frame only ever contains configured divisions.
+    assert set(graded["league"]) <= set(config.LEAGUES)
+
+    # And no international fixture has found its way in.
+    scored = set(zip(graded["home"], graded["away"]))
+    internationals = {(m["home"], m["away"]) for m in nations.forecast()["matches"]}
+    assert not (internationals & scored)
+
+
+# --------------------------------------------------------------------------- #
+#  Self-serve sealing: reveal at kickoff, tokens, late seals, alerts
+# --------------------------------------------------------------------------- #
+def _guest_sandbox(tmp_path, monkeypatch):
+    from proofodds import guest
+    monkeypatch.setattr(guest, "EMBARGO_DIR", tmp_path / "embargo")
+    monkeypatch.setattr(guest, "TOKENS_FILE", tmp_path / "tokens.json")
+    return guest
+
+
+def test_reveal_at_kickoff_keeps_the_entry_private_and_the_chain_whole(
+        tmp_path, monkeypatch):
+    """
+    A held entry is chained at once and published later, and publication
+    follows sealing order, so the public directory never shows a broken link.
+    """
+    from proofodds import config, verify
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    t0 = dt.datetime(2098, 1, 1, 12, tzinfo=dt.timezone.utc)
+
+    a = _seal_guest(tmp_path, monkeypatch, now=t0,
+                    kickoff="2098-01-03T15:00Z", reveal="kickoff")
+    assert a.parent.parent == guest.EMBARGO_DIR
+    held = json.loads(a.read_text(encoding="utf-8"))
+    assert held["reveal"] == "kickoff" and len(held["nonce"]) == 32
+
+    # Sealed publicly, but after a held entry: it waits behind it.
+    b = _seal_guest(tmp_path, monkeypatch, selection="D", odds=3.4,
+                    now=t0 + dt.timedelta(hours=1), kickoff="2098-01-02T15:00Z")
+    assert b.parent.parent == guest.EMBARGO_DIR
+    assert json.loads(b.read_text(encoding="utf-8"))["prev_hash"] == held["hash"]
+
+    slug = held["guest"]
+    assert [c["hash"] for c in guest.commitments(slug)][0] == held["hash"]
+    # b's own kickoff has passed, a's has not: nothing is released.
+    assert guest.release_due(dt.datetime(2098, 1, 2, 16, tzinfo=dt.timezone.utc)) == []
+    out = guest.release_due(dt.datetime(2098, 1, 3, 15, tzinfo=dt.timezone.utc))
+    assert [p.name for p in out] == [a.name, b.name]
+    ok, problems, stats = verify.verify(config.GUESTS_DIR / slug)
+    assert ok and stats["entries"] == 2, problems
+
+
+def test_reveal_at_kickoff_is_bounded(tmp_path, monkeypatch):
+    import pytest as _pytest
+    _guest_sandbox(tmp_path, monkeypatch)
+    with _pytest.raises(ValueError):
+        _seal_guest(tmp_path, monkeypatch, reveal="kickoff",
+                    now=dt.datetime(2098, 1, 1, tzinfo=dt.timezone.utc),
+                    kickoff="2098-01-20T15:00Z")
+
+
+def test_the_standalone_verifier_counts_guest_entries(tmp_path, monkeypatch):
+    """It used to skip them all and call the empty chain sound."""
+    from proofodds import verify
+    path = _seal_guest(tmp_path, monkeypatch)
+    ok, _, stats = verify.verify(path.parent)
+    assert ok and stats["entries"] == 1
+    entry = json.loads(path.read_text(encoding="utf-8"))
+    entry["odds_taken"] = 9.9
+    path.write_text(json.dumps(entry), encoding="utf-8")
+    assert verify.verify(path.parent)[0] is False
+
+
+def test_an_entry_sealed_after_the_recorded_kickoff_is_never_scored(monkeypatch):
+    """The kickoff a guest types is not evidence. The results feed's is."""
+    import pandas as pd
+    from proofodds import guest, guest_data
+    match = {"Date": pd.Timestamp("2026-10-03")}
+    entry = {"sealed_at": "2026-10-03T15:30:00Z", "home": "A", "away": "B"}
+    actual = dt.datetime(2026, 10, 3, 14, tzinfo=dt.timezone.utc)
+
+    monkeypatch.setattr(guest_data, "kickoff_utc", lambda *a: actual)
+    assert guest._sealed_late(match, entry, "E0") == "late"
+    assert guest._sealed_late(
+        match, dict(entry, sealed_at="2026-10-03T13:59:59Z"), "E0") is None
+
+    monkeypatch.setattr(guest_data, "kickoff_utc", lambda *a: None)
+    assert guest._sealed_late(match, entry, "E0") == "time_unverified"
+    assert guest._sealed_late(
+        match, dict(entry, sealed_at="2026-10-02T09:00:00Z"), "E0") is None
+
+
+def test_sealing_service_needs_a_live_token(tmp_path, monkeypatch):
+    from proofodds import sealapi
+    guest = _guest_sandbox(tmp_path, monkeypatch)
+    token = guest.invite("Theo Borges", now=dt.datetime(2098, 1, 1, tzinfo=dt.timezone.utc))
+    assert token not in guest.TOKENS_FILE.read_text(encoding="utf-8")
+    assert guest.guest_for_token(token)["slug"] == "theo-borges"
+    assert sealapi.handle_seal({"token": "po_wrong"})[0] == 403
+    status, payload = sealapi.handle_seal({"token": token, "league": "E0"})
+    assert status == 400 and "Missing" in payload["error"]
+    assert guest.revoke("theo-borges") == 1
+    assert sealapi.handle_seal({"token": token})[0] == 403
+
+
+def test_a_quiet_week_is_not_a_coverage_alert_and_a_dead_feed_is():
+    from proofodds import alert
+    quiet = {"requested": ["E0", "D1", "I1"], "missing": [
+        {"league": code, "reason": "no unplayed match in the window"}
+        for code in ("E0", "D1", "I1")]}
+    assert alert.coverage_problem(quiet) is None
+    dead = {"requested": ["E0", "E2", "E3"], "missing": [
+        {"league": code, "reason": "fixture feed is stale — fixtures.csv has "
+                                   "46 rows, newest 2026-10-05"}
+        for code in ("E2", "E3")]}
+    assert "2 of 3" in alert.coverage_problem(dead)

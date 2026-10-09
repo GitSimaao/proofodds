@@ -51,7 +51,10 @@ def is_entry(payload) -> bool:
     return (isinstance(payload, dict)
             and isinstance(payload.get("hash"), str)
             and isinstance(payload.get("prev_hash"), str)
-            and "predictions" in payload)
+            # A model entry seals a list of predictions; a guest entry seals
+            # one selection. Requiring "predictions" alone made this verifier
+            # skip every guest entry and report an empty chain as sound.
+            and ("predictions" in payload or "selection" in payload))
 
 
 def entry_hash(entry: dict) -> str:

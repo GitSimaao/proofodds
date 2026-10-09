@@ -27,13 +27,27 @@ HOW = ("results CSVs not downloaded — run:\n"
        "    python -c \"from proofodds import data; data.refresh('E0')\"")
 
 
+NATIONS_HOW = ("international results not cached — run:\n"
+               "    python -c \"from proofodds import nations; "
+               "nations.refresh(force=True)\"")
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "needs_data: needs the football-data.co.uk CSVs on disk")
+    config.addinivalue_line(
+        "markers", "needs_nations: needs the cached international results on disk")
 
 
 def pytest_collection_modifyitems(config, items):
-    from proofodds import config as cfg, data
+    from proofodds import config as cfg, data, nations
+
+    if not nations.RESULTS_CACHE.exists():
+        skip_nations = pytest.mark.skip(reason=NATIONS_HOW)
+        for item in items:
+            if "needs_nations" in item.keywords:
+                item.add_marker(skip_nations)
+
     if any(data.season_path("E0", s).exists() for s in cfg.SEASONS):
         return
     skip = pytest.mark.skip(reason=HOW)

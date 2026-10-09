@@ -49,7 +49,27 @@
     </div>
     {% endif %}
 
+    {% if guest.n_embargoed %}
+    <div class="prose">
+      <p><strong>{{ guest.n_embargoed }} more entr{{ 'y is' if guest.n_embargoed == 1 else 'ies are' }}
+      sealed and not yet public.</strong> Each was sealed for reveal at kickoff, or sealed
+      after one that was. Their
+      hashes are in <a href="/guests/{{ guest.slug }}/entries/_sealed.json"><code>_sealed.json</code></a>
+      now, so they cannot be withdrawn or swapped.</p>
+    </div>
+    {% endif %}
+    {% if guest.n_late %}
+    <div class="prose">
+      <p><strong>{{ guest.n_late }} entr{{ 'y was' if guest.n_late == 1 else 'ies were' }} not
+      scored</strong> because the results feed does not confirm a seal before kickoff.
+      They stay on the record below.</p>
+    </div>
+    {% endif %}
+
     <div class="prose" style="margin-top:26px">
+      <p>Badge for this record:
+      <a href="/guests/{{ guest.slug }}/badge.svg"><img src="/guests/{{ guest.slug }}/badge.svg" alt="ProofOdds sealed record: {{ guest.n_sealed }} entries" height="28"></a><br>
+      <code>&lt;a href="{{ site_url }}/guests/{{ guest.slug }}/"&gt;&lt;img src="{{ site_url }}/guests/{{ guest.slug }}/badge.svg" alt="ProofOdds sealed record" height="28"&gt;&lt;/a&gt;</code></p>
       <div class="callout">
         <strong>Read the sample size before reading anything else</strong>
         Closing line value converges far faster than profit, and it is still noise
@@ -82,7 +102,7 @@
             <td>{{ r.market }} {{ r.selection }}{% if r.line is not none %} {{ '%+g'|format(r.line) }}{% endif %}</td>
             <td>{{ '%.3f'|format(r.odds_taken) }}</td>
             <td>{% if r.close %}{% if r.close_line is not none %}{{ '%+g'|format(r.close_line) }} @ {% endif %}{{ '%.3f'|format(r.close) }}{% else %}—{% endif %}</td>
-            <td>{% if r.clv is not none %}<span class="{{ 'ahead' if r.clv > 0 else 'behind' }}">{{ '%+.2f'|format(r.clv * 100) }}%</span>{% elif r.status == 'line_changed' %}different closing line{% else %}{{ r.status }}{% endif %}</td>
+            <td>{% if r.clv is not none %}<span class="{{ 'ahead' if r.clv > 0 else 'behind' }}">{{ '%+.2f'|format(r.clv * 100) }}%</span>{% elif r.status == 'line_changed' %}different closing line{% elif r.status == 'late' %}late: sealed after kickoff, not scored{% elif r.status == 'time_unverified' %}time unverified: not scored{% else %}{{ r.status }}{% endif %}</td>
             <td>{% if r.result %}{{ r.result }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}

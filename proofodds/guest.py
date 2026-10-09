@@ -18,10 +18,20 @@ One chain per guest, in guests/<slug>/, files named <slug>--<UTC time>.json.
 The verifier needs no new rule: `python proofodds/verify.py guests/<slug>`
 checks a guest chain exactly as it checks ours.
 
-Sealing is deliberately manual for now — an entry arrives (a message, a
-screenshot), the operator runs one command, the chain and the anchor do the
-rest. A submission form is a product decision for after the first guest, not
-before.
+Two ways in. The operator can seal from the command line, as before. A guest
+with an invite token can seal for themselves through proofodds/sealapi.py,
+which is what /seal/ posts to.
+
+Reveal at kickoff. Someone who sells picks cannot have them published before
+the match, so an entry may be sealed now and shown later. The entry is
+written, hashed, chained and timestamped at the moment of sealing; only its
+publication waits. Until then it sits in data/embargo/<slug>/, outside the
+repository, while its OpenTimestamps proof is committed at once. Entries are
+released strictly in chain order, so the public chain never has a hole in it.
+
+Sealed-before-kickoff is checked twice: against the kickoff the guest states,
+when sealing, and against the kickoff time in the results feed, when grading.
+The second check is the one that counts, because the first trusts the guest.
 """
 
 from __future__ import annotations
@@ -30,7 +40,11 @@ import argparse
 import datetime as dt
 import json
 import logging
+import hashlib
+import os
 import re
+import secrets
+import shutil
 import sys
 from pathlib import Path
 
@@ -40,6 +54,14 @@ log = logging.getLogger(__name__)
 
 SCHEMA = "guest-2"
 GENESIS = "0" * 64
+
+# Entries sealed but not yet public. Under data/, which is not in the
+# repository: the whole point is that nobody can read them before kickoff.
+EMBARGO_DIR = config.DATA_DIR / "embargo"
+TOKENS_FILE = config.DATA_DIR / "guest_tokens.json"
+# A reveal-at-kickoff entry holds back everything sealed after it, so the
+# wait has to be bounded.
+EMBARGO_MAX_DAYS = 7
 
 MARKETS = {
     "1X2": {"H", "D", "A"},
@@ -69,10 +91,12 @@ def guest_dir(slug: str) -> Path:
 
 
 def guest_slugs() -> list[str]:
-    if not config.GUESTS_DIR.exists():
-        return []
-    return sorted(p.name for p in config.GUESTS_DIR.iterdir()
-                  if p.is_dir() and list(p.glob("*.json")))
+    """Everyone with a record, including one whose entries are all still held."""
+    public = set()
+    if config.GUESTS_DIR.exists():
+        public = {p.name for p in config.GUESTS_DIR.iterdir()
+                  if p.is_dir() and list(p.glob("*.json"))}
+    return sorted(public | set(embargoed_slugs()))
 
 
 def entry_files(slug: str) -> list[Path]:
@@ -84,14 +108,71 @@ def read_entries(slug: str) -> list[dict]:
 
 
 def used_competitions() -> list[str]:
-    """Only feeds that can affect an existing public creator record."""
-    return sorted({entry["league"] for slug in guest_slugs()
-                   for entry in read_entries(slug)})
+    """Only feeds that can affect an existing creator record, held or public."""
+    used = {entry["league"] for slug in guest_slugs()
+            for entry in read_entries(slug)}
+    for slug in embargoed_slugs():
+        for path in embargoed_files(slug):
+            used.add(json.loads(path.read_text(encoding="utf-8"))["league"])
+    return sorted(used)
 
 
-# --------------------------------------------------------------------------- #
-#  Sealing
-# --------------------------------------------------------------------------- #
+def embargo_dir(slug: str) -> Path:
+    return EMBARGO_DIR / slug
+
+
+def embargoed_files(slug: str) -> list[Path]:
+    return sorted(embargo_dir(slug).glob("*.json"))
+
+
+def embargoed_slugs() -> list[str]:
+    if not EMBARGO_DIR.exists():
+        return []
+    return sorted(p.name for p in EMBARGO_DIR.iterdir()
+                  if p.is_dir() and list(p.glob("*.json")))
+
+
+def commitments(slug: str) -> list[dict]:
+    """What may be said in public about entries that are not public yet."""
+    out = []
+    for path in embargoed_files(slug):
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        out.append({"sealed_at": entry["sealed_at"], "hash": entry["hash"],
+                    "file_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "proof": f"{path.name}.ots"})
+    return out
+
+
+def _utc(value: str) -> dt.datetime:
+    return dt.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=dt.timezone.utc)
+
+
+def release_due(now: dt.datetime | None = None) -> list[Path]:
+    """
+    Publish every embargoed entry whose time has come, oldest first.
+
+    Stops at the first entry that is not due. An entry links to the one sealed
+    before it, so publishing out of order would put a broken link in public
+    until the earlier one caught up.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    released = []
+    for slug in embargoed_slugs():
+        for path in embargoed_files(slug):
+            entry = json.loads(path.read_text(encoding="utf-8"))
+            due = (_utc(entry["kickoff"]) if entry.get("reveal") == "kickoff"
+                   else _utc(entry["sealed_at"]))
+            if due > now:
+                break
+            target = guest_dir(slug) / path.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(target))
+            released.append(target)
+            log.info("released %s", target.name)
+    return released
+
+
 def _parse_kickoff(value: str) -> dt.datetime:
     """Accept '2026-09-12T18:30Z' or '2026-09-12 18:30' — always UTC."""
     text = value.strip().replace(" ", "T").removesuffix("Z")
@@ -109,7 +190,8 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
          market: str, selection: str, odds: float, book: str = "",
          line: float | None = None, note: str = "",
          now: dt.datetime | None = None,
-         stamp: bool = True) -> Path:
+         stamp: bool = True, reveal: str = "",
+         slug: str | None = None) -> Path:
     """
     Seal one guest entry. Refuses anything that could later need "fixing":
     a started match, an unknown club, a placeholder price, an unknown market.
@@ -117,8 +199,10 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     of the whole site.
     """
     now = now or dt.datetime.now(dt.timezone.utc)
-    slug = slugify(guest_name)
+    slug = slug or slugify(guest_name)
     league = league.upper()
+    if reveal not in ("", "kickoff"):
+        raise ValueError(f"reveal must be empty or 'kickoff', got {reveal!r}")
 
     if league not in config.GUEST_COMPETITIONS:
         raise ValueError(f"unknown creator competition {league!r} — use "
@@ -153,6 +237,11 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     if ko <= now:
         raise ValueError(f"kickoff {ko.isoformat()} is not in the future — "
                          "sealed-before-kickoff is the one promise; refused")
+    if reveal == "kickoff" and ko - now > dt.timedelta(days=EMBARGO_MAX_DAYS):
+        raise ValueError(
+            f"reveal-at-kickoff is limited to matches within "
+            f"{EMBARGO_MAX_DAYS} days, because everything sealed afterwards "
+            "waits behind it; seal this one publicly or nearer the time")
 
     resolved = {}
     for side, raw in (("home", home), ("away", away)):
@@ -166,14 +255,19 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
             log.warning("%s %r resolved to %r by fuzzy match — check it",
                         side, raw, hit)
 
-    directory = guest_dir(slug)
-    directory.mkdir(parents=True, exist_ok=True)
-    existing = entry_files(slug)
+    # The chain runs through embargoed entries too: the newest entry is the
+    # newest of both, and anything sealed while one is waiting waits behind it.
+    waiting = embargoed_files(slug)
+    existing = sorted(entry_files(slug) + waiting, key=lambda p: p.name)
     prev = (json.loads(existing[-1].read_text(encoding="utf-8"))["hash"]
             if existing else GENESIS)
 
-    path = directory / f"{slug}--{now.strftime('%Y-%m-%dT%H%M%SZ')}.json"
-    if path.exists():
+    held = reveal == "kickoff" or bool(waiting)
+    directory = embargo_dir(slug) if held else guest_dir(slug)
+    directory.mkdir(parents=True, exist_ok=True)
+    name = f"{slug}--{now.strftime('%Y-%m-%dT%H%M%SZ')}.json"
+    path = directory / name
+    if path.exists() or (guest_dir(slug) / name).exists():
         raise FileExistsError(f"{path.name} already exists — an entry is "
                               "never modified; wait a second and re-run")
 
@@ -197,6 +291,12 @@ def seal(*, guest_name: str, league: str, home: str, away: str, kickoff: str,
     }
     if market == "AH":
         entry["line"] = line
+    if reveal == "kickoff":
+        # The hash is published before the entry is. A pick has a few hundred
+        # possible values and could be guessed from its hash; the nonce is
+        # what stops that.
+        entry["reveal"] = "kickoff"
+        entry["nonce"] = secrets.token_hex(16)
     # Import here, not at the top: ledger pulls in the model stack, and the
     # hash rule is the only thing needed from it.
     from .ledger import compute_hash
@@ -235,6 +335,32 @@ def _match_for_entry(frame, entry: dict):
         return None
     nearest = hit[hit["_date_gap"] == hit["_date_gap"].min()]
     return nearest.iloc[0] if len(nearest) == 1 else None
+
+
+def _sealed_late(match, entry: dict, league: str) -> str | None:
+    """
+    Was this entry really sealed before the match started?
+
+    The kickoff inside an entry is whatever the guest typed. Trusting it would
+    let someone seal at half-time by stating an evening kickoff for an
+    afternoon match. So the results feed's own kickoff time decides, and where
+    the feed carries no time the entry must have been sealed before the match
+    day began, in the latest timezone that could matter.
+
+    Returns None when the entry stands, "late" when it was sealed at or after
+    the recorded kickoff, and "time_unverified" when the feed has no time and
+    the seal falls on the match day or after.
+    """
+    sealed = _utc(entry["sealed_at"])
+    day = match["Date"].date()
+    actual = guest_data.kickoff_utc(league, day, entry["home"], entry["away"])
+    if actual is not None:
+        return "late" if sealed >= actual else None
+    # No time in the feed. Midnight UTC-12 is the earliest instant at which it
+    # is this date anywhere, so a seal before it precedes any kickoff that day.
+    earliest = dt.datetime.combine(day, dt.time(), dt.timezone.utc) \
+        - dt.timedelta(hours=14)
+    return None if sealed < earliest else "time_unverified"
 
 
 def _asian_legs(line: float) -> list[float]:
@@ -346,7 +472,14 @@ def grade_guest(slug: str) -> dict:
         }
         if frame is not None:
             match = _match_for_entry(frame, entry)
-            if match is not None:
+            late = (_sealed_late(match, entry, league)
+                    if match is not None else None)
+            if late:
+                # Shown, never scored. The guest stated a kickoff later than
+                # the one the results feed records, or the feed gives no time
+                # and the entry was sealed on the day.
+                row["status"] = late
+            elif match is not None:
                 result, pnl = _settle(match, entry)
                 row["result"], row["pnl"] = result, pnl
                 if result in ("won", "lost"):
@@ -371,7 +504,13 @@ def grade_guest(slug: str) -> dict:
 
     graded = [r for r in rows if r["status"] == "graded"]
     settled = [r for r in rows if r["result"] is not None]
-    name = entries[-1]["guest_name"] if entries else slug
+    if entries:
+        name = entries[-1]["guest_name"]
+    else:
+        # Every entry is still held. The name is not a secret; the picks are.
+        held = embargoed_files(slug)
+        name = (json.loads(held[0].read_text(encoding="utf-8"))["guest_name"]
+                if held else slug)
     return {
         "slug": slug,
         "name": name,
@@ -380,6 +519,8 @@ def grade_guest(slug: str) -> dict:
         "n_pending": sum(r["status"] == "pending" for r in rows),
         "n_no_close": sum(r["status"] == "no_close" for r in rows),
         "n_line_changed": sum(r["status"] == "line_changed" for r in rows),
+        "n_late": sum(r["status"] in ("late", "time_unverified") for r in rows),
+        "n_embargoed": len(embargoed_files(slug)),
         "n_settled": len(settled),
         "beat_close": sum(r["beat_close"] for r in graded),
         "beat_close_pct": (sum(r["beat_close"] for r in graded) / len(graded)
@@ -394,6 +535,107 @@ def grade_guest(slug: str) -> dict:
 
 def all_guests() -> list[dict]:
     return [grade_guest(slug) for slug in guest_slugs()]
+
+
+# --------------------------------------------------------------------------- #
+#  Invite tokens — who may seal through the web form
+# --------------------------------------------------------------------------- #
+def _tokens() -> dict:
+    if not TOKENS_FILE.exists():
+        return {}
+    return json.loads(TOKENS_FILE.read_text(encoding="utf-8"))
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+
+
+def invite(guest_name: str, contact: str = "",
+           now: dt.datetime | None = None) -> str:
+    """
+    Issue a sealing token for one guest and return it. It is shown once.
+
+    Only its SHA-256 is stored, so the file leaking does not let anyone seal
+    under somebody else's name. `contact` stays in data/, never in the
+    repository or on the site.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    slug = slugify(guest_name)
+    table = _tokens()
+    if any(row["slug"] == slug and not row.get("revoked")
+           for row in table.values()):
+        raise ValueError(f"{slug} already has a live token — revoke it first")
+    token = "po_" + secrets.token_urlsafe(24)
+    table[_token_key(token)] = {
+        "slug": slug, "name": guest_name, "contact": contact,
+        "created": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "revoked": False}
+    _write_tokens(table)
+    return token
+
+
+def revoke(slug: str) -> int:
+    table = _tokens()
+    hits = [row for row in table.values()
+            if row["slug"] == slug and not row.get("revoked")]
+    for row in hits:
+        row["revoked"] = True
+    _write_tokens(table)
+    return len(hits)
+
+
+def _write_tokens(table: dict) -> None:
+    TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = TOKENS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(table, indent=2), encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    tmp.replace(TOKENS_FILE)
+
+
+def guest_for_token(token: str) -> dict | None:
+    row = _tokens().get(_token_key(token or ""))
+    return row if row and not row.get("revoked") else None
+
+
+# --------------------------------------------------------------------------- #
+#  Publishing — released entries and proofs into the public repository
+# --------------------------------------------------------------------------- #
+def publish(now: dt.datetime | None = None, push: bool = True) -> list[Path]:
+    """
+    Release what is due, then commit every guest entry and proof not yet in
+    the repository. Safe to run as often as wanted; it does nothing when
+    there is nothing to do.
+    """
+    import subprocess
+
+    released = release_due(now)
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=str(config.ROOT),
+                              capture_output=True, text=True)
+
+    paths = []
+    if config.GUESTS_DIR.exists():
+        paths.append("guests")
+    slugs = set(guest_slugs()) | set(embargoed_slugs())
+    proofs = [p for p in config.TIMESTAMPS_DIR.glob("*--*.json.ots")
+              if p.name.split("--")[0] in slugs]
+    paths += [str(p.relative_to(config.ROOT)) for p in proofs]
+    if not paths or not (config.ROOT / ".git").exists():
+        return released
+    git("add", "--", *paths)
+    staged = git("diff", "--cached", "--name-only", "--", *paths).stdout.split()
+    if not staged:
+        return released
+    done = git("commit", "-m", f"guests: {len(staged)} file(s)", "--", *paths)
+    if done.returncode != 0:
+        log.warning("guest commit failed: %s", done.stderr or done.stdout)
+        return released
+    if push:
+        pushed = git("push")
+        if pushed.returncode != 0:
+            log.warning("guest push failed (committed locally): %s",
+                        pushed.stderr.strip())
+    return released
 
 
 # --------------------------------------------------------------------------- #
@@ -422,6 +664,17 @@ def main(argv=None) -> int:
     s.add_argument("--book", default="", help="where the price was taken")
     s.add_argument("--note", default="")
 
+    s.add_argument("--reveal", default="", choices=["", "kickoff"],
+                   help="'kickoff' keeps the entry private until the match starts")
+
+    inv = sub.add_parser("invite", help="issue a web-form sealing token")
+    inv.add_argument("--guest", required=True)
+    inv.add_argument("--contact", default="",
+                     help="how to reach them; kept in data/, never published")
+    rev = sub.add_parser("revoke", help="revoke a guest's sealing token")
+    rev.add_argument("--guest", required=True)
+    sub.add_parser("release", help="publish due entries, commit and push")
+
     sub.add_parser("show", help="grade and print every guest record")
     sync = sub.add_parser("sync", help="download creator-ledger result feeds")
     sync.add_argument("--leagues", default="",
@@ -447,11 +700,29 @@ def main(argv=None) -> int:
         print(f"synced {len(codes)} creator competition feed(s)")
         return 0
 
+    if args.cmd == "invite":
+        token = invite(args.guest, args.contact)
+        print(f"guest:  {args.guest}  ({slugify(args.guest)})")
+        print(f"token:  {token}")
+        print(f"form:   {config.SITE_URL.rstrip('/')}/seal/")
+        print("Send the token privately. It is not stored and cannot be "
+              "shown again; revoke and re-invite if it is lost.")
+        return 0
+
+    if args.cmd == "revoke":
+        print(f"revoked {revoke(slugify(args.guest))} token(s)")
+        return 0
+
+    if args.cmd == "release":
+        released = publish()
+        print(f"released {len(released)} entr{'y' if len(released) == 1 else 'ies'}")
+        return 0
+
     if args.cmd == "seal":
         path = seal(guest_name=args.guest, league=args.league, home=args.home,
                     away=args.away, kickoff=args.kickoff, market=args.market,
                     selection=args.selection, odds=args.odds, line=args.line,
-                    book=args.book, note=args.note)
+                    book=args.book, note=args.note, reveal=args.reveal)
         print(f"sealed: {path}")
         print(f"verify: python proofodds/verify.py {path.parent}")
         return 0

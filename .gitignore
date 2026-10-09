@@ -53,3 +53,4 @@ failures.log
 
 # SSH deploy key - never commit.
 .ssh/
+alerts.log

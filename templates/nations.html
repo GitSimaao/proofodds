@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% from "_components.html" import club_mark %}
+{% block title %}Nations League forecast — {{ site_name }}{% endblock %}
+{% block description %}Dixon-Coles probabilities for upcoming UEFA Nations League matches, fitted on international results. Published openly and labelled for what it is: not sealed, not scored, and excluded from the ProofOdds record.{% endblock %}
+{% block og_title %}Nations League forecast — not sealed, not scored{% endblock %}
+{% block og_description %}The same model, pointed at national teams. Shown in full, and kept out of the record it has not earned.{% endblock %}
+
+{% block content %}
+
+<div class="shell hero">
+  <div class="hero-copy">
+    <p class="eyebrow">UEFA Nations League · Dixon-Coles · {{ nations.matches|length }} match{{ 'es' if nations.matches|length != 1 }} priced</p>
+    <h1>The model, pointed at national teams.</h1>
+    <p class="lead">Every other page on this site publishes a number that was
+    committed before kickoff and measured afterwards. This one does not. It is the
+    same fitted model applied to international football, shown in full because it is
+    more interesting shown than hidden — and kept out of the record, because it has
+    not done the two things the record is made of.</p>
+  </div>
+</div>
+
+<section class="band">
+  <div class="shell">
+    <div class="callout">
+      <strong>Not sealed, and not scored.</strong>
+      These probabilities are <em>not</em> written to the
+      <a href="/ledger/">prediction ledger</a>, carry no hash, and have no external
+      timestamp. Nothing here is graded against a closing line, and not one figure on
+      this page enters the <a href="/scorecard/">scorecard</a> or any pooled log loss
+      anywhere on this site. A page rebuild recomputes them from the current fit, so
+      the number you are reading is today's, and there is no record of what it said
+      last week. Treat them as the model thinking out loud. The sealed record is
+      <a href="/">the divisions</a>, and it is a separate thing.
+    </div>
+
+    {% if not nations.available %}
+    <p class="empty">No forecast is available right now — {{ nations.reason }}.</p>
+    {% elif not nations.matches %}
+    <p class="empty">No Nations League match falls in the next
+    {{ nations.lookahead_days }} days. International windows are short and far apart;
+    this page fills again when the next one opens.</p>
+    {% else %}
+
+    <div class="strip">
+      <div>
+        <div class="k">Fitted on</div>
+        <div class="v">{{ nations.n_train }}</div>
+        <div class="n">international matches, {{ nations.n_teams }} teams</div>
+      </div>
+      <div>
+        <div class="k">Effective sample</div>
+        <div class="v muted">{{ nations.effective_n }}</div>
+        <div class="n">after {{ nations.half_life }}-day half-life decay</div>
+      </div>
+      <div>
+        <div class="k">Home advantage</div>
+        <div class="v muted">&times;{{ '%.3f'|format(nations.home_advantage) }}</div>
+        <div class="n">on expected goals, neutral games excluded</div>
+      </div>
+      <div>
+        <div class="k">Trained through</div>
+        <div class="v muted">{{ nations.trained_through }}</div>
+        <div class="n">last result in the pool</div>
+      </div>
+    </div>
+
+    {% if nations.unpriceable %}
+    <p class="table-note">Not priced, because the side has no international result in
+    the fitted pool: {{ nations.unpriceable|join('; ') }}. Pricing it at average and
+    printing that would look like a forecast without being one.</p>
+    {% endif %}
+
+    <div class="fixtures">
+    {% for day in nations.days %}
+      <section class="day">
+        <div class="day-head"><h3>{{ day.label }}</h3>
+        <span class="date-match-count">{{ day.matches|length }} match{{ 'es' if day.matches|length != 1 }}</span></div>
+        <div class="cards">
+        {% for m in day.matches %}
+        <article class="card match-card">
+          <div class="card-top">
+            <div class="card-when"><span data-utc="{{ m.kickoff }}">{{ m.kickoff_label }}</span></div>
+            {% if m.matchday %}<span class="chip">MD{{ m.matchday }}</span>{% endif %}
+          </div>
+          <div class="teams">
+            <div class="team home">
+              {{ club_mark(m.home_mark, m.home) }}
+              <span>{{ m.home }}</span>
+            </div>
+            <div class="vs">vs</div>
+            <div class="team away">
+              {{ club_mark(m.away_mark, m.away) }}
+              <span>{{ m.away }}</span>
+            </div>
+          </div>
+          {{ m.bar|safe }}
+          <div class="prob-caption"><span>Outcome</span><span>Probability · fair odds</span></div>
+          <div class="probs">
+            <div class="prob h{% if m.favourite == 'H' %} is-favourite{% endif %}">
+              <span class="lbl">Home</span>
+              <span class="pv">{{ m.pct_H }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_H) }}</span>
+            </div>
+            <div class="prob d{% if m.favourite == 'D' %} is-favourite{% endif %}">
+              <span class="lbl">Draw</span>
+              <span class="pv">{{ m.pct_D }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_D) }}</span>
+            </div>
+            <div class="prob a{% if m.favourite == 'A' %} is-favourite{% endif %}">
+              <span class="lbl">Away</span>
+              <span class="pv">{{ m.pct_A }}%</span>
+              <span class="odds">{{ '%.2f'|format(1 / m.p_A) }}</span>
+            </div>
+          </div>
+          <div class="totals">
+            <span class="tl">Over {{ totals_line }}</span>
+            <span class="tv">{{ m.pct_over }}%</span>
+            <span class="to">{{ '%.2f'|format(1 / m.p_over) }}</span>
+            <span class="td">Under {{ totals_line }}</span>
+            <span class="tv">{{ m.pct_under }}%</span>
+            <span class="to">{{ '%.2f'|format(1 / m.p_under) }}</span>
+          </div>
+          <div class="market-strip"><span>BTTS</span><strong>Yes {{ m.pct_btts_yes }}%</strong><span>No {{ m.pct_btts_no }}%</span></div>
+          {% if m.neutral %}
+          <p class="cold">Played on neutral ground. The model carries one home
+          advantage and cannot switch it off, so this card gives the nominal home
+          side an edge it will not have.</p>
+          {% endif %}
+          {% if m.thin %}
+          <p class="cold">{{ m.thin|join(' and ') }}
+          {{ 'have' if m.thin|length > 1 else 'has' }} thin recent international
+          form in the pool — priced close to average, so this is the weakest card here.</p>
+          {% endif %}
+          <div class="card-foot">
+            <span>xG {{ '%.2f'|format(m.xg_home) }} – {{ '%.2f'|format(m.xg_away) }}</span>
+            <span class="card-detail">not sealed</span>
+          </div>
+        </article>
+        {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% if nations.available %}
+<section class="band">
+  <div class="shell">
+    <h2 class="section-heading">How it was fitted</h2>
+    <p class="section-note">Three decisions that are not the ones the club divisions use.
+    Each is a place the model could be wrong, so each is stated rather than buried.</p>
+
+    <div class="pair">
+      <div class="box">
+        <h4>The pool is wider than the competition</h4>
+        <p>Fitting on the Nations League alone would look like a simplification and be
+        a mistake. Its groups are stratified by ability into Leagues A to D, so a team
+        meets only opponents of its own level and a weak side that beats weak peers
+        reads as strong. Qualifying campaigns and friendlies mix the levels, which is
+        what makes the ratings comparable at all.</p>
+      </div>
+      <div class="box">
+        <h4>Neutral venues are dropped</h4>
+        <p>The model carries a single home advantage and has no way to say a match had
+        none. Fitting a tournament final on neutral ground as though the nominal home
+        side had one would bias that parameter for every other match, so those
+        {{ nations.n_neutral_dropped }} matches are excluded instead of mismodelled.</p>
+      </div>
+      <div class="box">
+        <h4>The decay is slower than the club one</h4>
+        <p>The divisions decay a result with a {{ half_life }}-day half-life, tuned for
+        clubs playing 38 matches a season. A national side plays about ten a year, so
+        that setting would leave a rating standing on almost nothing. This model uses
+        {{ nations.half_life }} days, chosen by holdout in
+        <code>scripts/tune_nations.py</code>.</p>
+      </div>
+    </div>
+
+    <h3 class="panel-heading">What it was fitted on</h3>
+    <table class="market-table">
+      <thead><tr><th>Competition</th><th class="num">Matches</th></tr></thead>
+      <tbody>
+        {% for name, count in nations.pool.items() %}
+        <tr><td>{{ name }}</td><td class="num mono">{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th>Total after dropping neutral venues</th>
+      <th class="num mono">{{ nations.n_train }}</th></tr></tfoot>
+    </table>
+    <p class="table-note">Only the 90-minute score is used. A knockout tie settled in
+    extra time or on penalties enters the fit at its regulation score, because a
+    Poisson model taught that internationals score more than they do would inflate
+    exactly the matches between the strongest sides.
+    Parameters: &xi; = {{ nations.xi }} per day, prior SD {{ nations.prior_sd }},
+    &rho; = {{ '%.4f'|format(nations.rho) }}, league mean
+    {{ '%.3f'|format(nations.league_mean_goals) }} goals per team per game.</p>
+
+    <h3 class="panel-heading">Does it know anything?</h3>
+    <p class="section-note">One number, from a holdout: fit on every international
+    match strictly before a Nations League matchday, predict that matchday, repeat.
+    The fit never sees what it is scored on.</p>
+
+    <div class="strip">
+      <div>
+        <div class="k">Holdout log loss</div>
+        <div class="v">{{ '%.4f'|format(nations_holdout.log_loss) }}</div>
+        <div class="n">over {{ nations_holdout.n }} Nations League matches</div>
+      </div>
+      <div>
+        <div class="k">No knowledge</div>
+        <div class="v muted">{{ '%.4f'|format(nations_holdout.uniform) }}</div>
+        <div class="n">predicting 1/3-1/3-1/3</div>
+      </div>
+      <div>
+        <div class="k">Edge over guessing</div>
+        <div class="v ahead">{{ '%+.4f'|format(nations_holdout.edge) }}</div>
+        <div class="n">per match</div>
+      </div>
+      <div>
+        <div class="k">With the club decay</div>
+        <div class="v muted">{{ '%.4f'|format(nations_holdout.club_xi_log_loss) }}</div>
+        <div class="n">same matches, {{ half_life }}-day half-life</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>What that number is not.</strong>
+      It is <em>not</em> comparable with anything on the <a href="/scorecard/">scorecard</a>
+      or with the <a href="/method/#backtest">backtest</a>. Those grade club matches
+      against a closing line; this grades international matches against nothing but the
+      coin flip. The only thing the two share is the 1.0986 baseline, and a model can
+      clear that comfortably while still losing to the market by a distance — which is
+      exactly what the club model does. Beating <em>guessing</em> is a low bar, and it
+      is the only bar this page has cleared.
+      <br><br>
+      The honest comparison is the closing line, and it is missing here because grading
+      these matches against the closing price is real work that has not been done. Until
+      it is, the right number of claims to make about this model's accuracy against a
+      market is zero.
+    </div>
+
+    <p class="table-note">The decay above was chosen from a flat region, not a sharp
+    optimum: every value between {{ nations_holdout.flat_from }} and
+    {{ nations_holdout.flat_to }} per day scored within 0.0005 nats of the best, well
+    inside the sampling error. What the holdout does separate clearly is the club
+    setting from all of them. Reproduce it with
+    <code>{{ nations_holdout.script }}</code>.</p>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

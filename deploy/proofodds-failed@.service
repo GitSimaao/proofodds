@@ -32,6 +32,12 @@ ExecStart=/bin/sh -c '\
     journalctl -u "%i" -n 40 --no-pager -o cat; \
   } >> /opt/proofodds/failures.log 2>&1'
 
+# The half that reaches a person: one push notification, if
+# PROOFODDS_ALERT_URL is set in .env. The "-" keeps a delivery failure from
+# failing this unit; the line in failures.log above is already written.
+EnvironmentFile=-/opt/proofodds/.env
+ExecStart=-/opt/proofodds/.venv/bin/python -m proofodds.alert failed %i
+
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

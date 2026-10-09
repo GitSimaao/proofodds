@@ -453,6 +453,61 @@ UNIFORM_LOG_LOSS_BINARY = 0.6931471805599453  # -log(1/2), two-way
 # where the coin came up our way.
 MIN_LEAGUE_ROWS = 20
 
+# --- national teams --------------------------------------------------------
+# The Nations League page. Unsealed and unscored by construction: nothing here
+# is written to the ledger, nothing here reaches grade.py, and no figure from
+# it enters the scorecard or any pooled log loss. See proofodds/nations.py for
+# why the three settings below are not the club ones.
+NATIONS_ENABLED = os.environ.get("PROOFODDS_NATIONS", "1") not in ("0", "false", "")
+
+# Time decay for the international fit. A national side plays about ten
+# matches a year against a club's thirty-eight, so the club XI (347-day
+# half-life) discards nearly everything a nation has ever done. Chosen by the
+# holdout in scripts/tune_nations.py, not by preference; re-run it to change
+# this number and say what it produced.
+NATIONS_XI = float(os.environ.get("PROOFODDS_NATIONS_XI", "0.0002"))
+NATIONS_PRIOR_SD = float(os.environ.get("PROOFODDS_NATIONS_PRIOR_SD", "0.6"))
+
+# What that holdout actually produced, kept here so the page prints a measured
+# number rather than a remembered one.
+#
+# Read the `flat_from`/`flat_to` pair before quoting the headline: every decay
+# between them scored within 0.0005 nats of the best, which is far inside the
+# interval, so this is not a decay that was precisely identified. It was chosen
+# as the least extreme value in a flat region — the literal argmin sat at the
+# edge of the grid with a 24-year half-life, and publishing that as a
+# considered choice would be fitting the holdout rather than reporting it.
+#
+# The finding that IS solid is the comparison the page makes: the club decay
+# (XI, a 347-day half-life) scored 0.9812 on the same held-out matches, and
+# every candidate in the flat region beat it. Those are paired comparisons over
+# identical matches, so their difference is far better determined than the
+# standard error on either figure alone.
+#
+# NOT comparable with BACKTEST above, or with anything on the scorecard. Those
+# are club matches graded against a closing line; this is international matches
+# against no benchmark at all. Only the no-knowledge baseline is shared.
+NATIONS_HOLDOUT = {
+    "n": 493,
+    "log_loss": 0.9680,
+    "uniform": 1.0986,
+    "edge": round(1.0986 - 0.9680, 4),
+    "club_xi_log_loss": 0.9812,
+    "flat_from": 0.00003,
+    "flat_to": 0.0003,
+    "competition": "UEFA Nations League",
+    "script": "scripts/tune_nations.py",
+}
+
+# Nations League windows are short and far apart, so the page looks further
+# ahead than the divisions do — the whole window at once rather than a slice.
+NATIONS_LOOKAHEAD_DAYS = int(os.environ.get("PROOFODDS_NATIONS_LOOKAHEAD", "16"))
+
+# Time-weighted matches below which a national side is flagged as thin on the
+# page. Not the club COLD_START_MATCHES: these are decayed appearances, and a
+# nation accumulates them an order of magnitude more slowly.
+NATIONS_COLD_START = float(os.environ.get("PROOFODDS_NATIONS_COLD_START", "8"))
+
 # The goals line we publish. A half-goal, so no match can push.
 TOTALS_LINE = 2.5
 GOAL_TOTAL_LINES = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5)
