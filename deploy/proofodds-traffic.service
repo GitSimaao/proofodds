@@ -1,0 +1,10 @@
+# Daily visitor counts, kept after the access log rotates. Runs as root because
+# it reads /var/log/nginx; it writes counts only, then hands the file back.
+
+[Unit]
+Description=ProofOdds — daily traffic counts
+
+[Service]
+Type=oneshot
+ExecStart=/opt/proofodds/.venv/bin/python /opt/proofodds/scripts/traffic_snapshot.py
+ExecStartPost=/bin/chown proofodds:proofodds /opt/proofodds/data/traffic_daily.csv

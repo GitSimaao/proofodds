@@ -1,0 +1,9 @@
+[Unit]
+Description=ProofOdds — daily traffic counts
+
+[Timer]
+OnCalendar=*-*-* 23:50:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

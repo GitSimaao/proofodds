@@ -14,6 +14,7 @@ the working example.
 | Late-seal check | `guest._sealed_late`, `guest_data.kickoff_utc` | The kickoff in an entry is typed by the guest. Before this, an entry sealed at half-time with a false kickoff would have been graded as genuine. |
 | Record badge | `render.guest_badge`, `/guests/<slug>/badge.svg` | The thing a guest puts on their own channel, which is also how other people find ProofOdds. Shows no CLV figure below 30 graded entries. |
 | Alerts | `proofodds/alert.py`, `PROOFODDS_ALERT_URL` | A failed run or a dead fixture feed now sends a push notification. Before, both wrote to files on the server. |
+| Daily traffic counts | `scripts/traffic_snapshot.py`, `deploy/proofodds-traffic.timer`, `data/traffic_daily.csv` | nginx keeps 14 days of logs, so the launch fortnight was lost before anyone measured it. Counts only, no addresses. |
 | Privacy terms for records | `templates/privacy.html` | A permanent public record needs to say so before the first entry. |
 
 ## Fixed
