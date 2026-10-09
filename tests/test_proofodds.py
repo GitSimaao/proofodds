@@ -4391,3 +4391,19 @@ def test_a_held_pick_is_readable_by_its_owner_only(tmp_path, monkeypatch):
     shutil.rmtree(guest.EMBARGO_DIR)
     restored = guest.restore_held()[0]
     assert mode(restored) == 0o600 and mode(guest.EMBARGO_DIR) == 0o700
+
+
+def test_the_postboot_report_names_what_did_not_come_back():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "postboot_check", config.ROOT / "scripts" / "postboot_check.py")
+    postboot = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(postboot)
+
+    ok, title, body = postboot.summarise([("site", True, "HTTP 200"),
+                                          ("CTFd answers", True, "HTTP 200")])
+    assert ok and "all 2 checks passed" in title
+    ok, title, body = postboot.summarise([("site", True, "HTTP 200"),
+                                          ("fail2ban.service active", False, "inactive")])
+    assert not ok and "1 check(s) FAILED" in title
+    assert "FAIL  fail2ban.service active (inactive)" in body

@@ -1,0 +1,31 @@
+# Runs once after every boot and reports whether everything came back: the
+# site, the sealing service, the timers, fail2ban, CTFd and the ledger chain.
+# Results go to alerts.log and through proofodds/alert.py.
+#
+#   sudo cp deploy/proofodds-postboot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable proofodds-postboot
+
+[Unit]
+Description=ProofOdds — check that everything came back after a reboot
+After=network-online.target nginx.service docker.service proofodds-seal.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=proofodds
+Group=proofodds
+WorkingDirectory=/opt/proofodds
+EnvironmentFile=-/opt/proofodds/.env
+# Containers and the first timer runs need a moment.
+ExecStartPre=/bin/sleep 120
+ExecStart=/opt/proofodds/.venv/bin/python scripts/postboot_check.py
+TimeoutStartSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/proofodds
+
+[Install]
+WantedBy=multi-user.target
